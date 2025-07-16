@@ -1,17 +1,26 @@
+# flowproc/gui.py
+import os
+import sys
+import logging
+from pathlib import Path
+
+# Handle standalone execution
+if __name__ == "__main__" and __package__ is None:
+    # Add the parent directory to sys.path and set __package__ to simulate package context
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, parent_dir)
+    __package__ = "flowproc"
+
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
     QCheckBox, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QGroupBox, QFormLayout
 )
 from PySide6.QtCore import Qt, QMimeData
-from PySide6.QtGui import QPalette, QColor, QFont, QDragEnterEvent, QDropEvent
-from pathlib import Path
+from PySide6.QtGui import QPalette, QColor, QFont, QDragEnterEvent, QDropEvent, QScreen
 from .config import USER_GROUPS, USER_REPLICATES, AUTO_PARSE_GROUPS, USER_GROUP_LABELS, parse_range_or_list
 from .writer import process_csv, process_directory
-from .parsing import load_and_parse_df  # Added import
+from .parsing import load_and_parse_df
 from .logging_config import setup_logging
-import sys
-import logging
-
 
 class DropLineEdit(QLineEdit):
     def __init__(self, parent=None):
@@ -43,8 +52,7 @@ class DropLineEdit(QLineEdit):
             if valid_paths:
                 existing_paths = self.text().split("; ") if self.text() else []
                 all_paths = existing_paths + valid_paths
-                # Remove duplicates to avoid processing the same file twice
-                all_paths = list(dict.fromkeys(all_paths))  # Preserves order
+                all_paths = list(dict.fromkeys(all_paths))  # Remove duplicates
                 self.setText("; ".join(all_paths))
                 logging.debug(f"Accepted paths: {valid_paths}")
                 event.acceptProposedAction()
@@ -56,22 +64,11 @@ class DropLineEdit(QLineEdit):
             logging.debug("No mime data with URLs")
             event.ignore()
 
-
 def create_gui():
     """Create the main GUI window."""
-    setup_logging(filemode='w', max_size_mb=5, keep_backups=2)  # Smaller size for GUI, fewer backups
+    # Setup logging
+    setup_logging(filemode='w', max_size_mb=5, keep_backups=2)
     logging.debug("GUI creation started - logging configured")
-
-    from PySide6.QtWidgets import (
-        QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
-        QCheckBox, QVBoxLayout, QHBoxLayout, QFileDialog, QMessageBox, QGroupBox, QFormLayout
-    )
-    from PySide6.QtCore import Qt, QMimeData
-    from PySide6.QtGui import QPalette, QColor, QFont, QDragEnterEvent, QDropEvent, QScreen
-    from pathlib import Path
-    from .config import USER_GROUPS, USER_REPLICATES, AUTO_PARSE_GROUPS, USER_GROUP_LABELS, parse_range_or_list
-    from .writer import process_csv, process_directory
-    from .parsing import load_and_parse_df
 
     app = QApplication([])
     app.setStyle('Fusion')

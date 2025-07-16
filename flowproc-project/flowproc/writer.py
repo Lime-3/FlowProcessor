@@ -58,6 +58,25 @@ def _clean_column_name(col) -> str:
     return str(col).strip()
 
 
+def _autofit_columns(worksheet):
+    """Autofit column widths based on the longest content in each column, skipping merged cells."""
+    for col_idx, column_cells in enumerate(worksheet.columns, 1):
+        max_length = 0
+        column_letter = get_column_letter(col_idx)  # Use column index to get letter
+        for cell in column_cells:
+            # Skip MergedCell objects
+            if hasattr(cell, 'coordinate'):
+                try:
+                    if cell.value:
+                        cell_length = len(str(cell.value))
+                        max_length = max(max_length, cell_length)
+                except:
+                    pass
+        # Add a little padding (e.g., 2 characters) for readability
+        adjusted_width = max_length + 2 if max_length > 0 else 10  # Default width if no data
+        worksheet.column_dimensions[column_letter].width = adjusted_width
+
+
 # ──────────────────────────────────────────────────────────────────────────
 #  Core writer logic
 # ──────────────────────────────────────────────────────────────────────────
@@ -217,6 +236,10 @@ def _write_timecourse_sheets(
 
         col_start += 2 + len(groups) * n + 1  # space between metrics
 
+        # Autofit columns for both sheets
+        _autofit_columns(ws_vals)
+        _autofit_columns(ws_ids)
+
 
 def _write_standard_sheets(
     df: pd.DataFrame,
@@ -283,10 +306,12 @@ def _write_standard_sheets(
     for r_idx in range(len(df_vals)):
         ws_vals.cell(row=row_offset + r_idx, column=1, value=group_numbers[r_idx])
         if tissues_detected:
+            # Extract the tissue shorthand from the tuple (first element)
+            tissue = tissue_codes[r_idx][0] if isinstance(tissue_codes[r_idx], tuple) else tissue_codes[r_idx]
             ws_vals.cell(
                 row=row_offset + r_idx,
                 column=2,
-                value=get_tissue_full_name(tissue_codes[r_idx]),
+                value=get_tissue_full_name(tissue),
             )
 
     for r_idx, row in enumerate(df_vals.values, start=row_offset):
@@ -296,6 +321,10 @@ def _write_standard_sheets(
     for r_idx, row in enumerate(df_ids.values, start=row_offset):
         for c_idx, val in enumerate(row, start=col_offset):
             ws_ids.cell(row=r_idx, column=c_idx, value=val)
+
+    # Autofit columns for both sheets
+    _autofit_columns(ws_vals)
+    _autofit_columns(ws_ids)
 
     logger.info("Finished sheet '%s'", sheet_root)
 
