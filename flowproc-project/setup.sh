@@ -1,0 +1,70 @@
+# flowproc/setup.py
+import subprocess
+import sys
+import os
+from pathlib import Path
+import logging
+from .logging_config import setup_logging
+
+def ensure_setup():
+    """Ensure the virtual environment and dependencies are set up."""
+    setup_logging(filemode='a', max_size_mb=10, keep_backups=3)
+    logger = logging.getLogger(__name__)
+    logger.debug("Starting environment setup check")
+
+    # Define virtual environment path
+    project_dir = Path(__file__).resolve().parent.parent
+    venv_dir = project_dir / "venv"
+
+    # Check if running in a virtual environment
+    if not hasattr(sys, 'real_prefix') and not hasattr(sys, 'base_prefix'):
+        logger.info("Not in a virtual environment, creating one")
+        try:
+            subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], check=True)
+            logger.info(f"Created virtual environment at {venv_dir}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to create virtual environment: {e}")
+            raise RuntimeError("Could not create virtual environment")
+
+        # Update sys.executable to point to the virtual environment's Python
+        if sys.platform == "win32":
+            python_executable = venv_dir / "Scripts" / "python.exe"
+        else:
+            python_executable = venv_dir / "bin" / "python3"
+
+        # Re-run the script in the virtual environment
+        logger.info("Re-running script in virtual environment")
+        subprocess.run([str(python_executable), *sys.argv], check=True)
+        sys.exit(0)  # Exit the current process after re-running
+
+    # Ensure pip is up to date
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"], check=True)
+        logger.debug("Pip updated successfully")
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Failed to update pip: {e}")
+
+    # Check and install dependencies
+    try:
+        import PySide6
+        import pandas
+        import numpy
+        import openpyxl
+        logger.debug("All dependencies are already installed")
+    except ImportError:
+        logger.info("Installing dependencies from pyproject.toml")
+        try:
+            subprocess.run([sys.executable, "-m", "pip", "install", "."], check=True)
+            logger.info("Dependencies installed successfully")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to install dependencies: {e}")
+            raise RuntimeError("Failed to install dependencies")
+
+    # Export requirements.txt for reproducibility
+    requirements_file = project_dir / "requirements.txt"
+    try:
+        with open(requirements_file, "w") as f:
+            subprocess.run([sys.executable, "-m", "pip", "freeze"], stdout=f, check=True)
+        logger.debug(f"Exported dependencies to {requirements_file}")
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Failed to export requirements.txt: {e}")

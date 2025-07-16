@@ -1,0 +1,2 @@
+[console_scripts]
+flowproc-gui = flowproc.gui:create_gui

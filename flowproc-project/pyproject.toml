@@ -53,7 +53,6 @@ test = [
 ]
 
 [project.scripts]
-flowproc = "flowproc.cli:main"
 flowproc-gui = "flowproc.gui:create_gui"
 
 [project.urls]

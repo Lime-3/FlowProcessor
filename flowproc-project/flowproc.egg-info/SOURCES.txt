@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+flowproc/__init__.py
+flowproc/cli.py
+flowproc/config.py
+flowproc/gui.py
+flowproc/logging_config.py
+flowproc/parsing.py
+flowproc/transform.py
+flowproc/writer.py
+flowproc.egg-info/PKG-INFO
+flowproc.egg-info/SOURCES.txt
+flowproc.egg-info/dependency_links.txt
+flowproc.egg-info/entry_points.txt
+flowproc.egg-info/requires.txt
+flowproc.egg-info/top_level.txt
+tests/test_parsing.py

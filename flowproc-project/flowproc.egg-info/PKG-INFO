@@ -1,0 +1,101 @@
+Metadata-Version: 2.4
+Name: flowproc
+Version: 1.1.0
+Summary: Flow cytometry CSV → Excel converter with automatic log rotation
+Author: Flow Cytometry Processor Team
+License: MIT
+Project-URL: Homepage, https://github.com/your-org/flowproc
+Project-URL: Documentation, https://flowproc.readthedocs.io/
+Project-URL: Repository, https://github.com/your-org/flowproc
+Project-URL: Issues, https://github.com/your-org/flowproc/issues
+Project-URL: Changelog, https://github.com/your-org/flowproc/blob/main/CHANGELOG.md
+Keywords: flow cytometry,csv,excel,data processing,biomedical
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: pandas<3.0.0,>=2.0.0
+Requires-Dist: numpy<2.0.0,>=1.24.0
+Requires-Dist: openpyxl<4.0.0,>=3.1.0
+Requires-Dist: PySide6<7.0.0,>=6.5.0
+Provides-Extra: dev
+Requires-Dist: pytest<8.0.0,>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov<5.0.0,>=4.0.0; extra == "dev"
+Requires-Dist: black<24.0.0,>=23.0.0; extra == "dev"
+Requires-Dist: isort<6.0.0,>=5.12.0; extra == "dev"
+Requires-Dist: flake8<7.0.0,>=6.0.0; extra == "dev"
+Requires-Dist: mypy<2.0.0,>=1.0.0; extra == "dev"
+Requires-Dist: pre-commit<4.0.0,>=3.0.0; extra == "dev"
+Provides-Extra: docs
+Requires-Dist: sphinx<8.0.0,>=7.0.0; extra == "docs"
+Requires-Dist: sphinx-rtd-theme<2.0.0,>=1.3.0; extra == "docs"
+Requires-Dist: myst-parser<3.0.0,>=2.0.0; extra == "docs"
+Provides-Extra: test
+Requires-Dist: pytest<8.0.0,>=7.0.0; extra == "test"
+Requires-Dist: pytest-cov<5.0.0,>=4.0.0; extra == "test"
+Requires-Dist: pytest-mock<4.0.0,>=3.10.0; extra == "test"
+
+# flowproc
+A tool for processing flow cytometry CSV files into Excel format.
+
+## Features
+
+- Process FlowJo CSV exports into organized Excel workbooks
+- Support for time-course studies
+- Automatic tissue detection and parsing
+- Manual or automatic group/replicate configuration
+- GUI and command-line interfaces
+
+## Installation
+
+```bash
+pip install -e .
+```
+
+## Usage
+
+### GUI Mode
+```bash
+python -m flowproc.gui
+```
+
+### Command Line Mode
+```bash
+python -m flowproc.cli --input-dir /path/to/csv/files --output-dir /path/to/output
+```
+
+## Logging
+
+The application automatically creates a `logs/` directory in the current working directory and writes log files to `logs/processing.log`. This directory is created automatically if it doesn't exist, making the tool suitable for distribution.
+
+### Log File Location
+- **Default**: `./logs/processing.log` (relative to current working directory)
+- **Created automatically**: The `logs/` directory is created if it doesn't exist
+- **Distribution ready**: Uses relative paths, no hardcoded absolute paths
+
+## Supported FlowJo Metrics
+
+The tool recognizes and processes the following FlowJo table export metrics:
+- Frequency of Parent
+- Frequency of Live  
+- Median
+- Mean
+- Count
+- Geometric Mean (GeoMean)
+- Coefficient of Variation (CV)
+- Standard Deviation (SD)
+- Minimum (Min)
+- Maximum (Max)
+- Sum
+- Mode
+- Range
