@@ -1,114 +1,226 @@
-# flowproc/transform.py
 import logging
-import numpy as np
 import pandas as pd
-from typing import Optional, Callable
-from .config import USER_GROUPS, USER_REPLICATES, AUTO_PARSE_GROUPS
-from .parsing import extract_tissue, UNKNOWN_TISSUE
+from typing import List, Tuple, Optional, Dict, Union
+import numpy as np
+
+from flowproc.parsing import extract_tissue, Constants
 
 logger = logging.getLogger(__name__)
 
-def reshape_pair(df: pd.DataFrame, sid_col: str, mcols: list, n: int, use_tissue: bool = False) -> tuple[list, list, list, list]:
-    """Reshape the DataFrame for multiple measurement columns, with optional tissue extraction."""
+def map_replicates(
+    df: pd.DataFrame,
+    auto_parse: bool = True,
+    user_replicates: Optional[List[int]] = None,
+    user_groups: Optional[List[int]] = None,
+) -> Tuple[pd.DataFrame, int]:
+    """Map animals to replicates, auto or manual."""
+    logger.info(f"Mapping replicates: auto_parse={auto_parse}, groups={user_groups}, replicates={user_replicates}")
+    
+    if df.empty:
+        logger.warning("Empty DataFrame provided for replicate mapping")
+        return df, 0
+
+    # Check if we have multiple tissues
+    tissues_detected = df['Tissue'].nunique() > 1 if 'Tissue' in df.columns else False
+    logger.info(f"Multiple tissues detected: {tissues_detected}")
+
+    if auto_parse:
+        # Get unique groups, converting numpy types to Python ints
+        groups = sorted([int(g) for g in df['Group'].dropna().unique()]) if user_groups is None else user_groups
+        if not groups:
+            raise ValueError("No groups found")
+        
+        if 'Animal' not in df.columns:
+            logger.warning("Animal column missing, using Group as fallback")
+            df['Animal'] = df['Group'].astype(int)
+        
+        # Get unique animals, converting to Python ints
+        unique_animals = sorted([int(a) for a in df['Animal'].dropna().unique()])
+        if not unique_animals:
+            raise ValueError("No animals found")
+        
+        # Calculate replicate count based on whether we have tissues
+        if tissues_detected:
+            # When multiple tissues: count unique animals per group per tissue
+            if df['Time'].notna().any():
+                group_counts = df.groupby(['Time', 'Group', 'Tissue'])['Animal'].nunique()
+            else:
+                group_counts = df.groupby(['Group', 'Tissue'])['Animal'].nunique()
+        else:
+            # Single tissue: count unique animals per group
+            if df['Time'].notna().any():
+                group_counts = df.groupby(['Time', 'Group'])['Animal'].nunique()
+            else:
+                group_counts = df.groupby('Group')['Animal'].nunique()
+        
+        n = int(group_counts.max()) if not group_counts.empty else len(unique_animals)
+        
+        if n == 0:
+            raise ValueError("No unique animals")
+        
+        if group_counts.min() != group_counts.max():
+            logger.warning(f"Inconsistent counts: min={group_counts.min()}, max={n}")
+        
+        replicates = list(range(1, n + 1)) if user_replicates is None else user_replicates
+    else:
+        if not user_groups or not user_replicates:
+            raise ValueError("Groups and replicates required")
+        groups = user_groups
+        replicates = user_replicates
+        n = len(replicates)
+
+    # Create mapping for animals to replicates (tissue-aware)
+    animal_mapping: Dict[Tuple[Optional[float], int, int, str], int] = {}
+    
+    for time in df['Time'].unique():
+        time_df = df[df['Time'].isna()] if pd.isna(time) else df[df['Time'] == time]
+        
+        for group in groups:
+            group_df = time_df[time_df['Group'] == group]
+            
+            if tissues_detected:
+                # Handle each tissue separately
+                for tissue in group_df['Tissue'].unique():
+                    tissue_df = group_df[group_df['Tissue'] == tissue]
+                    unique_animals = sorted([int(a) for a in tissue_df['Animal'].dropna().unique()])
+                    
+                    for rep_idx, animal in enumerate(unique_animals[:n], 1):
+                        animal_mapping[(time, group, animal, tissue)] = rep_idx
+            else:
+                # Single tissue handling (original logic)
+                unique_animals = sorted([int(a) for a in group_df['Animal'].dropna().unique()])
+                tissue = group_df['Tissue'].iloc[0] if 'Tissue' in group_df.columns else Constants.UNKNOWN_TISSUE.value
+                
+                for rep_idx, animal in enumerate(unique_animals[:n], 1):
+                    animal_mapping[(time, group, animal, tissue)] = rep_idx
+    
+    # Apply mapping (tissue-aware)
+    def get_replicate(row):
+        time_val = row['Time']
+        group_val = int(row['Group'])
+        animal_val = int(row['Animal'])
+        tissue_val = row['Tissue'] if 'Tissue' in row else Constants.UNKNOWN_TISSUE.value
+        
+        return animal_mapping.get((time_val, group_val, animal_val, tissue_val), None)
+    
+    df['Replicate'] = df.apply(get_replicate, axis=1)
+    
+    # Remove rows without replicate assignment
+    df = df.dropna(subset=['Replicate'])
+    
+    logger.debug(f"Replicates mapped, rows: {len(df)}")
+    return df, n
+
+def reshape_pair(
+    df: pd.DataFrame,
+    sid_col: str,
+    mcols: List[str],
+    n: int,
+    use_tissue: bool = False,
+    include_time: bool = False,
+) -> Tuple[List[List[float]], List[List[str]], List[Union[Tuple[str, int], str]], List[int], List[Optional[float]]]:
+    """Reshape data into paired value/ID blocks for Excel output."""
+    logger.debug(f"Reshaping data for columns: {mcols}, replicates: {n}, use_tissue: {use_tissue}, include_time: {include_time}")
+    
+    # Create subset with required columns
     sub = df[[sid_col, 'Group', 'Replicate', 'Time'] + mcols].dropna(subset=mcols, how='all').copy()
-    logger.debug(f"Processing columns {mcols}: {len(sub)} rows after dropping NaN")
     
     if use_tissue:
         sub['Tissue'] = sub[sid_col].apply(extract_tissue)
-        sub['Tissue'] = sub['Tissue'].fillna(UNKNOWN_TISSUE)
     
+    # Ensure Group and Replicate are present
     sub = sub.dropna(subset=['Group', 'Replicate'])
-    logger.debug(f"After dropping rows with missing Group/Replicate{' or Tissue' if use_tissue else ''}: {len(sub)} rows")
-
+    
     if sub.empty:
-        logger.warning(f"No valid data for columns {mcols} after filtering")
-        return [], [], [], []
+        logger.warning(f"No valid data for {mcols}")
+        return [], [], [], [], []
 
-    tissues = sorted(sub['Tissue'].unique()) if use_tissue else [UNKNOWN_TISSUE]
-    groups = sorted(sub['Group'].unique())
-    times = sorted(t for t in sub['Time'].unique() if pd.notna(t)) if 'Time' in sub.columns and sub['Time'].notna().any() else [None]
-    logger.debug(f"Tissues found: {tissues}, Groups found: {groups}, Times found: {times}")
+    # Get unique values, converting numpy types
+    tissues = sorted(sub['Tissue'].unique()) if use_tissue else [Constants.UNKNOWN_TISSUE.value]
+    groups = sorted([int(g) for g in sub['Group'].unique()])
+    times = sorted([t for t in sub['Time'].unique() if pd.notna(t)]) if 'Time' in sub.columns else [None]
+    
+    logger.debug(f"Tissues: {tissues}, Groups: {groups}, Times: {times}")
 
-    val_blocks, id_blocks = [], []
-    tissue_row_counts = []
-    group_numbers = []
+    val_blocks: List[List[float]] = []
+    id_blocks: List[List[str]] = []
+    tissue_row_counts: List[Union[Tuple[str, int], str]] = []
+    group_numbers: List[int] = []
+    time_values: List[Optional[float]] = []
 
-    for tissue in tissues:
-        part = sub[sub['Tissue'] == tissue] if use_tissue else sub
-        if part.empty:
-            logger.debug(f"No data for tissue {tissue}")
-            continue
-
-        for group in groups:
-            grp = part[part['Group'] == group]
-            if grp.empty:
-                logger.debug(f"No data for tissue {tissue}, group {group}")
+    # If including time, we need to iterate through times as well
+    if include_time and times and times != [None]:
+        for tissue in tissues:
+            tissue_part = sub[sub['Tissue'] == tissue] if use_tissue else sub
+            if tissue_part.empty:
                 continue
-
-            logger.debug(f"For tissue {tissue}, group {group}, grp length: {len(grp)}")
-
-            row_vals = []
-            row_ids = []
-            for col in mcols:
-                for rep in range(1, n + 1):
-                    rep_row = grp[grp['Replicate'] == rep]
-                    logger.debug(f"For col {col}, rep {rep}, rep_row length: {len(rep_row)}")
-                    if not rep_row.empty:
-                        value = rep_row[col].iloc[0]
-                        row_vals.append(float(value) if isinstance(value, np.number) else value)
-                        row_ids.append(rep_row[sid_col].iloc[0])
-                    else:
-                        row_vals.append(np.nan)
-                        row_ids.append(np.nan)
-            val_blocks.append(row_vals)
-            id_blocks.append(row_ids)
-            tissue_row_counts.append((tissue, 1))
-            group_numbers.append(group)
-            logger.debug(f"Appended row_vals for group {group}: length {len(row_vals)}")
-
-    return val_blocks, id_blocks, tissue_row_counts, group_numbers
-
-def map_replicates(df: pd.DataFrame) -> pd.DataFrame:
-    """Map animals to replicates, auto or manual."""
-    global USER_GROUPS, USER_REPLICATES
-    logger.info(f"Parsing mode: {'Automatic' if AUTO_PARSE_GROUPS else 'Manual'}")
-    if AUTO_PARSE_GROUPS:
-        USER_GROUPS = sorted(df['Group'].unique())
-        if df['Time'].notna().any():
-            group_counts = df.groupby(['Time', 'Group'])['Animal'].nunique()
-        else:
-            group_counts = df.groupby('Group')['Animal'].nunique()
-        if group_counts.empty:
-            raise ValueError("No animals found to determine replicates.")
-        n = group_counts.max()
-        USER_REPLICATES = list(range(1, n + 1))
-        logger.info(f"Automatically parsed groups: {USER_GROUPS}, max replicates per group: {n}")
-    elif not USER_GROUPS or not USER_REPLICATES:
-        logger.error("USER_GROUPS and USER_REPLICATES must be defined for manual parsing")
-        raise ValueError("USER_GROUPS and USER_REPLICATES must be defined when manual parsing is enabled.")
-
-    n = len(USER_REPLICATES)
-    logger.info(f"Enforcing {len(USER_GROUPS)} groups and {n} replicates per group")
-
-    animal_mapping = {}
-    for time in df['Time'].unique():
-        if pd.isna(time):
-            time_df = df[df['Time'].isna()]
-        else:
-            time_df = df[df['Time'] == time]
-        for group in USER_GROUPS:
-            group_df = time_df[time_df['Group'] == group]
-            unique_animals = sorted(group_df['Animal'].unique())
-            logger.debug(f"Time {time}, Group {group} animals: {unique_animals}")
-            num_found = len(unique_animals)
-            if num_found < n:
-                logger.warning(f"Group {group} at time {time} has fewer animals ({num_found}) than expected ({n}). Missing will be NaN.")
-            if num_found > n:
-                logger.warning(f"Group {group} at time {time} has more animals ({num_found}) than expected ({n}). Extra ignored.")
-            for rep_idx, animal in enumerate(unique_animals[:n], 1):
-                animal_mapping[(time, group, animal)] = rep_idx
-
-    df['Replicate'] = df.apply(lambda row: animal_mapping.get((row['Time'], row['Group'], row['Animal']), None), axis=1)
-    df = df.dropna(subset=['Replicate'])
-    logger.debug(f"After mapping replicates: {len(df)} rows")
-    return df
+            
+            for time in times:
+                time_part = tissue_part[tissue_part['Time'] == time] if pd.notna(time) else tissue_part[tissue_part['Time'].isna()]
+                if time_part.empty:
+                    continue
+                    
+                for group in groups:
+                    grp = time_part[time_part['Group'] == group]
+                    if grp.empty:
+                        continue
+                    
+                    for col in mcols:
+                        row_vals = []
+                        row_ids = []
+                        
+                        for rep in range(1, n + 1):
+                            rep_row = grp[grp['Replicate'] == rep]
+                            
+                            if not rep_row.empty and col in rep_row.columns:
+                                value = rep_row[col].iloc[0]
+                                row_vals.append(float(value) if pd.notnull(value) else np.nan)
+                                row_ids.append(str(rep_row[sid_col].iloc[0]))
+                            else:
+                                row_vals.append(np.nan)
+                                row_ids.append("")
+                        
+                        # Only add blocks with at least one non-NaN value
+                        if any(not pd.isna(v) for v in row_vals):
+                            val_blocks.append(row_vals)
+                            id_blocks.append(row_ids)
+                            tissue_row_counts.append((tissue, 1) if use_tissue else tissue)
+                            group_numbers.append(group)
+                            time_values.append(time)
+    else:
+        # Original logic without time grouping
+        for tissue in tissues:
+            part = sub[sub['Tissue'] == tissue] if use_tissue else sub
+            if part.empty:
+                continue
+            
+            for group in groups:
+                grp = part[part['Group'] == group]
+                if grp.empty:
+                    continue
+                
+                for col in mcols:
+                    row_vals = []
+                    row_ids = []
+                    
+                    for rep in range(1, n + 1):
+                        rep_row = grp[grp['Replicate'] == rep]
+                        
+                        if not rep_row.empty and col in rep_row.columns:
+                            value = rep_row[col].iloc[0]
+                            row_vals.append(float(value) if pd.notnull(value) else np.nan)
+                            row_ids.append(str(rep_row[sid_col].iloc[0]))
+                        else:
+                            row_vals.append(np.nan)
+                            row_ids.append("")
+                    
+                    # Only add blocks with at least one non-NaN value
+                    if any(not pd.isna(v) for v in row_vals):
+                        val_blocks.append(row_vals)
+                        id_blocks.append(row_ids)
+                        tissue_row_counts.append((tissue, 1) if use_tissue else tissue)
+                        group_numbers.append(group)
+                        time_values.append(None)
+    
+    logger.debug(f"Generated {len(val_blocks)} blocks for {mcols}")
+    return val_blocks, id_blocks, tissue_row_counts, group_numbers, time_values

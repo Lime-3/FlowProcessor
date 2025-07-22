@@ -1,27 +1,23 @@
-# flowproc/writer.py
 import logging
 from numbers import Number
 from pathlib import Path
-from typing import Optional, Callable
-
+from typing import Optional, Callable, Dict, List, Tuple, Union, TypeAlias, Any
 import numpy as np
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.cell.cell import MergedCell
+from openpyxl.worksheet.worksheet import Worksheet
 
-from .config import USER_GROUP_LABELS, USER_REPLICATES
-from .parsing import (
-    UNKNOWN_TISSUE,
-    extract_tissue,
-    get_tissue_full_name,
-    load_and_parse_df,
-)
-from .transform import map_replicates, reshape_pair
+from flowproc.config import USER_GROUP_LABELS
+from flowproc.parsing import extract_tissue, get_tissue_full_name, load_and_parse_df, Constants
+from flowproc.transform import map_replicates, reshape_pair
 
 logger = logging.getLogger(__name__)
 
-KEYWORDS = {
+KEYWORDS: Dict[str, str] = {
     "Freq. of Parent": "freq. of parent",
     "Freq. of Live": "freq. of live",
     "Median": "median",
@@ -37,326 +33,368 @@ KEYWORDS = {
     "Range": "range",
 }
 
-FRIENDLY = {
-    k: v for k, v in KEYWORDS.items()
-}
-
 ALL_TIME_LABEL = "All"
 
+Blocks: TypeAlias = Tuple[List[List[float]], List[List[str]], List[int], List[Union[Tuple[str, int], str]]]
 
-# ──────────────────────────────────────────────────────────────────────────
-#  Top‑level helpers
-# ──────────────────────────────────────────────────────────────────────────
-def _derive_replicate_count(df: pd.DataFrame) -> int:
-    """Return the number of replicates in the dataframe, falling back to
-    USER_REPLICATES when explicitly provided."""
-    return len(USER_REPLICATES) if USER_REPLICATES else df["Replicate"].nunique()
-
-
-def _clean_column_name(col) -> str:
-    """Protect hashability / str operations from weird header objects."""
+def _clean_column_name(col: Union[str, object]) -> str:
     return str(col).strip()
 
-
-def _autofit_columns(worksheet):
-    """Autofit column widths based on the longest content in each column, skipping merged cells."""
-    for col_idx, column_cells in enumerate(worksheet.columns, 1):
+def _autofit_columns(worksheet: Worksheet) -> None:
+    """Auto-fit column widths based on content."""
+    for col in worksheet.columns:
         max_length = 0
-        column_letter = get_column_letter(col_idx)  # Use column index to get letter
-        for cell in column_cells:
-            # Skip MergedCell objects
-            if hasattr(cell, 'coordinate'):
-                try:
-                    if cell.value:
-                        cell_length = len(str(cell.value))
-                        max_length = max(max_length, cell_length)
-                except:
-                    pass
-        # Add a little padding (e.g., 2 characters) for readability
-        adjusted_width = max_length + 2 if max_length > 0 else 10  # Default width if no data
-        worksheet.column_dimensions[column_letter].width = adjusted_width
+        column_letter: Optional[str] = None
+        for cell in col:
+            if not isinstance(cell, MergedCell):
+                column_letter = cell.column_letter
+                if cell.value is not None:
+                    max_length = max(max_length, len(str(cell.value)))
+        if column_letter:
+            worksheet.column_dimensions[column_letter].width = min(max_length + 2, 50)  # Cap at 50
 
+def _get_group_label_map(groups: List[int], user_group_labels: Optional[List[str]] = None) -> Dict[int, str]:
+    """Get mapping of group numbers to labels."""
+    # Convert numpy integers to Python ints
+    groups = [int(g) for g in groups]
+    if user_group_labels and len(user_group_labels) >= len(groups):
+        return {groups[i]: user_group_labels[i] for i in range(len(groups))}
+    return {group: f"Group {group}" for group in groups}
 
-# ──────────────────────────────────────────────────────────────────────────
-#  Core writer logic
-# ──────────────────────────────────────────────────────────────────────────
+def _get_raw_cols(df: pd.DataFrame, sid_col: str, key_substring: str) -> List[str]:
+    """Get columns matching the keyword substring."""
+    return [
+        c for c in df.columns
+        if key_substring in _clean_column_name(c).lower()
+        and c not in {sid_col, "Well", "Group", "Animal", "Time", "Replicate", "Tissue"}
+    ]
+
+def _create_sheet_pair(
+    wb: Workbook,
+    sheet_root: str,
+    num_replicates: int,
+    raw_cols: List[str],
+    group_label_map: Dict[int, str],
+    groups: List[int],
+    tissues_detected: bool,
+    is_time_course: bool = False,
+    has_time_data: bool = False,
+) -> Tuple[Worksheet, Worksheet]:
+    """Create a pair of worksheets (values and IDs) with headers."""
+    # Ensure sheet names don't exceed Excel's 31 character limit
+    ws_vals = wb.create_sheet(sheet_root[:31])
+    ws_ids = wb.create_sheet(f"{sheet_root} IDs"[:31])
+    
+    # Determine column offset and headers based on mode
+    if is_time_course:
+        col_offset = 3  # Group, Time, then data
+        ws_vals.cell(row=1, column=1, value="Group")
+        ws_vals.cell(row=1, column=2, value="Time")
+        ws_ids.cell(row=1, column=1, value="Group")
+        ws_ids.cell(row=1, column=2, value="Time")
+    elif tissues_detected and has_time_data:
+        col_offset = 4  # Group, Time, Tissue, then data
+        ws_vals.cell(row=1, column=1, value="Group")
+        ws_vals.cell(row=1, column=2, value="Time")
+        ws_vals.cell(row=1, column=3, value="Tissue")
+        ws_ids.cell(row=1, column=1, value="Group")
+        ws_ids.cell(row=1, column=2, value="Time")
+        ws_ids.cell(row=1, column=3, value="Tissue")
+    elif tissues_detected:
+        col_offset = 3  # Group, Tissue, then data
+        ws_vals.cell(row=1, column=1, value="Group")
+        ws_vals.cell(row=1, column=2, value="Tissue")
+        ws_ids.cell(row=1, column=1, value="Group")
+        ws_ids.cell(row=1, column=2, value="Tissue")
+    elif has_time_data:
+        col_offset = 3  # Group, Time, then data
+        ws_vals.cell(row=1, column=1, value="Group")
+        ws_vals.cell(row=1, column=2, value="Time")
+        ws_ids.cell(row=1, column=1, value="Group")
+        ws_ids.cell(row=1, column=2, value="Time")
+    else:
+        col_offset = 2  # Group, then data
+        ws_vals.cell(row=1, column=1, value="Group")
+        ws_ids.cell(row=1, column=1, value="Group")
+
+    # Add headers for each metric column
+    for idx, col_name in enumerate(raw_cols, start=1):
+        start_col = col_offset + (idx - 1) * num_replicates
+        end_col = col_offset + idx * num_replicates - 1
+        
+        # Add merged header for the metric
+        for ws in (ws_vals, ws_ids):
+            start_letter = get_column_letter(start_col)
+            end_letter = get_column_letter(end_col)
+            ws.merge_cells(f"{start_letter}1:{end_letter}1")
+            ws.cell(row=1, column=start_col, value=col_name).alignment = Alignment(horizontal="center")
+            
+            # Add replicate headers
+            for rep in range(num_replicates):
+                ws.cell(row=2, column=start_col + rep, value=f"Rep {rep + 1}")
+    
+    return ws_vals, ws_ids
+
+def _process_metric(
+    df: pd.DataFrame,
+    sid_col: str,
+    wb: Workbook,
+    num_replicates: int,
+    cat: str,
+    key_substring: str,
+    time_course_mode: bool,
+    tissues_detected: bool,
+    group_label_map: Dict[int, str],
+    times: List[Optional[float]],
+    groups: List[int],
+) -> None:
+    """Process a single metric category and create sheets."""
+    raw_cols = _get_raw_cols(df, sid_col, key_substring)
+    if not raw_cols:
+        logger.info(f"No columns for '{cat}'")
+        return
+    
+    # Check if we have time data
+    has_time_data = 'Time' in df.columns and df['Time'].notna().any()
+    
+    sheet_root = cat[:31]
+    ws_vals, ws_ids = _create_sheet_pair(
+        wb, sheet_root, num_replicates, raw_cols, 
+        group_label_map, groups, tissues_detected, time_course_mode, has_time_data
+    )
+
+    if time_course_mode:
+        _write_timecourse_data(
+            df, sid_col, ws_vals, ws_ids, raw_cols, 
+            num_replicates, times, groups, group_label_map
+        )
+    else:
+        _write_standard_data(
+            df, sid_col, ws_vals, ws_ids, raw_cols, 
+            num_replicates, times, groups, group_label_map, tissues_detected
+        )
+
+    _autofit_columns(ws_vals)
+    _autofit_columns(ws_ids)
+
+def _write_standard_data(
+    df: pd.DataFrame,
+    sid_col: str,
+    ws_vals: Worksheet,
+    ws_ids: Worksheet,
+    raw_cols: List[str],
+    num_replicates: int,
+    times: List[Optional[float]],
+    groups: List[int],
+    group_label_map: Dict[int, str],
+    tissues_detected: bool,
+) -> None:
+    """Write data in standard (non-time-course) format."""
+    # Check if we have time data
+    has_time_data = 'Time' in df.columns and df['Time'].notna().any()
+    
+    # Adjust column offset based on what columns we need
+    if tissues_detected and has_time_data:
+        col_offset = 4  # Group, Time, Tissue, then data
+    elif tissues_detected or has_time_data:
+        col_offset = 3  # Group + (Time OR Tissue), then data
+    else:
+        col_offset = 2  # Just Group, then data
+    
+    # Process each column separately
+    all_data: List[Tuple[int, str, List[List[Any]], List[List[str]], List[Optional[float]]]] = []
+    
+    for col_idx, col in enumerate(raw_cols):
+        # Get blocks for this specific column
+        val_blocks, id_blocks, tissue_codes, group_numbers, time_values = reshape_pair(
+            df, sid_col, [col], num_replicates, use_tissue=tissues_detected, include_time=has_time_data
+        )
+        
+        if val_blocks:
+            all_data.append((col_idx, col, val_blocks, id_blocks, time_values))
+            
+            # Write group, time, and tissue info (only once per row)
+            if col_idx == 0:
+                for row_idx, (group, tissue_code, time_val) in enumerate(zip(group_numbers, tissue_codes, time_values), start=3):
+                    ws_vals.cell(row=row_idx, column=1, value=group_label_map.get(int(group), f"Group {group}"))
+                    ws_ids.cell(row=row_idx, column=1, value=group_label_map.get(int(group), f"Group {group}"))
+                    
+                    current_col = 2
+                    
+                    if has_time_data:
+                        time_str = _format_time(time_val) if time_val is not None else ""
+                        ws_vals.cell(row=row_idx, column=current_col, value=time_str)
+                        ws_ids.cell(row=row_idx, column=current_col, value=time_str)
+                        current_col += 1
+                    
+                    if tissues_detected:
+                        tissue = tissue_code[0] if isinstance(tissue_code, tuple) else tissue_code
+                        tissue_name = get_tissue_full_name(tissue)
+                        ws_vals.cell(row=row_idx, column=current_col, value=tissue_name)
+                        ws_ids.cell(row=row_idx, column=current_col, value=tissue_name)
+    
+    # Write data blocks
+    for col_idx, col_name, val_blocks, id_blocks, _ in all_data:
+        start_col = col_offset + col_idx * num_replicates
+        
+        for row_idx, (val_row, id_row) in enumerate(zip(val_blocks, id_blocks), start=3):
+            for rep_idx, (val, sid) in enumerate(zip(val_row, id_row)):
+                col = start_col + rep_idx
+                ws_vals.cell(row=row_idx, column=col, value=val if pd.notna(val) else None)
+                ws_ids.cell(row=row_idx, column=col, value=sid)
+
+def _write_timecourse_data(
+    df: pd.DataFrame,
+    sid_col: str,
+    ws_vals: Worksheet,
+    ws_ids: Worksheet,
+    raw_cols: List[str],
+    num_replicates: int,
+    times: List[Optional[float]],
+    groups: List[int],
+    group_label_map: Dict[int, str],
+) -> None:
+    """Write data in time-course format."""
+    col_offset = 3  # Group, Time, then data
+    
+    # Build the row structure first
+    row_structure: List[Tuple[str, Optional[float], int]] = []
+    for t in times or [None]:
+        time_str = _format_time(t)
+        for group in groups:
+            row_structure.append((time_str, t, group))
+    
+    # Write the group and time columns
+    for row_idx, (time_str, t, group) in enumerate(row_structure, start=3):
+        ws_vals.cell(row=row_idx, column=1, value=group_label_map.get(int(group), f"Group {group}"))
+        ws_vals.cell(row=row_idx, column=2, value=time_str)
+        ws_ids.cell(row=row_idx, column=1, value=group_label_map.get(int(group), f"Group {group}"))
+        ws_ids.cell(row=row_idx, column=2, value=time_str)
+    
+    # Process each column separately
+    for col_idx, col in enumerate(raw_cols):
+        start_col = col_offset + col_idx * num_replicates
+        
+        # Process each time/group combination
+        for row_idx, (time_str, t, group) in enumerate(row_structure, start=3):
+            # Get data for this specific time/group/column combination
+            if t is not None:
+                subset = df[(df["Time"] == t) & (df["Group"] == group)]
+            else:
+                subset = df[df["Group"] == group]
+            
+            # Write replicate data
+            for rep in range(1, num_replicates + 1):
+                rep_data = subset[subset["Replicate"] == rep]
+                col_pos = start_col + rep - 1
+                
+                if not rep_data.empty and col in rep_data.columns:
+                    val = rep_data[col].iloc[0]
+                    sid = rep_data[sid_col].iloc[0]
+                    ws_vals.cell(row=row_idx, column=col_pos, value=val if pd.notna(val) else None)
+                    ws_ids.cell(row=row_idx, column=col_pos, value=sid)
+                else:
+                    ws_vals.cell(row=row_idx, column=col_pos, value=None)
+                    ws_ids.cell(row=row_idx, column=col_pos, value="")
+
+def _format_time(t: Optional[float]) -> str:
+    """Format time value for display."""
+    if t is None:
+        return ALL_TIME_LABEL
+    hours = int(t)
+    minutes = int((t - hours) * 60)
+    return f"{hours}:{minutes:02d}"
+
 def process_and_write_categories(
     df: pd.DataFrame,
     sid_col: str,
     wb: Workbook,
     n: int,
     time_course_mode: bool = False,
+    user_group_labels: Optional[List[str]] = None,
 ) -> None:
-    """Create one pair of sheets per metric (`Count`, `Median`, …)."""
-
-    times = (
-        sorted(t for t in df["Time"].unique() if pd.notna(t))
-        if "Time" in df.columns and df["Time"].notna().any()
-        else [None]
-    )
+    """Create one pair of sheets per metric (e.g., Count, Median)."""
+    if df.empty:
+        logger.warning("Empty DataFrame; creating 'No Data' sheet")
+        wb.create_sheet("No Data")
+        return
+    
+    # Get times and groups
+    times = sorted(t for t in df["Time"].unique() if pd.notna(t)) if "Time" in df.columns and df["Time"].notna().any() else [None]
     groups = sorted(df["Group"].unique())
+    
+    # Convert numpy types to Python types
+    groups = [int(g) for g in groups]
+    group_label_map = _get_group_label_map(groups, user_group_labels)
 
-    logger.debug("Replicates per group        : %s", n)
-    logger.debug("Detected time points (hours): %s", times)
-    logger.debug("Detected groups             : %s", groups)
-
+    logger.debug(f"Replicates: {n}, Times: {times}, Groups: {groups}, Labels: {group_label_map}")
+    
+    # Check if we have time data
     is_timecourse = len(times) > 1 or (len(times) == 1 and times[0] is not None)
     if time_course_mode and not is_timecourse:
-        logger.warning(
-            "Time‑course mode selected but no time column found; falling back."
-        )
+        logger.warning("Time-course mode selected but no time data; falling back.")
         time_course_mode = False
 
-    tissues_detected = (
-        df[sid_col].apply(extract_tissue).nunique() > 1
-        or any(extract_tissue(s) != UNKNOWN_TISSUE for s in df[sid_col])
+    # Check if we have multiple tissues
+    tissues_detected = df[sid_col].apply(extract_tissue).nunique() > 1 or any(
+        extract_tissue(s) != Constants.UNKNOWN_TISSUE.value for s in df[sid_col]
     )
 
-    # ── iterate over metric categories ───────────────────────────────────
+    # Process each metric category
     for cat, key_substring in KEYWORDS.items():
-        raw_cols = [
-            c
-            for c in df.columns
-            if key_substring in _clean_column_name(c).lower()
-            and c
-            not in {sid_col, "Well", "Group", "Animal", "Time", "Replicate"}
-            and not df[c].isna().all()
-        ]
-
-        logger.debug("Metric %-15s → %s", cat, raw_cols)
-        if not raw_cols:
-            logger.info("No data found for metric '%s'", cat)
-            continue
-
-        friendly = FRIENDLY[cat][:31]  # max sheet name length 31
-
-        if time_course_mode:
-            _write_timecourse_sheets(
-                df,
-                sid_col,
-                wb,
-                groups,
-                times,
-                raw_cols,
-                friendly,
-                n,
-            )
-        else:
-            _write_standard_sheets(
-                df,
-                sid_col,
-                wb,
-                groups,
-                times,
-                raw_cols,
-                friendly,
-                n,
-                tissues_detected,
-            )
-
-
-def _write_timecourse_sheets(
-    df: pd.DataFrame,
-    sid_col: str,
-    wb: Workbook,
-    groups: list[int],
-    times: list[Optional[float]],
-    raw_cols: list[str],
-    sheet_root: str,
-    n: int,
-) -> None:
-    """One block per metric; replicates laid out *horizontally* in time‑course mode."""
-    ws_vals = wb.create_sheet(sheet_root)
-    ws_ids = wb.create_sheet(f"{sheet_root} IDs"[:31])
-
-    col_start = 1
-    for raw_col in raw_cols:
-        # header line (row 1) across all group × replicate columns
-        header_start = get_column_letter(col_start + 2)
-        header_end = get_column_letter(col_start + 1 + len(groups) * n)
-        ws_vals.merge_cells(f"{header_start}1:{header_end}1")
-        ws_vals.cell(row=1, column=col_start + 2, value=raw_col).alignment = Alignment(
-            horizontal="center"
-        )
-        ws_ids.merge_cells(f"{header_start}1:{header_end}1")
-        ws_ids.cell(row=1, column=col_start + 2, value=raw_col).alignment = Alignment(
-            horizontal="center"
+        _process_metric(
+            df, sid_col, wb, n, cat, key_substring, 
+            time_course_mode, tissues_detected, group_label_map, times, groups
         )
 
-        # sub‑headers (rows 2 & 3)
-        ws_vals.cell(row=2, column=col_start, value="Time")
-        ws_vals.cell(row=2, column=col_start + 1, value="Group")
-        ws_ids.cell(row=2, column=col_start, value="Time")
-        ws_ids.cell(row=2, column=col_start + 1, value="Group")
-
-        sub_col = col_start + 2
-        for g_idx, group in enumerate(groups):
-            label = (
-                USER_GROUP_LABELS[g_idx]
-                if g_idx < len(USER_GROUP_LABELS)
-                else f"Group {group}"
-            )
-            c_start = get_column_letter(sub_col)
-            c_end = get_column_letter(sub_col + n - 1)
-            ws_vals.merge_cells(f"{c_start}2:{c_end}2")
-            ws_ids.merge_cells(f"{c_start}2:{c_end}2")
-            for ws in (ws_vals, ws_ids):
-                ws.cell(row=2, column=sub_col, value=label).alignment = Alignment(
-                    horizontal="center"
-                )
-            # replicates header
-            for rep in range(n):
-                ws_vals.cell(row=3, column=sub_col + rep, value=f"Replicate {rep+1}")
-                ws_ids.cell(row=3, column=sub_col + rep, value=f"Replicate {rep+1}")
-            sub_col += n
-
-        # data rows
-        row_idx = 4
-        for t in times:
-            t_h = int(t) if t is not None else 0
-            t_m = int((t - t_h) * 60) if t is not None else 0
-            time_str = f"{t_h}:{t_m:02d}" if t is not None else "0:00"
-
-            ws_vals.cell(row=row_idx, column=col_start, value=time_str)
-            ws_vals.cell(row=row_idx, column=col_start + 1, value=t_h)
-            ws_ids.cell(row=row_idx, column=col_start, value=time_str)
-            ws_ids.cell(row=row_idx, column=col_start + 1, value=t_h)
-
-            sub_col = col_start + 2
-            for group in groups:
-                subset = df[(df["Time"] == t) & (df["Group"] == group)]
-                for rep in range(1, n + 1):
-                    rep_row = subset[subset["Replicate"] == rep]
-                    v = rep_row[raw_col].iloc[0] if not rep_row.empty else np.nan
-                    i = rep_row[sid_col].iloc[0] if not rep_row.empty else ""
-                    ws_vals.cell(row=row_idx, column=sub_col, value=v)
-                    ws_ids.cell(row=row_idx, column=sub_col, value=i)
-                    sub_col += 1
-            row_idx += 1
-
-        col_start += 2 + len(groups) * n + 1  # space between metrics
-
-        # Autofit columns for both sheets
-        _autofit_columns(ws_vals)
-        _autofit_columns(ws_ids)
-
-
-def _write_standard_sheets(
-    df: pd.DataFrame,
-    sid_col: str,
-    wb: Workbook,
-    groups: list[int],
-    times: list[Optional[float]],
-    raw_cols: list[str],
-    sheet_root: str,
-    n: int,
-    tissues_detected: bool,
-) -> None:
-    """Long‑format blocks *vertically* stacked by time point."""
-    val_blocks, id_blocks, group_numbers, tissue_codes = [], [], [], []
-
-    for t in times:
-        chunk = df[df["Time"] == t] if t is not None else df
-        if chunk.empty:
-            continue
-        v_blk, i_blk, t_codes, grp_nums = reshape_pair(
-            chunk, sid_col, raw_cols, n, use_tissue=tissues_detected
-        )
-        if not v_blk:
-            continue
-        val_blocks.extend(v_blk)
-        id_blocks.extend(i_blk)
-        tissue_codes.extend(t_codes)
-        group_numbers.extend(grp_nums)
-
-    if not val_blocks:
-        logger.info("No data blocks produced for sheet '%s' – skipping", sheet_root)
-        return
-
-    df_vals = pd.DataFrame(
-        val_blocks,
-        columns=[f"{col}_Rep{rep}" for col in raw_cols for rep in range(1, n + 1)],
-    )
-    df_ids = pd.DataFrame(id_blocks, columns=df_vals.columns)
-
-    # Convert numerics safely for Excel
-    df_vals = df_vals.applymap(lambda x: float(x) if isinstance(x, Number) else x)
-
-    ws_vals = wb.create_sheet(sheet_root)
-    ws_ids = wb.create_sheet(f"{sheet_root} IDs"[:31])
-
-    # column offsets
-    col_offset = 3 if tissues_detected else 2
-    row_offset = 3
-
-    # header rows 1‑2
-    ws_vals.cell(row=1, column=1, value="Group")
-    if tissues_detected:
-        ws_vals.cell(row=1, column=2, value="Tissue")
-    for ws in (ws_vals, ws_ids):
-        for idx_header, col_name in enumerate(raw_cols, start=1):
-            c_start = get_column_letter(col_offset + (idx_header - 1) * n)
-            c_end = get_column_letter(col_offset + idx_header * n - 1)
-            ws.merge_cells(f"{c_start}1:{c_end}1")
-            ws.cell(row=1, column=col_offset + (idx_header - 1) * n, value=col_name).alignment = Alignment(horizontal="center")
-            for rep in range(n):
-                ws.cell(row=2, column=col_offset + (idx_header - 1) * n + rep, value=f"Rep {rep+1}")
-
-    # write data rows
-    for r_idx in range(len(df_vals)):
-        ws_vals.cell(row=row_offset + r_idx, column=1, value=group_numbers[r_idx])
-        if tissues_detected:
-            # Extract the tissue shorthand from the tuple (first element)
-            tissue = tissue_codes[r_idx][0] if isinstance(tissue_codes[r_idx], tuple) else tissue_codes[r_idx]
-            ws_vals.cell(
-                row=row_offset + r_idx,
-                column=2,
-                value=get_tissue_full_name(tissue),
-            )
-
-    for r_idx, row in enumerate(df_vals.values, start=row_offset):
-        for c_idx, val in enumerate(row, start=col_offset):
-            ws_vals.cell(row=r_idx, column=c_idx, value=val)
-
-    for r_idx, row in enumerate(df_ids.values, start=row_offset):
-        for c_idx, val in enumerate(row, start=col_offset):
-            ws_ids.cell(row=r_idx, column=c_idx, value=val)
-
-    # Autofit columns for both sheets
-    _autofit_columns(ws_vals)
-    _autofit_columns(ws_ids)
-
-    logger.info("Finished sheet '%s'", sheet_root)
-
-
-# ──────────────────────────────────────────────────────────────────────────
-#  Public API
-# ──────────────────────────────────────────────────────────────────────────
 def process_csv(
     input_file: Path,
     output_file: Path,
     time_course_mode: bool = False,
+    user_replicates: Optional[List[int]] = None,
+    auto_parse_groups: bool = True,
+    user_group_labels: Optional[List[str]] = None,
+    user_groups: Optional[List[int]] = None,
 ) -> None:
-    """Parse one CSV and write an Excel workbook."""
+    """Process a CSV into an Excel workbook."""
+    logger.info(f"Processing CSV: {input_file}")
+    
+    # Load and parse the CSV
     df, sid_col = load_and_parse_df(input_file)
-
-    # replicate mapping *must* run before we count
-    df = map_replicates(df)
-    replicate_count = _derive_replicate_count(df)
-
+    
+    # Map replicates
+    df, replicate_count = map_replicates(
+        df, auto_parse=auto_parse_groups, 
+        user_replicates=user_replicates, 
+        user_groups=user_groups
+    )
+    
+    if replicate_count == 0:
+        logger.warning("No replicates found")
+        wb = Workbook()
+        wb.remove(wb.active)
+        wb.create_sheet("No Data")
+        wb.save(output_file)
+        logger.info(f"Saved empty output to {output_file}")
+        return
+    
+    # Create workbook
     wb = Workbook()
     wb.remove(wb.active)
-
+    
+    # Process and write categories
     process_and_write_categories(
-        df, sid_col, wb, replicate_count, time_course_mode=time_course_mode
+        df, sid_col, wb, replicate_count, 
+        time_course_mode, user_group_labels
     )
-
+    
+    # Save workbook
     if not wb.sheetnames:
+        logger.warning(f"No valid data for {input_file}")
         wb.create_sheet("No Data")
-
+    
     wb.save(output_file)
-    logger.info("Saved → %s", output_file)
-
+    logger.info(f"Saved output to {output_file}")
 
 def process_directory(
     input_dir: Path,
@@ -365,30 +403,46 @@ def process_directory(
     pattern: str = "*.csv",
     status_callback: Optional[Callable[[str], None]] = None,
     time_course_mode: bool = False,
-) -> None:
-    """Process every CSV file under *input_dir* and write an Excel workbook
-    next to it (or in *output_dir*)."""
+    user_replicates: Optional[List[int]] = None,
+    auto_parse_groups: bool = True,
+    user_group_labels: Optional[List[str]] = None,
+    user_groups: Optional[List[int]] = None,
+) -> int:
+    """Process all CSVs in a directory."""
+    logger.info(f"Processing directory: {input_dir}")
+    
     glob_pattern = "**/" + pattern if recursive else pattern
     csv_files = list(input_dir.glob(glob_pattern))
-
+    
     if not csv_files:
-        logger.warning("No CSV files found in '%s'", input_dir)
+        logger.warning(f"No CSV files found in '{input_dir}'")
         if status_callback:
             status_callback("No CSV files found.")
-        return
-
+        return 0
+    
+    count = 0
     for idx, f in enumerate(csv_files, 1):
         if not f.is_file():
             continue
+            
         if status_callback:
             status_callback(f"Processing file {idx}/{len(csv_files)}: {f.name}")
-        out_file = output_dir / f"{f.stem}_Processed.xlsx"
+        
+        out_file = output_dir / f"{f.stem}_Processed{'_Timecourse' if time_course_mode else '_Grouped'}.xlsx"
+        
         try:
-            process_csv(f, out_file, time_course_mode=time_course_mode)
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("Error while processing '%s': %s", f, exc)
+            process_csv(
+                f, out_file, time_course_mode, 
+                user_replicates, auto_parse_groups, 
+                user_group_labels, user_groups
+            )
+            count += 1
+        except Exception as exc:
+            logger.error(f"Error processing '{f}': {exc}")
             if status_callback:
                 status_callback(f"Error: {exc}")
-
+    
     if status_callback:
-        status_callback("Processing completed.")
+        status_callback(f"Processed {count} files.")
+    
+    return count

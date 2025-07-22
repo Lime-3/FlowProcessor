@@ -25,3 +25,4 @@ build/
 *_internal/
 *.abi*
 *.dylib
+**/OPENAI_API_KEY.*

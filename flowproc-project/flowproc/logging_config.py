@@ -4,48 +4,108 @@ import os
 import shutil
 from pathlib import Path
 from datetime import datetime
+import sys
+import atexit
+from typing import Literal, Optional
 
-def setup_logging(filemode='w', max_size_mb=10, keep_backups=3):
-    """Setup logging with a logs directory that gets created if it doesn't exist.
-    
-    Args:
-        filemode (str): File mode for logging ('w' for write, 'a' for append)
-        max_size_mb (int): Maximum log file size in MB before clearing
-        keep_backups (int): Number of backup log files to keep
+def setup_logging(
+    filemode: Literal['a', 'w'] = 'a',
+    max_size_mb: int = 10,
+    keep_backups: int = 3,
+    project_root: Optional[Path] = None,
+    simulate_raise: bool = False  # Added for testing: Simulate OSError in mkdir
+) -> bool:
     """
-    # Create logs directory relative to the current working directory
-    logs_dir = Path.cwd() / "logs"
-    logs_dir.mkdir(exist_ok=True)
-    
-    log_file = logs_dir / "processing.log"
-    
-    # Check if log file exists and is too large
-    if log_file.exists():
-        file_size_mb = log_file.stat().st_size / (1024 * 1024)  # Convert bytes to MB
-        if file_size_mb > max_size_mb:
-            # Create backup of current log file
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_file = logs_dir / f"processing_{timestamp}.log"
-            shutil.copy2(log_file, backup_file)
-            
-            # Clear the log file by truncating it
-            log_file.write_text("")
-            
-            # Clean up old backup files if we have too many
-            backup_files = sorted(logs_dir.glob("processing_*.log"), key=lambda x: x.stat().st_mtime)
-            if len(backup_files) > keep_backups:
-                for old_backup in backup_files[:-keep_backups]:
-                    old_backup.unlink()
-            
-            print(f"Log file cleared (was {file_size_mb:.1f}MB) - backup saved as {backup_file.name}")
-    
-    logging.basicConfig(
-        level=logging.DEBUG,
-        filename=str(log_file),
-        filemode=filemode,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    # Log the setup completion
-    logger = logging.getLogger(__name__)
-    logger.debug(f"Logging configured - log file: {log_file} (max size: {max_size_mb}MB, backups: {keep_backups})") 
+    Setup logging with console and file handlers, ensuring logs are written to disk.
+
+    Args:
+        filemode (Literal['a', 'w']): File mode for logging ('w' for write, 'a' for append). Defaults to 'a'.
+        max_size_mb (int): Maximum log file size in MB before clearing. Defaults to 10.
+        keep_backups (int): Number of backup log files to keep. Defaults to 3.
+        project_root (Optional[Path]): Optional override for project root (for testing).
+        simulate_raise (bool): Simulate OSError in mkdir for testing. Defaults to False.
+
+    Returns:
+        bool: True if setup succeeds.
+
+    Raises:
+        OSError: If log directory creation or file operations fail (or simulated).
+    """
+    root = logging.getLogger()
+    if any(isinstance(h, logging.FileHandler) for h in root.handlers):
+        return True  # Already configured
+
+    root.setLevel(logging.DEBUG)
+    root.handlers.clear()
+
+    # Console handler
+    console = logging.StreamHandler(sys.stderr)
+    console.setLevel(logging.DEBUG)
+    fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    console.setFormatter(fmt)
+    root.addHandler(console)
+
+    try:
+        project_root_str = os.getenv('FLOWPROC_LOG_ROOT')
+        if project_root_str:
+            resolved_root = Path(project_root_str).resolve()
+        elif project_root is not None:
+            resolved_root = project_root
+        else:
+            resolved_root = Path(__file__).resolve().parent
+
+        log_path = resolved_root / 'data' / 'logs'
+        if simulate_raise:
+            raise OSError("Simulated permission denied for testing")
+        log_path.mkdir(parents=True, exist_ok=True)
+
+        log_file = log_path / 'processing.log'
+
+        root.debug(f"Resolved project root: {resolved_root}")
+        root.debug(f"Resolved log file path: {log_file}")
+
+        if log_file.exists():
+            file_size_mb = log_file.stat().st_size / (1024 * 1024)
+            if file_size_mb > max_size_mb:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_file = log_path / f'processing_{timestamp}.log'
+                shutil.copy2(log_file, backup_file)
+                with open(log_file, 'w') as f:
+                    pass
+                root.debug(f"Log file cleared (was {file_size_mb:.1f}MB) - backup saved as {backup_file.name}")
+
+        file_handler = logging.FileHandler(log_file, mode=filemode, encoding='utf-8')
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(fmt)
+        root.addHandler(file_handler)
+
+        def custom_flush():
+            for handler in root.handlers:
+                if isinstance(handler, logging.FileHandler):
+                    handler.flush()
+                    with open(log_file, 'a') as f:
+                        f.flush()
+                        os.fsync(f.fileno())
+            root.debug("Forced flush of file handler")
+            print("Forced flush of file handler", file=sys.stderr)
+
+        custom_flush()
+
+        def on_shutdown():
+            custom_flush()
+            for handler in root.handlers[:]:
+                if isinstance(handler, logging.FileHandler):
+                    handler.close()
+                    root.removeHandler(handler)
+            root.debug("Shutdown logging handlers closed")
+            print("Shutdown logging handlers closed", file=sys.stderr)
+
+        atexit.register(on_shutdown)
+
+        root.debug("Logging initialized ✅")
+        print("Logging initialized ✅", file=sys.stderr)
+        return True
+    except OSError as e:
+        logging.basicConfig(level=logging.DEBUG, stream=sys.stderr)
+        logging.error(f"Failed to set up file logging: {e}", exc_info=True)
+        raise
