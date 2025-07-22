@@ -102,8 +102,12 @@ class VectorizedAggregator:
         start_time = time.time()
         
         # Filter to replicate data only
-        replicate_mask = self.df['Replicate'].notna()
-        working_df = self.df[replicate_mask].copy()
+        if 'Replicate' in self.df.columns:
+            replicate_mask = self.df['Replicate'].notna()
+            working_df = self.df[replicate_mask].copy()
+        else:
+            # If no Replicate column, use all data
+            working_df = self.df.copy()
         
         if working_df.empty:
             logger.warning("No replicate data found")
@@ -141,11 +145,12 @@ class VectorizedAggregator:
         melted['Value'] = pd.to_numeric(melted['Value'], errors='coerce')
         melted = melted.dropna(subset=['Value'])
         
-        # Define grouping columns
-        if config.time_course_mode:
-            group_cols = ['Time', 'Group', 'Tissue', 'Subpopulation']
-        else:
-            group_cols = ['Group', 'Tissue', 'Subpopulation']
+        # Define grouping columns based on available columns
+        group_cols = ['Group', 'Subpopulation']
+        if 'Tissue' in melted.columns:
+            group_cols.insert(1, 'Tissue')  # Insert after Group
+        if config.time_course_mode and 'Time' in melted.columns:
+            group_cols.insert(0, 'Time')  # Insert at beginning
             
         # Vectorized aggregation
         agg_result = melted.groupby(group_cols, dropna=False).agg(
@@ -162,13 +167,17 @@ class VectorizedAggregator:
         agg_result['Metric'] = metric_name
         
         # Split by tissue if multiple detected
-        tissues = sorted(agg_result['Tissue'].unique())
-        result_dfs = []
-        
-        for tissue in tissues:
-            tissue_df = agg_result[agg_result['Tissue'] == tissue].copy()
-            if not tissue_df.empty:
-                result_dfs.append(tissue_df)
+        if 'Tissue' in agg_result.columns:
+            tissues = sorted(agg_result['Tissue'].unique())
+            result_dfs = []
+            
+            for tissue in tissues:
+                tissue_df = agg_result[agg_result['Tissue'] == tissue].copy()
+                if not tissue_df.empty:
+                    result_dfs.append(tissue_df)
+        else:
+            # No tissue column, return single dataframe
+            result_dfs = [agg_result]
                 
         logger.debug(
             f"Aggregated {metric_name} in {time.time() - start_time:.3f}s "

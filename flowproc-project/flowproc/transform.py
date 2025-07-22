@@ -40,15 +40,17 @@ def map_replicates(
             raise ValueError("No animals found")
         
         # Calculate replicate count based on whether we have tissues
+        has_time = 'Time' in df.columns and df['Time'].notna().any()
+        
         if tissues_detected:
             # When multiple tissues: count unique animals per group per tissue
-            if df['Time'].notna().any():
+            if has_time:
                 group_counts = df.groupby(['Time', 'Group', 'Tissue'])['Animal'].nunique()
             else:
                 group_counts = df.groupby(['Group', 'Tissue'])['Animal'].nunique()
         else:
             # Single tissue: count unique animals per group
-            if df['Time'].notna().any():
+            if has_time:
                 group_counts = df.groupby(['Time', 'Group'])['Animal'].nunique()
             else:
                 group_counts = df.groupby('Group')['Animal'].nunique()
@@ -72,8 +74,17 @@ def map_replicates(
     # Create mapping for animals to replicates (tissue-aware)
     animal_mapping: Dict[Tuple[Optional[float], int, int, str], int] = {}
     
-    for time in df['Time'].unique():
-        time_df = df[df['Time'].isna()] if pd.isna(time) else df[df['Time'] == time]
+    # Get time points - handle missing Time column
+    if 'Time' in df.columns:
+        time_points = df['Time'].unique()
+    else:
+        time_points = [None]  # Single time point when no Time column
+    
+    for time in time_points:
+        if 'Time' in df.columns:
+            time_df = df[df['Time'].isna()] if pd.isna(time) else df[df['Time'] == time]
+        else:
+            time_df = df  # Use all data when no Time column
         
         for group in groups:
             group_df = time_df[time_df['Group'] == group]
@@ -96,7 +107,7 @@ def map_replicates(
     
     # Apply mapping (tissue-aware)
     def get_replicate(row):
-        time_val = row['Time']
+        time_val = row['Time'] if 'Time' in row else None
         group_val = int(row['Group'])
         animal_val = int(row['Animal'])
         tissue_val = row['Tissue'] if 'Tissue' in row else Constants.UNKNOWN_TISSUE.value
