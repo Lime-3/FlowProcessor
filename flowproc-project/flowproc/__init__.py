@@ -13,6 +13,7 @@ from .parsing import load_and_parse_df, extract_tissue, extract_group_animal
 from .transform import map_replicates, reshape_pair
 from .writer import process_csv, process_directory, KEYWORDS
 from .vectorized_aggregator import VectorizedAggregator, AggregationConfig
+from .resource_utils import get_resource_path, get_data_path, get_package_root
 
 # GUI components (optional - requires PySide6)
 try:
@@ -42,6 +43,11 @@ __all__ = [
     # New vectorized features
     'VectorizedAggregator',
     'AggregationConfig',
+    
+    # Resource utilities (PyInstaller-compatible)
+    'get_resource_path',
+    'get_data_path',
+    'get_package_root',
     
     # GUI (if available)
     'GUI_AVAILABLE',

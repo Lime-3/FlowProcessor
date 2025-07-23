@@ -1,0 +1,4 @@
+# file: /Users/franklin.lime/Documents/GitHub/FlowProcessor/flowproc-project/flowproc/__init__.py
+# hypothesis_version: 6.136.2
+
+['2.0.0', 'AggregationConfig', 'GUI_AVAILABLE', 'KEYWORDS', 'ProcessingManager', 'ProcessingState', 'VectorizedAggregator', '__version__', 'extract_group_animal', 'extract_tissue', 'gui_main', 'load_and_parse_df', 'map_replicates', 'process_csv', 'process_directory', 'reshape_pair']

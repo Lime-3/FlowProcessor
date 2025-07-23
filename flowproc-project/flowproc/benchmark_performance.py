@@ -6,6 +6,7 @@ Generates synthetic data and compares processing times.
 import time
 import pandas as pd
 import numpy as np
+import gc
 from pathlib import Path
 import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple
@@ -170,6 +171,11 @@ def benchmark_aggregation_methods(
             df.memory_usage(deep=True).sum() for df in result.dataframes
         ) / 1e6 if result.dataframes else 0
         
+        # Clean up after memory measurement
+        del aggregator
+        del result
+        gc.collect()  # Force garbage collection
+        
         results['vectorized']['times'].append(elapsed)
         results['vectorized']['memory'].append(end_memory)
         print(f"  Iteration {i+1}: {elapsed:.3f}s, {end_memory:.1f}MB")
@@ -189,13 +195,21 @@ def benchmark_aggregation_methods(
                 )
                 result_df['Metric'] = metric_name
                 all_results.append(result_df)
+                # Clean up intermediate DataFrame
+                del result_df
         
         elapsed = time.time() - start_time
         if all_results:
             combined = pd.concat(all_results)
             end_memory = combined.memory_usage(deep=True).sum() / 1e6
+            # Clean up after memory measurement
+            del combined
         else:
             end_memory = 0
+        
+        # Clean up accumulated results after each iteration
+        del all_results
+        gc.collect()  # Force garbage collection
         
         results['old']['times'].append(elapsed)
         results['old']['memory'].append(end_memory)

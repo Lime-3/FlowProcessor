@@ -7,6 +7,7 @@ from datetime import datetime
 import sys
 import atexit
 from typing import Literal, Optional
+from .resource_utils import get_data_path, ensure_writable_dir
 
 def setup_logging(
     filemode: Literal['a', 'w'] = 'a',
@@ -48,20 +49,20 @@ def setup_logging(
     try:
         project_root_str = os.getenv('FLOWPROC_LOG_ROOT')
         if project_root_str:
-            resolved_root = Path(project_root_str).resolve()
+            log_path = Path(project_root_str).resolve() / 'logs'
         elif project_root is not None:
-            resolved_root = project_root
+            log_path = project_root / 'data' / 'logs'
         else:
-            resolved_root = Path(__file__).resolve().parent
-
-        log_path = resolved_root / 'data' / 'logs'
+            # Use PyInstaller-compatible path resolution
+            log_path = get_data_path('logs')
+        
         if simulate_raise:
             raise OSError("Simulated permission denied for testing")
-        log_path.mkdir(parents=True, exist_ok=True)
+        ensure_writable_dir(log_path)
 
         log_file = log_path / 'processing.log'
 
-        root.debug(f"Resolved project root: {resolved_root}")
+        root.debug(f"Resolved log directory: {log_path}")
         root.debug(f"Resolved log file path: {log_file}")
 
         if log_file.exists():

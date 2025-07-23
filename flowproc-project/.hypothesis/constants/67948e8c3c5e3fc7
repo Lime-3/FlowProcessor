@@ -1,0 +1,4 @@
+# file: /Users/franklin.lime/Documents/GitHub/FlowProcessor/flowproc-project/flowproc/visualize.py
+# hypothesis_version: 6.136.3
+
+[-0.2, 0.05, 0.2, 0.5, 0.75, 600, 800, '--csv', '--height', '--metric', '--output-html', '--theme', '--time-course', '--width', 'Animal', 'DataFrame is empty', 'Group', 'Group_Label', 'Input CSV path', 'Mean', 'Metrics', 'No data to visualize', 'No replicates found', 'Output HTML path', 'Plot width in pixels', 'Plotly theme name', 'Replicate', 'Std', 'Subpopulation', 'Time', 'Tissue', 'Unknown_tissue', 'Value', 'Well', '__main__', 'a', 'black', 'data', 'group', 'lines+markers', 'paper', 'plotly_dark', 'store_true', 'time_course_mode', 'unique']

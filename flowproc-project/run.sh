@@ -15,12 +15,14 @@ pip install "PySide6>=6.5.0,<7.0.0" "pandas>=2.0.0,<3.0.0" "numpy>=1.24.0,<2.0.0
 echo "Packaging application with PyInstaller..."
 pyinstaller --windowed \
             --add-data "$(pwd)/flowproc:flowproc" \
+            --add-data "$(pwd)/flowproc/resources:flowproc/resources" \
             --add-data "$(pwd)/logs:logs" \
             --hidden-import flowproc.config \
             --hidden-import flowproc.writer \
             --hidden-import flowproc.parsing \
             --hidden-import flowproc.logging_config \
             --hidden-import flowproc.transform \
+            --hidden-import flowproc.resource_utils \
             --paths "$(pwd)/flowproc" \
             --name "FlowCytometryProcessor" \
             flowproc/gui.py || { echo "PyInstaller packaging failed"; exit 1; }

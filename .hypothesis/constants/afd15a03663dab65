@@ -1,0 +1,4 @@
+# file: /Users/franklin.lime/Documents/GitHub/FlowProcessor/flowproc-project/flowproc/vectorized_aggregator.py
+# hypothesis_version: 6.136.2
+
+[0.0, 0.5, 1000000.0, 100, 'Animal', 'Count', 'Group', 'Group_Label', 'Metric', 'Replicate', 'Std', 'Subpopulation', 'Time', 'Tissue', 'Value', 'Well', 'category', 'coerce', 'count', 'float', 'int', 'integer', 'mean', 'object', 'old_mean', 'old_std', 'speedup', 'std', 'vectorized_mean', 'vectorized_std']

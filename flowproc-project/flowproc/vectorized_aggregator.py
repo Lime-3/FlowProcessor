@@ -4,6 +4,7 @@ High-performance vectorized data aggregation module.
 Replaces nested loops with pandas groupby and vectorized operations.
 """
 import logging
+import gc
 from typing import List, Dict, Optional, Tuple, Any
 import numpy as np
 import pandas as pd
@@ -77,6 +78,19 @@ class VectorizedAggregator:
             self.df['Time'] = np.nan
             
         logger.debug(f"Data preparation took {time.time() - start_time:.3f}s")
+    
+    def cleanup(self) -> None:
+        """
+        Explicitly clean up memory used by the aggregator.
+        Call this when done processing to free memory immediately.
+        """
+        if hasattr(self, 'df'):
+            del self.df
+        gc.collect()
+        
+    def __del__(self):
+        """Destructor to ensure cleanup on object deletion."""
+        self.cleanup()
         
     def aggregate_metric(
         self,
@@ -133,6 +147,9 @@ class VectorizedAggregator:
             var_name='Subpopulation',
             value_name='Value'
         )
+        
+        # Clean up working dataframe to free memory
+        del working_df
         
         # Drop rows with missing values
         melted = melted.dropna(subset=['Value'])
@@ -302,6 +319,9 @@ class VectorizedAggregator:
         Returns:
             Optimized DataFrame with reduced memory footprint
         """
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError(f"Expected DataFrame, got {type(df)}")
+        
         start_mem = df.memory_usage(deep=True).sum() / 1e6
         
         # Downcast numeric columns

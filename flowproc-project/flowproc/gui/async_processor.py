@@ -4,6 +4,7 @@ Asynchronous processing module using QThread for non-blocking GUI operations.
 Provides cancellable, progress-reporting file processing with proper thread safety.
 """
 import logging
+import gc
 from pathlib import Path
 from typing import List, Optional, Callable, Dict, Any
 from dataclasses import dataclass, field
@@ -177,11 +178,16 @@ class ProcessingWorker(QThread):
             else:
                 self._set_state(ProcessingState.COMPLETED)
                 
-        except Exception as e:
+        except (RuntimeError, ValueError, OSError, MemoryError) as e:
             logger.error(f"Worker thread error: {e}", exc_info=True)
             self._set_state(ProcessingState.ERROR)
             self.error_occurred.emit(str(e))
             result.error_messages.append(str(e))
+        except Exception as e:
+            logger.error(f"Unexpected worker thread error: {e}", exc_info=True)
+            self._set_state(ProcessingState.ERROR)
+            self.error_occurred.emit(f"Unexpected error: {e}")
+            result.error_messages.append(f"Unexpected error: {e}")
             
         finally:
             # Always emit completion signal
@@ -201,10 +207,15 @@ class ProcessingWorker(QThread):
                 # Check time data for time course mode
                 if self._task.time_course_mode:
                     df, _ = load_and_parse_df(input_path)
-                    if 'Time' not in df.columns or df['Time'].isna().all():
-                        msg = f"No time data in {input_path.name} for time course mode"
-                        self.status_updated.emit(f"Skipping {input_path.name}: No time data")
-                        return False, msg, None
+                    try:
+                        if 'Time' not in df.columns or df['Time'].isna().all():
+                            msg = f"No time data in {input_path.name} for time course mode"
+                            self.status_updated.emit(f"Skipping {input_path.name}: No time data")
+                            return False, msg, None
+                    finally:
+                        # Explicit cleanup of DataFrame after time check
+                        del df
+                        gc.collect()  # Force garbage collection
                 
                 # Generate output filename
                 suffix = '_Timecourse' if self._task.time_course_mode else '_Grouped'

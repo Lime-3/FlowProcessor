@@ -36,14 +36,7 @@ DataFrame: TypeAlias = pd.DataFrame
 Figure: TypeAlias = go.Figure
 
 
-class VisualizationError(Exception):
-    """Raised when visualization fails."""
-    pass
-
-
-class DataProcessingError(VisualizationError):
-    """Raised when data processing fails."""
-    pass
+from .exceptions import VisualizationError, DataProcessingError, ProcessingError
 
 
 @dataclass(frozen=True)
@@ -150,11 +143,13 @@ class DataProcessor:
                 user_replicates=self.config.user_replicates,
                 user_groups=user_groups
             )
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             raise DataProcessingError(f"Failed to map replicates: {str(e)}") from e
     
     def _extract_metadata(self, df: DataFrame) -> Tuple[List[int], List[Optional[float]], bool, Dict[int, str]]:
         """Extract metadata from processed DataFrame."""
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError(f"Expected DataFrame, got {type(df)}")
         groups = sorted(df["Group"].dropna().unique().astype(int))
         
         times: List[Optional[float]] = [None]
@@ -355,6 +350,9 @@ class Visualizer:
         all_dfs: List[DataFrame] = []
         
         for agg_list in processed_data.dataframes:
+            for df in agg_list:
+                if not isinstance(df, pd.DataFrame):
+                    raise TypeError(f"Expected DataFrame, got {type(df)}")
             all_dfs.extend(agg_list)
         
         if not all_dfs:
@@ -539,8 +537,8 @@ def visualize_data(
         visualizer = Visualizer(config)
         fig = visualizer.create_figure(processed_data)
         
-        # Save HTML
-        fig.write_html(str(output_html), include_plotlyjs='cdn')
+        # Save HTML with embedded Plotly for offline viewing
+        fig.write_html(str(output_html), include_plotlyjs=True)
         
         # Log success
         if output_html.exists():

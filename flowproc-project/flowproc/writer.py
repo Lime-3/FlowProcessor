@@ -437,8 +437,12 @@ def process_directory(
                 user_group_labels, user_groups
             )
             count += 1
+        except (FileNotFoundError, PermissionError, OSError) as exc:
+            logger.error(f"File system error processing '{f}': {exc}")
+            if status_callback:
+                status_callback(f"File error: {exc}")
         except Exception as exc:
-            logger.error(f"Error processing '{f}': {exc}")
+            logger.error(f"Unexpected error processing '{f}': {exc}")
             if status_callback:
                 status_callback(f"Error: {exc}")
     

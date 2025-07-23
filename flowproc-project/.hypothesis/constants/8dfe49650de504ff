@@ -1,0 +1,4 @@
+# file: /Users/franklin.lime/Documents/GitHub/FlowProcessor/flowproc-project/flowproc/transform.py
+# hypothesis_version: 6.136.2
+
+['Animal', 'Group', 'No animals found', 'No groups found', 'No unique animals', 'Replicate', 'Time', 'Tissue', 'all']

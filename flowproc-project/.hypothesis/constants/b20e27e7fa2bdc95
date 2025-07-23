@@ -1,0 +1,4 @@
+# file: /Users/franklin.lime/Documents/GitHub/FlowProcessor/flowproc-project/flowproc/gui/async_processor.py
+# hypothesis_version: 6.136.3
+
+[0.0, 100, 5000, '*.csv', '.csv', 'No files processed', 'Processing cancelled', 'Time', '_Grouped', '_Timecourse']

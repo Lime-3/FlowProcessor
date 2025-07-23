@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 import plotly.graph_objects as go
 from unittest.mock import MagicMock
-from flowproc.visualize import visualize_data, process_data
+from flowproc.visualize import visualize_data, DataProcessor, VisualizationConfig
 from flowproc.plotting import create_bar_plot, create_line_plot
 from flowproc.gui.visualizer import visualize_metric, save_plot_as_image
 from flowproc.gui.processor import validate_inputs
@@ -86,19 +86,22 @@ def test_process_data(sample_df, monkeypatch):
     def mock_extract_tissue(sample_id):
         return "T1"
     monkeypatch.setattr("flowproc.parsing.extract_tissue", mock_extract_tissue)
-    agg_lists = process_data(
-        df=sample_df,
-        sid_col="SampleID",
+    
+    config = VisualizationConfig(
         metric="Freq. of Parent",
         time_course_mode=False,
         user_replicates=[1, 2],
         auto_parse_groups=False,
         user_group_labels=["Group A", "Group B"]
     )
-    assert len(agg_lists) == 1  # One metric
-    assert len(agg_lists[0]) == 1  # One tissue
-    assert agg_lists[0][0]["Metric"].iloc[0] == "Freq. of Parent"
-    assert len(agg_lists[0][0]['Subpopulation'].unique()) == 2
+    
+    processor = DataProcessor(sample_df, "SampleID", config)
+    processed_data = processor.process()
+    
+    assert len(processed_data.dataframes) == 1  # One metric
+    assert len(processed_data.dataframes[0]) == 1  # One tissue
+    assert processed_data.metrics[0] == "Freq. of Parent"
+    assert len(processed_data.dataframes[0][0]['Subpopulation'].unique()) == 2
 
 def test_visualize_data_bar(tmp_csv, tmp_path, monkeypatch):
     def mock_load_and_parse_df(path):
@@ -210,7 +213,9 @@ def test_multi_tissue_bar_separate_plots(tmp_csv_multi_tissue, tmp_path, monkeyp
 
 def test_invalid_metric(sample_df):
     with pytest.raises(ValueError, match="Invalid metric 'invalid'"):
-        process_data(sample_df, "SampleID", "invalid", False, [1, 2], False, ["Group A", "Group B"])
+        config = VisualizationConfig(metric="invalid")
+        processor = DataProcessor(sample_df, "SampleID", config)
+        processor.process()
 
 def test_visualize_metric(tmp_csv, monkeypatch, app):
     def mock_load_and_parse_df(path):

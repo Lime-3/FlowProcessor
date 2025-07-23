@@ -6,6 +6,7 @@ from typing import Optional, Tuple, List
 from pathlib import Path
 
 from .logging_config import setup_logging
+from .exceptions import ProcessingError
 
 logger = logging.getLogger(__name__)
 
@@ -37,19 +38,24 @@ def extract_group_animal(sample_id: str) -> Tuple[Optional[str], Optional[int], 
         animal = int(parts[-2]) if len(parts) >= 2 and parts[-2].isdigit() else None
         time = parse_time(parts[-1]) if len(parts) >= 3 else None
         return well, group, animal, time
-    except Exception as e:
+    except (ValueError, AttributeError, IndexError) as e:
         logger.warning(f"Failed to parse sample ID '{sample_id}': {e}")
         return None, None, None, None
 
 def extract_tissue(sample_id: str) -> str:
     """Extract tissue from sample ID."""
+    if not sample_id or pd.isna(sample_id):
+        return UNKNOWN_TISSUE
     try:
         return sample_id.split('_')[-1] if '_' in sample_id else UNKNOWN_TISSUE
-    except Exception:
+    except (AttributeError, IndexError) as e:
+        logger.warning(f"Failed to extract tissue from sample ID '{sample_id}': {e}")
         return UNKNOWN_TISSUE
 
 def validate_parsed_data(df: pd.DataFrame, sid_col: str) -> None:
     """Validate parsed DataFrame."""
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"Expected DataFrame, got {type(df)}")
     if df.empty:
         raise ValueError("Parsed DataFrame is empty")
     required_cols = ['Group', 'Animal']
@@ -57,4 +63,3 @@ def validate_parsed_data(df: pd.DataFrame, sid_col: str) -> None:
     if missing:
         raise ValueError(f"Missing or empty required columns: {missing}")
 
-def load_and_parse_df(input_file: Path) -> Tuple[pd.DataFrame, str]:

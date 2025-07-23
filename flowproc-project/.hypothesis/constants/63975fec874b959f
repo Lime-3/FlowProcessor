@@ -1,0 +1,4 @@
+# file: /Users/franklin.lime/Documents/GitHub/FlowProcessor/flowproc-project/flowproc/gui/config_handler.py
+# hypothesis_version: 6.136.2
+
+['.flowproc', 'Desktop', 'config.json', 'last_output_dir', 'r', 'utf-8', 'w']

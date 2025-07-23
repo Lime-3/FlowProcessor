@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 from flowproc.logging_config import setup_logging
+from flowproc.data_io import extract_group_animal, extract_tissue, validate_parsed_data
+from flowproc.exceptions import ProcessingError
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +180,9 @@ def get_tissue_full_name(tissue: str) -> str:
 
 def validate_parsed_data(df: pd.DataFrame, sid_col: str) -> None:
     """Validate parsed DataFrame."""
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"Expected DataFrame, got {type(df)}")
+    
     required_cols = ['Well', 'Group', 'Animal']
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
@@ -314,15 +319,15 @@ def load_and_parse_df(input_file: Path) -> Tuple[pd.DataFrame, str]:
         
         return df, sid_col
         
-    except pd.errors.EmptyDataError:
-        logger.error(f"Empty CSV file: {input_file}")
-        return pd.DataFrame(), "SampleID"
+    except (FileNotFoundError, pd.errors.EmptyDataError) as e:
+        logger.error(f"Failed to load {input_file}: {e}")
+        raise ProcessingError(f"Invalid input file: {e}")
     except pd.errors.ParserError as e:
         logger.error(f"CSV parsing error: {e}")
-        raise ValueError(f"Failed to parse CSV: {e}")
+        raise ProcessingError(f"Failed to parse CSV: {e}")
     except ValueError as e:
         logger.error(f"Value error: {e}")
         raise
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        raise RuntimeError(f"Failed to parse: {e}")
+        raise ProcessingError(f"Failed to parse: {e}")
