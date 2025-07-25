@@ -8,17 +8,22 @@ Features vectorized data aggregation for 5-10x performance improvements.
 
 __version__ = "2.0.0"  # Major version bump for async and vectorized features
 
-# Core modules
-from .parsing import load_and_parse_df, extract_tissue, extract_group_animal
-from .transform import map_replicates, reshape_pair
-from .writer import process_csv, process_directory, KEYWORDS
-from .vectorized_aggregator import VectorizedAggregator, AggregationConfig
+# Import from new domain structure
+from .domain.parsing import load_and_parse_df, extract_tissue, extract_group_animal
+from .domain.export import process_csv, process_directory
+from .domain.processing import map_replicates
+from .domain.processing.vectorized_aggregator import VectorizedAggregator, AggregationConfig
+from .core.constants import KEYWORDS
+
+# Reshape pair is not implemented yet
+reshape_pair = None
+
 from .resource_utils import get_resource_path, get_data_path, get_package_root
 
 # GUI components (optional - requires PySide6)
 try:
-    from .gui import main as gui_main
-    from .gui import ProcessingManager, ProcessingState
+    from .presentation.gui import main as gui_main
+    from .presentation.gui import ProcessingManager, ProcessingState
     GUI_AVAILABLE = True
 except ImportError:
     GUI_AVAILABLE = False
@@ -26,32 +31,37 @@ except ImportError:
     ProcessingManager = None
     ProcessingState = None
 
+# Expose all public APIs
 __all__ = [
-    # Version
     '__version__',
-    
-    # Core functions
     'load_and_parse_df',
-    'extract_tissue',
+    'extract_tissue', 
     'extract_group_animal',
-    'map_replicates',
-    'reshape_pair',
     'process_csv',
     'process_directory',
-    'KEYWORDS',
-    
-    # New vectorized features
+    'map_replicates',
+    'reshape_pair',
     'VectorizedAggregator',
     'AggregationConfig',
-    
-    # Resource utilities (PyInstaller-compatible)
+    'KEYWORDS',
     'get_resource_path',
     'get_data_path',
     'get_package_root',
-    
-    # GUI (if available)
-    'GUI_AVAILABLE',
     'gui_main',
     'ProcessingManager',
     'ProcessingState',
+    'GUI_AVAILABLE'
 ]
+
+# Support both async (GUI) and sync (CLI/script) workflows
+def main():
+    """Main entry point that launches the GUI."""
+    if GUI_AVAILABLE and gui_main:
+        gui_main()
+    else:
+        raise ImportError(
+            "GUI components not available. Install PySide6: pip install PySide6"
+        )
+
+if __name__ == "__main__":
+    main()

@@ -1,4 +1,0 @@
-# file: /Users/franklin.lime/Documents/GitHub/FlowProcessor/flowproc-project/flowproc/gui/window.py
-# hypothesis_version: 6.136.2
-
-[100, 160, 240, 255, 300, 400, ',', ', ', '.', '.csv', '1-10', '1-3', '; ', 'Animal', 'Animal Range', 'Browse', 'CSV files (*.csv)', 'Cancel', 'Cancel Processing', 'Cancelling...', 'Clear', 'Error', 'File', 'Group', 'Group Numbers:', 'Groups', 'Input / Output', 'Input Error', 'Input File/Folder:', 'Invalid Input', 'N/A', 'Options', 'Output Directory:', 'Pause', 'Paused', 'Preview CSV', 'Process', 'Processing Complete', 'Processing Error', 'Processing Failed', 'Ready', 'Replicate Numbers:', 'Resume', 'Samples', 'Save', 'Select CSV Files', 'Time', 'Timepoint', 'Tissue', 'Visualize', 'border-radius: 10px;', 'cancelButton', 'groupEntry', 'pauseButton']

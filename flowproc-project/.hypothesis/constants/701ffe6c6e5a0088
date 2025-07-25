@@ -1,4 +1,0 @@
-# file: /Users/franklin.lime/Documents/GitHub/FlowProcessor/flowproc-project/flowproc/logging_config.py
-# hypothesis_version: 6.136.2
-
-[1024, '%Y%m%d_%H%M%S', 'FLOWPROC_LOG_ROOT', 'a', 'data', 'logs', 'processing.log', 'utf-8', 'w']

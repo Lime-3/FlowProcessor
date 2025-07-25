@@ -28,7 +28,7 @@ def install_flowproc_dependencies(dependencies: List[str] = None, upgrade: bool 
         >>> install_flowproc_dependencies()
         True
     """
-    # Default dependencies for flowproc with PySide6 (removed Toga for compatibility)
+    # Default dependencies for flowproc with PySide6
     if dependencies is None:
         dependencies = [
             'numpy>=1.26.4',      # For numerical operations
