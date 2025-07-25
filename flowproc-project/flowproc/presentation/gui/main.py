@@ -3,8 +3,8 @@ import sys
 from PySide6.QtWidgets import QApplication
 import logging
 
-from ...logging_config import setup_logging
-from .window import MainWindow
+from flowproc.logging_config import setup_logging
+from flowproc.presentation.gui.window import MainWindow
 
 def main() -> None:
     """

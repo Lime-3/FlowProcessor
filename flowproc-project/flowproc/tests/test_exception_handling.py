@@ -13,8 +13,9 @@ import os
 # Import the modules with our improvements
 from flowproc.core.exceptions import ProcessingError, DataError as DataProcessingError
 from flowproc.domain.parsing import load_and_parse_df
-from flowproc.visualize import DataProcessor
-from flowproc.vectorized_aggregator import VectorizedAggregator
+from flowproc.domain.parsing.parsing_utils import validate_parsed_data
+from flowproc import DataProcessor
+from flowproc import VectorizedAggregator
 
 
 def test_processing_error_import():
@@ -103,8 +104,8 @@ def test_specific_exception_handling():
     print("\n🧪 Testing specific exception handling...")
     
     # Test sample ID parsing with invalid input
-    from flowproc.data_io import extract_group_animal, extract_tissue
-    
+    from flowproc.domain.parsing import extract_group_animal, extract_tissue
+
     # Test with None input
     try:
         result = extract_tissue(None)

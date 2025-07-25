@@ -21,3 +21,12 @@ pytest-qt-plugins==3.3.0
 pytest-qt-plugins-pyside6==3.3.0
 pytest-qt-plugins-pyside6-essentials==3.3.0
 pytest-qt-plugins-pyside6-addons==3.3.0
+scikit-learn==1.7.1
+scipy==1.16.0
+joblib==1.5.1
+threadpoolctl==3.6.0
+PyYAML==6.0.2
+pydantic==2.11.7
+pydantic-core==2.33.2
+annotated-types==0.7.0
+typing-inspection==0.4.1
