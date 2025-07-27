@@ -1,7 +1,3 @@
-"""
-Visualization themes for flow cytometry plots.
-"""
-
 from typing import Dict, Any, List
 import plotly.graph_objects as go
 import logging
@@ -10,10 +6,11 @@ logger = logging.getLogger(__name__)
 
 
 class VisualizationThemes:
-    """Provides different visual themes for plots."""
+    """Provides different visual themes for plots, updated with Apple-inspired design techniques for uniqueness and beauty."""
     
     def __init__(self):
-        """Initialize themes."""
+        """Initialize themes with Apple design influences: clean sans-serif typography, subtle color palettes, generous spacing, and adaptive light/dark modes."""
+        self.font_family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
         self.themes = {
             'default': self._get_default_theme(),
             'scientific': self._get_scientific_theme(),
@@ -43,317 +40,352 @@ class VisualizationThemes:
         return self.themes.get(theme_name, self.themes['default'])
     
     def _get_default_theme(self) -> Dict[str, Any]:
-        """Get default theme."""
+        """Get default theme with Apple light mode inspiration: clean, readable, subtle grays."""
         return {
-            'template': 'plotly_white',
+            'template': 'simple_white',
             'font': {
-                'family': 'Arial, sans-serif',
-                'size': 12,
-                'color': '#2c3e50'
+                'family': self.font_family,
+                'size': 13,
+                'color': '#000000'  # system label light
             },
             'title': {
                 'font': {
-                    'family': 'Arial, sans-serif',
-                    'size': 16,
-                    'color': '#2c3e50'
+                    'family': self.font_family,
+                    'size': 17,
+                    'color': '#000000'
                 }
             },
             'xaxis': {
                 'title': {
                     'font': {
-                        'family': 'Arial, sans-serif',
-                        'size': 14,
-                        'color': '#2c3e50'
+                        'family': self.font_family,
+                        'size': 15,
+                        'color': '#000000'
                     }
                 },
                 'tickfont': {
-                    'family': 'Arial, sans-serif',
-                    'size': 11,
-                    'color': '#2c3e50'
-                }
+                    'family': self.font_family,
+                    'size': 12,
+                    'color': '#3C3C43'  # secondary label opaque
+                },
+                'showgrid': True,
+                'gridcolor': '#E5E5EA',  # systemGray5 light
+                'gridwidth': 1,
+                'linecolor': '#AEAEB2',  # systemGray2 light
+                'linewidth': 1
             },
             'yaxis': {
                 'title': {
                     'font': {
-                        'family': 'Arial, sans-serif',
-                        'size': 14,
-                        'color': '#2c3e50'
+                        'family': self.font_family,
+                        'size': 15,
+                        'color': '#000000'
                     }
                 },
                 'tickfont': {
-                    'family': 'Arial, sans-serif',
-                    'size': 11,
-                    'color': '#2c3e50'
-                }
+                    'family': self.font_family,
+                    'size': 12,
+                    'color': '#3C3C43'
+                },
+                'showgrid': True,
+                'gridcolor': '#E5E5EA',
+                'gridwidth': 1,
+                'linecolor': '#AEAEB2',
+                'linewidth': 1
             },
             'legend': {
                 'font': {
-                    'family': 'Arial, sans-serif',
-                    'size': 11,
-                    'color': '#2c3e50'
-                }
+                    'family': self.font_family,
+                    'size': 12,
+                    'color': '#000000'
+                },
+                'bgcolor': 'rgba(255,255,255,0.8)',
+                'bordercolor': '#E5E5EA',
+                'borderwidth': 1
             },
-            'plot_bgcolor': 'white',
-            'paper_bgcolor': 'white',
-            'margin': {'l': 60, 'r': 40, 't': 60, 'b': 60}
+            'plot_bgcolor': '#F2F2F7',  # secondarySystemBackground light
+            'paper_bgcolor': '#FFFFFF',
+            'margin': {'l': 80, 'r': 60, 't': 80, 'b': 80}  # Generous spacing
         }
     
     def _get_scientific_theme(self) -> Dict[str, Any]:
-        """Get scientific theme."""
+        """Get scientific theme with Apple elegance: sans-serif font, precise lines, subtle grid."""
         return {
-            'template': 'plotly_white',
+            'template': 'simple_white',
             'font': {
-                'family': 'Times New Roman, serif',
-                'size': 12,
+                'family': self.font_family,
+                'size': 13,
                 'color': '#000000'
             },
             'title': {
                 'font': {
-                    'family': 'Times New Roman, serif',
-                    'size': 16,
+                    'family': self.font_family,
+                    'size': 17,
                     'color': '#000000'
                 }
             },
             'xaxis': {
                 'title': {
                     'font': {
-                        'family': 'Times New Roman, serif',
-                        'size': 14,
+                        'family': self.font_family,
+                        'size': 15,
                         'color': '#000000'
                     }
                 },
                 'tickfont': {
-                    'family': 'Times New Roman, serif',
-                    'size': 11,
+                    'family': self.font_family,
+                    'size': 12,
                     'color': '#000000'
                 },
                 'showgrid': True,
-                'gridcolor': '#e0e0e0',
-                'gridwidth': 1
+                'gridcolor': '#D1D1D6',  # systemGray4 light
+                'gridwidth': 0.5,
+                'zeroline': True,
+                'zerolinecolor': '#AEAEB2',
+                'zerolinewidth': 1
             },
             'yaxis': {
                 'title': {
                     'font': {
-                        'family': 'Times New Roman, serif',
-                        'size': 14,
+                        'family': self.font_family,
+                        'size': 15,
                         'color': '#000000'
                     }
                 },
                 'tickfont': {
-                    'family': 'Times New Roman, serif',
-                    'size': 11,
+                    'family': self.font_family,
+                    'size': 12,
                     'color': '#000000'
                 },
                 'showgrid': True,
-                'gridcolor': '#e0e0e0',
-                'gridwidth': 1
+                'gridcolor': '#D1D1D6',
+                'gridwidth': 0.5,
+                'zeroline': True,
+                'zerolinecolor': '#AEAEB2',
+                'zerolinewidth': 1
             },
             'legend': {
                 'font': {
-                    'family': 'Times New Roman, serif',
-                    'size': 11,
+                    'family': self.font_family,
+                    'size': 12,
                     'color': '#000000'
                 }
             },
-            'plot_bgcolor': 'white',
-            'paper_bgcolor': 'white',
-            'margin': {'l': 70, 'r': 50, 't': 70, 'b': 70}
+            'plot_bgcolor': '#FFFFFF',
+            'paper_bgcolor': '#FFFFFF',
+            'margin': {'l': 80, 'r': 60, 't': 80, 'b': 80}
         }
     
     def _get_dark_theme(self) -> Dict[str, Any]:
-        """Get dark theme."""
+        """Get dark theme inspired by Apple Dark Mode: deep blacks, high contrast text, subtle grays."""
         return {
             'template': 'plotly_dark',
             'font': {
-                'family': 'Arial, sans-serif',
-                'size': 12,
-                'color': '#ffffff'
+                'family': self.font_family,
+                'size': 13,
+                'color': '#FFFFFF'  # system label dark
             },
             'title': {
                 'font': {
-                    'family': 'Arial, sans-serif',
-                    'size': 16,
-                    'color': '#ffffff'
+                    'family': self.font_family,
+                    'size': 17,
+                    'color': '#FFFFFF'
                 }
             },
             'xaxis': {
                 'title': {
                     'font': {
-                        'family': 'Arial, sans-serif',
-                        'size': 14,
-                        'color': '#ffffff'
+                        'family': self.font_family,
+                        'size': 15,
+                        'color': '#FFFFFF'
                     }
                 },
                 'tickfont': {
-                    'family': 'Arial, sans-serif',
-                    'size': 11,
-                    'color': '#ffffff'
-                }
+                    'family': self.font_family,
+                    'size': 12,
+                    'color': '#EBEBF5'  # secondary label opaque
+                },
+                'showgrid': True,
+                'gridcolor': '#2C2C2E',  # systemGray5 dark
+                'gridwidth': 1,
+                'linecolor': '#636366',  # systemGray2 dark
+                'linewidth': 1
             },
             'yaxis': {
                 'title': {
                     'font': {
-                        'family': 'Arial, sans-serif',
-                        'size': 14,
-                        'color': '#ffffff'
+                        'family': self.font_family,
+                        'size': 15,
+                        'color': '#FFFFFF'
                     }
                 },
                 'tickfont': {
-                    'family': 'Arial, sans-serif',
-                    'size': 11,
-                    'color': '#ffffff'
-                }
+                    'family': self.font_family,
+                    'size': 12,
+                    'color': '#EBEBF5'
+                },
+                'showgrid': True,
+                'gridcolor': '#2C2C2E',
+                'gridwidth': 1,
+                'linecolor': '#636366',
+                'linewidth': 1
             },
             'legend': {
                 'font': {
-                    'family': 'Arial, sans-serif',
-                    'size': 11,
-                    'color': '#ffffff'
-                }
+                    'family': self.font_family,
+                    'size': 12,
+                    'color': '#FFFFFF'
+                },
+                'bgcolor': 'rgba(0,0,0,0.8)',
+                'bordercolor': '#2C2C2E',
+                'borderwidth': 1
             },
-            'plot_bgcolor': '#1a1a1a',
-            'paper_bgcolor': '#1a1a1a',
-            'margin': {'l': 60, 'r': 40, 't': 60, 'b': 60}
+            'plot_bgcolor': '#1C1C1E',  # secondarySystemBackground dark
+            'paper_bgcolor': '#000000',
+            'margin': {'l': 80, 'r': 60, 't': 80, 'b': 80}
         }
     
     def _get_minimal_theme(self) -> Dict[str, Any]:
-        """Get minimal theme."""
+        """Get minimal theme with Apple minimalism: no grids, thin lines, ample white space."""
         return {
-            'template': 'plotly_white',
+            'template': 'simple_white',
             'font': {
-                'family': 'Arial, sans-serif',
-                'size': 10,
-                'color': '#333333'
+                'family': self.font_family,
+                'size': 11,
+                'color': '#3C3C43'  # secondary label
             },
             'title': {
                 'font': {
-                    'family': 'Arial, sans-serif',
-                    'size': 14,
-                    'color': '#333333'
+                    'family': self.font_family,
+                    'size': 15,
+                    'color': '#000000'
                 }
             },
             'xaxis': {
                 'title': {
                     'font': {
-                        'family': 'Arial, sans-serif',
-                        'size': 12,
-                        'color': '#333333'
+                        'family': self.font_family,
+                        'size': 13,
+                        'color': '#000000'
                     }
                 },
                 'tickfont': {
-                    'family': 'Arial, sans-serif',
-                    'size': 9,
-                    'color': '#333333'
+                    'family': self.font_family,
+                    'size': 10,
+                    'color': '#3C3C43'
                 },
                 'showgrid': False,
                 'showline': True,
-                'linecolor': '#333333',
-                'linewidth': 1
+                'linecolor': '#C7C7CC',  # systemGray3 light
+                'linewidth': 0.5,
+                'zeroline': False
             },
             'yaxis': {
                 'title': {
                     'font': {
-                        'family': 'Arial, sans-serif',
-                        'size': 12,
-                        'color': '#333333'
+                        'family': self.font_family,
+                        'size': 13,
+                        'color': '#000000'
                     }
                 },
                 'tickfont': {
-                    'family': 'Arial, sans-serif',
-                    'size': 9,
-                    'color': '#333333'
+                    'family': self.font_family,
+                    'size': 10,
+                    'color': '#3C3C43'
                 },
                 'showgrid': False,
                 'showline': True,
-                'linecolor': '#333333',
-                'linewidth': 1
+                'linecolor': '#C7C7CC',
+                'linewidth': 0.5,
+                'zeroline': False
             },
             'legend': {
                 'font': {
-                    'family': 'Arial, sans-serif',
-                    'size': 9,
-                    'color': '#333333'
-                }
+                    'family': self.font_family,
+                    'size': 10,
+                    'color': '#3C3C43'
+                },
+                'borderwidth': 0
             },
-            'plot_bgcolor': 'white',
-            'paper_bgcolor': 'white',
-            'margin': {'l': 50, 'r': 30, 't': 50, 'b': 50}
+            'plot_bgcolor': '#FFFFFF',
+            'paper_bgcolor': '#FFFFFF',
+            'margin': {'l': 100, 'r': 80, 't': 100, 'b': 100}  # Extra space for beauty
         }
     
     def _get_colorful_theme(self) -> Dict[str, Any]:
-        """Get colorful theme."""
+        """Get colorful theme using Apple system accents: vibrant yet harmonious colors for emphasis."""
         return {
-            'template': 'plotly_white',
+            'template': 'simple_white',
             'font': {
-                'family': 'Arial, sans-serif',
-                'size': 12,
-                'color': '#2c3e50'
+                'family': self.font_family,
+                'size': 13,
+                'color': '#000000'
             },
             'title': {
                 'font': {
-                    'family': 'Arial, sans-serif',
-                    'size': 16,
-                    'color': '#e74c3c'
+                    'family': self.font_family,
+                    'size': 17,
+                    'color': '#007AFF'  # systemBlue light
                 }
             },
             'xaxis': {
                 'title': {
                     'font': {
-                        'family': 'Arial, sans-serif',
-                        'size': 14,
-                        'color': '#3498db'
+                        'family': self.font_family,
+                        'size': 15,
+                        'color': '#34C759'  # systemGreen light
                     }
                 },
                 'tickfont': {
-                    'family': 'Arial, sans-serif',
-                    'size': 11,
-                    'color': '#2c3e50'
+                    'family': self.font_family,
+                    'size': 12,
+                    'color': '#3C3C43'
                 },
                 'showgrid': True,
-                'gridcolor': '#ecf0f1',
+                'gridcolor': '#F2F2F7',  # systemGray6 light
                 'gridwidth': 1
             },
             'yaxis': {
                 'title': {
                     'font': {
-                        'family': 'Arial, sans-serif',
-                        'size': 14,
-                        'color': '#3498db'
+                        'family': self.font_family,
+                        'size': 15,
+                        'color': '#34C759'
                     }
                 },
                 'tickfont': {
-                    'family': 'Arial, sans-serif',
-                    'size': 11,
-                    'color': '#2c3e50'
+                    'family': self.font_family,
+                    'size': 12,
+                    'color': '#3C3C43'
                 },
                 'showgrid': True,
-                'gridcolor': '#ecf0f1',
+                'gridcolor': '#F2F2F7',
                 'gridwidth': 1
             },
             'legend': {
                 'font': {
-                    'family': 'Arial, sans-serif',
-                    'size': 11,
-                    'color': '#2c3e50'
+                    'family': self.font_family,
+                    'size': 12,
+                    'color': '#000000'
                 }
             },
-            'plot_bgcolor': '#f8f9fa',
-            'paper_bgcolor': 'white',
-            'margin': {'l': 60, 'r': 40, 't': 60, 'b': 60}
+            'plot_bgcolor': '#FFFFFF',
+            'paper_bgcolor': '#F2F2F7',
+            'margin': {'l': 80, 'r': 60, 't': 80, 'b': 80}
         }
     
     def _get_publication_theme(self) -> Dict[str, Any]:
-        """Get publication-ready theme."""
+        """Get publication-ready theme with Apple precision: high contrast, fine lines for print."""
         return {
-            'template': 'plotly_white',
+            'template': 'simple_white',
             'font': {
-                'family': 'Arial, sans-serif',
+                'family': self.font_family,
                 'size': 10,
                 'color': '#000000'
             },
             'title': {
                 'font': {
-                    'family': 'Arial, sans-serif',
+                    'family': self.font_family,
                     'size': 14,
                     'color': '#000000'
                 }
@@ -361,51 +393,55 @@ class VisualizationThemes:
             'xaxis': {
                 'title': {
                     'font': {
-                        'family': 'Arial, sans-serif',
+                        'family': self.font_family,
                         'size': 12,
                         'color': '#000000'
                     }
                 },
                 'tickfont': {
-                    'family': 'Arial, sans-serif',
+                    'family': self.font_family,
                     'size': 9,
                     'color': '#000000'
                 },
                 'showgrid': True,
-                'gridcolor': '#cccccc',
+                'gridcolor': '#D1D1D6',  # systemGray4 light
                 'gridwidth': 0.5,
                 'showline': True,
                 'linecolor': '#000000',
-                'linewidth': 1
+                'linewidth': 1,
+                'ticks': 'outside',
+                'ticklen': 5
             },
             'yaxis': {
                 'title': {
                     'font': {
-                        'family': 'Arial, sans-serif',
+                        'family': self.font_family,
                         'size': 12,
                         'color': '#000000'
                     }
                 },
                 'tickfont': {
-                    'family': 'Arial, sans-serif',
+                    'family': self.font_family,
                     'size': 9,
                     'color': '#000000'
                 },
                 'showgrid': True,
-                'gridcolor': '#cccccc',
+                'gridcolor': '#D1D1D6',
                 'gridwidth': 0.5,
                 'showline': True,
                 'linecolor': '#000000',
-                'linewidth': 1
+                'linewidth': 1,
+                'ticks': 'outside',
+                'ticklen': 5
             },
             'legend': {
                 'font': {
-                    'family': 'Arial, sans-serif',
+                    'family': self.font_family,
                     'size': 9,
                     'color': '#000000'
                 }
             },
-            'plot_bgcolor': 'white',
-            'paper_bgcolor': 'white',
-            'margin': {'l': 60, 'r': 40, 't': 60, 'b': 60}
-        } 
+            'plot_bgcolor': '#FFFFFF',
+            'paper_bgcolor': '#FFFFFF',
+            'margin': {'l': 70, 'r': 50, 't': 70, 'b': 70}
+        }

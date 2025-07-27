@@ -148,3 +148,89 @@ class DataValidator:
                 validation['valid'] = False
         
         return validation 
+
+
+def validate_csv_file(file_path: str) -> Dict[str, Any]:
+    """Validate a CSV file for flow cytometry processing."""
+    from pathlib import Path
+    import pandas as pd
+    
+    validation_results = {
+        'valid': True,
+        'errors': [],
+        'warnings': [],
+        'file_info': {}
+    }
+    
+    try:
+        path = Path(file_path)
+        
+        # Check if file exists
+        if not path.exists():
+            validation_results['valid'] = False
+            validation_results['errors'].append(f"File does not exist: {file_path}")
+            return validation_results
+        
+        # Check file extension
+        if path.suffix.lower() not in ['.csv', '.txt']:
+            validation_results['warnings'].append(f"File extension {path.suffix} is not standard for CSV files")
+        
+        # Try to read the file
+        try:
+            df = pd.read_csv(file_path, nrows=10)  # Read first 10 rows for validation
+            validation_results['file_info'] = {
+                'columns': list(df.columns),
+                'sample_rows': len(df),
+                'file_size_mb': path.stat().st_size / (1024 * 1024)
+            }
+        except Exception as e:
+            validation_results['valid'] = False
+            validation_results['errors'].append(f"Failed to read CSV file: {str(e)}")
+            
+    except Exception as e:
+        validation_results['valid'] = False
+        validation_results['errors'].append(f"Validation failed: {str(e)}")
+    
+    return validation_results
+
+
+def validate_directory(directory_path: str) -> Dict[str, Any]:
+    """Validate a directory for flow cytometry processing."""
+    from pathlib import Path
+    
+    validation_results = {
+        'valid': True,
+        'errors': [],
+        'warnings': [],
+        'file_info': {}
+    }
+    
+    try:
+        path = Path(directory_path)
+        
+        # Check if directory exists
+        if not path.exists():
+            validation_results['valid'] = False
+            validation_results['errors'].append(f"Directory does not exist: {directory_path}")
+            return validation_results
+        
+        if not path.is_dir():
+            validation_results['valid'] = False
+            validation_results['errors'].append(f"Path is not a directory: {directory_path}")
+            return validation_results
+        
+        # Count CSV files
+        csv_files = list(path.glob("*.csv")) + list(path.glob("*.txt"))
+        validation_results['file_info'] = {
+            'total_csv_files': len(csv_files),
+            'csv_files': [str(f.name) for f in csv_files[:10]]  # First 10 files
+        }
+        
+        if len(csv_files) == 0:
+            validation_results['warnings'].append("No CSV files found in directory")
+            
+    except Exception as e:
+        validation_results['valid'] = False
+        validation_results['errors'].append(f"Validation failed: {str(e)}")
+    
+    return validation_results 

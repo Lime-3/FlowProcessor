@@ -1,150 +1,116 @@
-# flowproc/validators.py
-"""Data validation with clear error reporting."""
-from typing import List, Set, Optional, Tuple
-import pandas as pd
-import numpy as np
-import logging
+"""
+Input validation for the GUI.
+"""
 
-from .exceptions import ValidationError
+from typing import List, Optional, Tuple
+from pathlib import Path
+import logging
 
 logger = logging.getLogger(__name__)
 
 
-class DataFrameValidator:
-    """Validates flow cytometry DataFrames."""
-    
-    REQUIRED_COLUMNS = {'SampleID', 'Group', 'Animal'}
-    NUMERIC_COLUMNS = {'Group', 'Animal', 'Replicate', 'Time'}
-    
-    def __init__(self, df: pd.DataFrame):
-        """Initialize with DataFrame to validate."""
-        self.df = df
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
-        
-    def validate(self) -> Tuple[bool, List[str], List[str]]:
-        """
-        Run all validations.
-        
-        Returns:
-            Tuple of (is_valid, errors, warnings)
-        """
-        self.errors.clear()
-        self.warnings.clear()
-        
-        # Run validation checks
-        self._check_required_columns()
-        self._check_data_types()
-        self._check_value_ranges()
-        self._check_duplicates()
-        self._check_group_consistency()
-        
-        return len(self.errors) == 0, self.errors, self.warnings
-    
-    def _check_required_columns(self) -> None:
-        """Check for required columns."""
-        missing = self.REQUIRED_COLUMNS - set(self.df.columns)
-        if missing:
-            self.errors.append(f"Missing required columns: {missing}")
-            
-    def _check_data_types(self) -> None:
-        """Check column data types."""
-        for col in self.NUMERIC_COLUMNS:
-            if col not in self.df.columns:
-                continue
-                
-            # Check if column can be converted to numeric
-            non_numeric = self.df[col].apply(
-                lambda x: not pd.isna(x) and not isinstance(x, (int, float, np.number))
-            )
-            
-            if non_numeric.any():
-                bad_values = self.df.loc[non_numeric, col].unique()[:5]
-                self.errors.append(
-                    f"Non-numeric values in {col}: {bad_values}"
-                )
-                
-    def _check_value_ranges(self) -> None:
-        """Check for invalid value ranges."""
-        # Check for negative groups/animals
-        for col in ['Group', 'Animal']:
-            if col in self.df.columns:
-                if (self.df[col] < 0).any():
-                    self.errors.append(f"Negative values found in {col}")
-                    
-        # Check time values
-        if 'Time' in self.df.columns:
-            time_values = self.df['Time'].dropna()
-            if (time_values < 0).any():
-                self.errors.append("Negative time values found")
-                
-            # Warn about unusual time values
-            if (time_values > 168).any():  # More than a week
-                self.warnings.append(
-                    "Time values exceed 168 hours (1 week)"
-                )
-                
-    def _check_duplicates(self) -> None:
-        """Check for duplicate sample IDs."""
-        if 'SampleID' in self.df.columns:
-            duplicates = self.df['SampleID'].duplicated()
-            if duplicates.any():
-                dup_ids = self.df.loc[duplicates, 'SampleID'].unique()[:5]
-                self.errors.append(
-                    f"Duplicate sample IDs found: {dup_ids}"
-                )
-                
-    def _check_group_consistency(self) -> None:
-        """Check for consistent group sizes."""
-        if all(col in self.df.columns for col in ['Group', 'Animal']):
-            group_sizes = self.df.groupby('Group')['Animal'].nunique()
-            
-            if len(group_sizes) > 1:
-                min_size = group_sizes.min()
-                max_size = group_sizes.max()
-                
-                if min_size != max_size:
-                    self.warnings.append(
-                        f"Inconsistent group sizes: {min_size}-{max_size} animals"
-                    )
-                    
-                    # Show which groups are affected
-                    for group, size in group_sizes.items():
-                        if size != max_size:
-                            self.warnings.append(
-                                f"  Group {group}: {size} animals"
-                            )
-
-
-def validate_dataframe(df: pd.DataFrame, 
-                      raise_on_error: bool = True) -> pd.DataFrame:
+def validate_inputs(
+    input_paths: List[str],
+    output_dir: str,
+    groups: Optional[List[int]] = None,
+    replicates: Optional[List[int]] = None
+) -> Tuple[bool, List[str]]:
     """
-    Validate a DataFrame and optionally raise on errors.
+    Validate GUI inputs.
     
     Args:
-        df: DataFrame to validate
-        raise_on_error: Whether to raise ValidationError on errors
+        input_paths: List of input file paths
+        output_dir: Output directory path
+        groups: List of group numbers
+        replicates: List of replicate numbers
         
     Returns:
-        The validated DataFrame
-        
-    Raises:
-        ValidationError: If validation fails and raise_on_error is True
+        Tuple of (is_valid, list_of_errors)
     """
-    validator = DataFrameValidator(df)
-    is_valid, errors, warnings = validator.validate()
+    errors = []
     
-    # Log warnings
-    for warning in warnings:
-        logger.warning(warning)
-        
-    # Handle errors
+    # Validate input paths
+    if not input_paths:
+        errors.append("No input files selected")
+    else:
+        for path in input_paths:
+            if not Path(path).exists():
+                errors.append(f"Input file does not exist: {path}")
+            elif not Path(path).suffix.lower() in ['.csv', '.txt']:
+                errors.append(f"Unsupported file format: {path}")
+    
+    # Validate output directory
+    if not output_dir:
+        errors.append("No output directory specified")
+    else:
+        output_path = Path(output_dir)
+        if output_path.exists() and not output_path.is_dir():
+            errors.append(f"Output path is not a directory: {output_dir}")
+    
+    # Validate groups and replicates if provided
+    if groups is not None:
+        if not isinstance(groups, list):
+            errors.append("Groups must be a list")
+        elif any(not isinstance(g, int) or g <= 0 for g in groups):
+            errors.append("All group numbers must be positive integers")
+    
+    if replicates is not None:
+        if not isinstance(replicates, list):
+            errors.append("Replicates must be a list")
+        elif any(not isinstance(r, int) or r <= 0 for r in replicates):
+            errors.append("All replicate numbers must be positive integers")
+    
+    is_valid = len(errors) == 0
+    
     if not is_valid:
-        error_msg = "Validation failed:\n" + "\n".join(errors)
+        logger.warning(f"Input validation failed: {errors}")
+    
+    return is_valid, errors
+
+
+def validate_file_path(path: str) -> Tuple[bool, Optional[str]]:
+    """
+    Validate a single file path.
+    
+    Args:
+        path: File path to validate
         
-        if raise_on_error:
-            raise ValidationError(error_msg, invalid_values=errors)
-        else:
-            logger.error(error_msg)
-            
-    return df
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not path:
+        return False, "Path is empty"
+    
+    file_path = Path(path)
+    
+    if not file_path.exists():
+        return False, f"File does not exist: {path}"
+    
+    if not file_path.is_file():
+        return False, f"Path is not a file: {path}"
+    
+    if not file_path.suffix.lower() in ['.csv', '.txt']:
+        return False, f"Unsupported file format: {path}"
+    
+    return True, None
+
+
+def validate_directory_path(path: str) -> Tuple[bool, Optional[str]]:
+    """
+    Validate a directory path.
+    
+    Args:
+        path: Directory path to validate
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not path:
+        return False, "Path is empty"
+    
+    dir_path = Path(path)
+    
+    if dir_path.exists() and not dir_path.is_dir():
+        return False, f"Path exists but is not a directory: {path}"
+    
+    return True, None 

@@ -1,9 +1,9 @@
 # flowproc/cli.py
 import argparse
 from pathlib import Path
-from .gui import main  # Changed from create_gui
-from .writer import process_csv, process_directory
-from .logging_config import setup_logging
+from ..gui.main import main as gui_main  # Updated import path
+from ...domain.export import process_csv, process_directory  # Updated import path
+from ...logging_config import setup_logging  # Updated import path
 import logging
 
 def main():
@@ -27,7 +27,7 @@ def main():
     # If no arguments are provided, launch GUI
     if not any(vars(args).values()):
         logging.info("No CLI arguments provided, launching GUI")
-        main()  # Call gui.main directly
+        gui_main()  # Call gui.main directly
     else:
         # Validate CLI arguments
         if not args.input_dir or not args.output_dir:

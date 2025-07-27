@@ -1,70 +1,102 @@
-# flowproc/setup.py
-import subprocess
+#!/bin/bash
+
+# FlowProcessor Setup Script
+# This script sets up the virtual environment and installs dependencies
+
+set -e  # Exit on any error
+
+echo "🚀 Setting up FlowProcessor..."
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+echo "📁 Project directory: $PROJECT_DIR"
+
+# Check if Python is installed
+if ! command -v python3 &> /dev/null; then
+    echo "❌ Python 3 is not installed. Please install Python 3.13 or later."
+    exit 1
+fi
+
+# Check Python version
+PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+REQUIRED_VERSION="3.13"
+
+if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$PYTHON_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+    echo "❌ Python version $PYTHON_VERSION is too old. Please install Python $REQUIRED_VERSION or later."
+    exit 1
+fi
+
+echo "✅ Python $PYTHON_VERSION detected"
+
+# Create virtual environment if it doesn't exist
+VENV_DIR="$PROJECT_DIR/venv"
+if [ ! -d "$VENV_DIR" ]; then
+    echo "🔧 Creating virtual environment..."
+    python3 -m venv "$VENV_DIR"
+    echo "✅ Virtual environment created at $VENV_DIR"
+else
+    echo "✅ Virtual environment already exists at $VENV_DIR"
+fi
+
+# Activate virtual environment
+echo "🔧 Activating virtual environment..."
+source "$VENV_DIR/bin/activate"
+
+# Upgrade pip
+echo "⬆️  Upgrading pip..."
+python -m pip install --upgrade pip
+
+# Install the package in development mode
+echo "📦 Installing FlowProcessor in development mode..."
+pip install -e .
+
+# Install additional development dependencies if needed
+echo "📦 Installing development dependencies..."
+pip install pytest pytest-qt pytest-cov pytest-mock
+
+# Verify installation
+echo "🔍 Verifying installation..."
+python -c "
 import sys
-import os
-from pathlib import Path
-import logging
-from .logging_config import setup_logging
+import importlib
 
-def ensure_setup():
-    """Ensure the virtual environment and dependencies are set up."""
-    setup_logging(filemode='a', max_size_mb=10, keep_backups=3)
-    logger = logging.getLogger(__name__)
-    logger.debug("Starting environment setup check")
+required_packages = [
+    'numpy', 'pandas', 'openpyxl', 'PySide6', 
+    'plotly', 'scikit-learn', 'PyYAML', 'pydantic'
+]
 
-    # Define virtual environment path
-    project_dir = Path(__file__).resolve().parent.parent
-    venv_dir = project_dir / "venv"
-
-    # Check if running in a virtual environment
-    if not hasattr(sys, 'real_prefix') and not hasattr(sys, 'base_prefix'):
-        logger.info("Not in a virtual environment, creating one")
-        try:
-            subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], check=True)
-            logger.info(f"Created virtual environment at {venv_dir}")
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to create virtual environment: {e}")
-            raise RuntimeError("Could not create virtual environment")
-
-        # Update sys.executable to point to the virtual environment's Python
-        if sys.platform == "win32":
-            python_executable = venv_dir / "Scripts" / "python.exe"
-        else:
-            python_executable = venv_dir / "bin" / "python3"
-
-        # Re-run the script in the virtual environment
-        logger.info("Re-running script in virtual environment")
-        subprocess.run([str(python_executable), *sys.argv], check=True)
-        sys.exit(0)  # Exit the current process after re-running
-
-    # Ensure pip is up to date
+missing_packages = []
+for package in required_packages:
     try:
-        subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"], check=True)
-        logger.debug("Pip updated successfully")
-    except subprocess.CalledProcessError as e:
-        logger.warning(f"Failed to update pip: {e}")
-
-    # Check and install dependencies
-    try:
-        import PySide6
-        import pandas
-        import numpy
-        import openpyxl
-        logger.debug("All dependencies are already installed")
+        importlib.import_module(package)
+        print(f'✅ {package} is installed')
     except ImportError:
-        logger.info("Installing dependencies from pyproject.toml")
-        try:
-            subprocess.run([sys.executable, "-m", "pip", "install", "."], check=True)
-            logger.info("Dependencies installed successfully")
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to install dependencies: {e}")
-            raise RuntimeError("Failed to install dependencies")
+        missing_packages.append(package)
+        print(f'❌ {package} is missing')
 
-    # Export requirements.txt for reproducibility
-    requirements_file = project_dir / "requirements.txt"
-    try:
-        with open(requirements_file, "w") as f:
-            subprocess.run([sys.executable, "-m", "pip", "freeze"], stdout=f, check=True)
-        logger.debug(f"Exported dependencies to {requirements_file}")
-    except subprocess.CalledProcessError as e:
-        logger.warning(f"Failed to export requirements.txt: {e}")
+if missing_packages:
+    print(f'\\n❌ Missing packages: {missing_packages}')
+    sys.exit(1)
+else:
+    print('\\n🎉 All required packages are installed!')
+"
+
+# Test the installation
+echo "🧪 Testing the installation..."
+python -c "
+try:
+    from flowproc.presentation.gui.main import main
+    print('✅ FlowProcessor can be imported successfully')
+except ImportError as e:
+    print(f'❌ Import error: {e}')
+    exit(1)
+"
+
+echo ""
+echo "🎉 Setup complete! To run FlowProcessor:"
+echo "1. Activate the virtual environment: source venv/bin/activate"
+echo "2. Run the application: python -m flowproc"
+echo ""
+echo "Or use the run script: ./run.sh"

@@ -13,7 +13,7 @@ shiboken6==6.9.1
 six==1.17.0
 tzdata==2025.2
 plotly==5.23.0
-kaleido==0.2.1
+kaleido>=1.0.0  # For static image export in plotly (PNG, PDF, SVG)
 pytest-cov==6.0.0
 pytest-mock==3.13.0
 pytest-qt==4.3.1

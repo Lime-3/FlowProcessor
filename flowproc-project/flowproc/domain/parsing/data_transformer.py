@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional
 import pandas as pd
 import numpy as np
 import logging
+from pathlib import Path
 
 from .sample_id_parser import SampleIDParser, ParsedSampleID
 from .column_detector import ColumnDetector
@@ -27,12 +28,13 @@ class DataTransformer:
         self.sample_parser = sample_parser or SampleIDParser()
         self.column_detector = column_detector or ColumnDetector()
         
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+    def transform(self, df: pd.DataFrame, file_path: Optional[Path] = None) -> pd.DataFrame:
         """
         Transform raw DataFrame into structured format.
         
         Args:
             df: Raw DataFrame from CSV
+            file_path: Optional path to the CSV file for extracting time information
             
         Returns:
             Transformed DataFrame with parsed columns
@@ -55,6 +57,10 @@ class DataTransformer:
         
         # Add parsed columns
         df = self._add_parsed_columns(df, parsed_data)
+        
+        # Extract time information from filename if available
+        if file_path:
+            df = self._extract_time_from_filename(df, file_path)
         
         # Clean up
         df = self._cleanup_dataframe(df)
@@ -116,9 +122,29 @@ class DataTransformer:
                     df.at[idx, 'Time'] = parsed.time_hours
                     
         # Convert to appropriate types
-        df['Group'] = pd.to_numeric(df['Group'], errors='coerce')
-        df['Animal'] = pd.to_numeric(df['Animal'], errors='coerce')
+        df['Group'] = pd.to_numeric(df['Group'], errors='coerce').astype('Int64')
+        df['Animal'] = pd.to_numeric(df['Animal'], errors='coerce').astype('Int64')
         
+        return df
+        
+    def _extract_time_from_filename(self, df: pd.DataFrame, file_path: Path) -> pd.DataFrame:
+        """Extract time information from filename and apply to all rows."""
+        from .time_parser import TimeParser
+        
+        time_parser = TimeParser()
+        filename = file_path.name
+        
+        # Try to extract time from filename
+        time_hours = time_parser.parse(filename)
+        
+        if time_hours is not None:
+            logger.info(f"Extracted time {time_hours} hours from filename: {filename}")
+            # Apply the time to all rows that don't already have time information
+            mask = df['Time'].isna()
+            df.loc[mask, 'Time'] = time_hours
+        else:
+            logger.debug(f"No time information found in filename: {filename}")
+            
         return df
         
     def _cleanup_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:

@@ -38,14 +38,68 @@ flowproc/
 - Python 3.13 or higher
 - pip
 
-### Install from Source
+### Quick Installation Options
+
+#### Option 1: Interactive Installer (Recommended)
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd FlowProcessor/flowproc-project
 
-# Install in development mode
+# Run the interactive installer
+./install.sh
+```
+
+#### Option 2: Quick Setup Script
+```bash
+# Clone the repository
+git clone <repository-url>
+cd FlowProcessor/flowproc-project
+
+# Run the setup script (creates virtual environment)
+./setup.sh
+```
+
+#### Option 3: Direct pip Install
+```bash
+# Clone the repository
+git clone <repository-url>
+cd FlowProcessor/flowproc-project
+
+# Quick pip install
+./pip-install.sh
+
+# Or manually
 pip install -e .
+```
+
+#### Option 4: Install with Extras
+```bash
+# Install with development dependencies
+pip install -e ".[dev]"
+
+# Install with test dependencies
+pip install -e ".[test]"
+
+# Install with all extras
+pip install -e ".[dev,test]"
+```
+
+### Traditional Installation Methods
+
+#### From pyproject.toml
+```bash
+pip install .
+```
+
+#### From setup.py
+```bash
+pip install .
+```
+
+#### From requirements.txt
+```bash
+pip install -r requirements.txt
 ```
 
 ### Dependencies
@@ -55,6 +109,7 @@ The application requires the following key dependencies:
 - **openpyxl>=3.1.5**: Excel file handling
 - **PySide6>=6.7.0**: GUI framework
 - **plotly>=5.18.0**: Interactive visualizations
+- **kaleido>=1.0.0**: Static image export (PNG, PDF, SVG)
 - **scikit-learn>=1.7.0**: Data transformations
 - **pydantic>=2.0.0**: Data validation and settings
 
@@ -88,6 +143,34 @@ export_service = ExportService()
 
 # Process your data
 # ... implementation details
+```
+
+## Image Export
+
+FlowProcessor supports high-quality static image export using the Kaleido engine:
+
+### Supported Formats
+- **PNG**: High-resolution raster images (default)
+- **PDF**: Vector graphics for publications
+- **SVG**: Scalable vector graphics
+
+### Export Features
+- **High DPI**: 600 DPI equivalent output for publication quality
+- **Customizable**: Configurable width, height, and scale
+- **GUI Integration**: Save plots directly from the visualization interface
+- **Programmatic**: Export via Python API
+
+### Example Usage
+```python
+from flowproc.domain.visualization.plotly_renderer import PlotlyRenderer
+
+renderer = PlotlyRenderer()
+fig = renderer.render_scatter(data, x_col='x', y_col='y')
+
+# Export to different formats
+renderer.export_to_image(fig, 'plot.png', format='png', width=800, height=600)
+renderer.export_to_image(fig, 'plot.pdf', format='pdf')
+renderer.export_to_image(fig, 'plot.svg', format='svg')
 ```
 
 ## Supported FlowJo Metrics

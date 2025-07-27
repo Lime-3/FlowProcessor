@@ -89,6 +89,26 @@ class VectorizedAggregator:
             del self.df
         gc.collect()
         
+    def _clean_subpopulation_name(self, col_name: str) -> str:
+        """
+        Clean subpopulation name by removing metric part.
+        
+        Args:
+            col_name: Original column name (e.g., "CD4+ | Freq. of Parent (%)")
+            
+        Returns:
+            Cleaned subpopulation name (e.g., "CD4+")
+        """
+        # Split by common separators and take the first part
+        separators = [' | ', ' |', '| ', ' - ', ' -', '- ', ' | Freq.', ' | Count', ' | Median', ' | Mean']
+        
+        for sep in separators:
+            if sep in col_name:
+                return col_name.split(sep)[0].strip()
+        
+        # If no separator found, return the original name
+        return col_name
+        
     def __del__(self):
         """Destructor to ensure cleanup on object deletion."""
         self.cleanup()
@@ -162,6 +182,9 @@ class VectorizedAggregator:
         # Convert values to numeric
         melted['Value'] = pd.to_numeric(melted['Value'], errors='coerce')
         melted = melted.dropna(subset=['Value'])
+        
+        # Clean subpopulation names by removing metric part
+        melted['Subpopulation'] = melted['Subpopulation'].apply(self._clean_subpopulation_name)
         
         # Define grouping columns based on available columns
         group_cols = ['Group', 'Subpopulation']
@@ -298,7 +321,7 @@ class VectorizedAggregator:
         tissues_detected = self.df['Tissue'].nunique() > 1 if 'Tissue' in self.df.columns else False
         
         # Create group mapping
-        group_map = {g: f"Group {g}" for g in groups}
+        group_map = {g: f"Group {int(g)}" for g in groups}
         
         return AggregationConfig(
             groups=groups,

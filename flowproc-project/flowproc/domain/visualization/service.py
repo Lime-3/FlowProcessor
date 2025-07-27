@@ -198,13 +198,29 @@ class VisualizationService:
         """Save a plot to file."""
         try:
             if format == 'html':
-                fig.write_html(filepath)
+                # Embed in QWebEngineView (offline HTML)
+                fig.write_html(
+                    filepath, 
+                    full_html=True, 
+                    include_plotlyjs='cdn',
+                    config=dict(
+                        editable=True,
+                        edits=dict(
+                            axisTitleText=True,  # Editable axis labels
+                            titleText=True,      # Editable chart title
+                            legendText=True      # Editable legend items
+                        )
+                    )
+                )
             elif format == 'png':
-                fig.write_image(filepath)
+                fig.write_image(filepath, scale=6)  # 600 DPI equivalent
             elif format == 'pdf':
-                fig.write_image(filepath)
+                # Export plot (excluding legend if desired by temp hiding)
+                temp_fig = fig  # Copy to modify
+                # Optional: Hide legend for export: temp_fig.update_layout(showlegend=False)
+                temp_fig.write_image(filepath, width=1800, height=600, scale=1)  # 6x2 inches at 300 DPI
             elif format == 'svg':
-                fig.write_image(filepath)
+                fig.write_image(filepath, scale=6)  # 600 DPI equivalent
             else:
                 raise VisualizationError(f"Unsupported format: {format}")
                 

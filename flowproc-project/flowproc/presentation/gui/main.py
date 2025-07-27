@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QApplication
 import logging
 
 from flowproc.logging_config import setup_logging
-from flowproc.presentation.gui.window import MainWindow
+from flowproc.presentation.gui.views.main_window import MainWindow
 
 def main() -> None:
     """

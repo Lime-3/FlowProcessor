@@ -19,9 +19,19 @@ class PlotlyRenderer:
         self.default_layout = {
             'template': 'plotly_white',
             'font': {'family': 'Arial, sans-serif', 'size': 12},
-            'margin': {'l': 50, 'r': 50, 't': 50, 'b': 50},
+            'margin': {'l': 50, 'r': 50, 't': 50, 'b': 80},
             'showlegend': True,
-            'legend': {'orientation': 'h', 'yanchor': 'bottom', 'y': 1.02, 'xanchor': 'right', 'x': 1}
+            'legend': {
+                'orientation': 'h', 
+                'yanchor': 'top', 
+                'y': -0.25, 
+                'xanchor': 'center', 
+                'x': 0.5,
+                'itemwidth': 150,
+                'tracegroupgap': 4,
+                'entrywidth': 150,
+                'entrywidthmode': 'pixels'
+            }
         }
     
     def render_scatter(self, df: pd.DataFrame, x_col: str, y_col: str, 
@@ -46,8 +56,33 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
+        # Calculate optimal layout based on label lengths
+        labels = df[x_col].unique().tolist() if x_col in df.columns else []
+        legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
+        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
+        
+        # Import the layout calculation function
+        from .plotting import calculate_layout_for_long_labels
+        # Use a default width of 800 and height of 600 if not specified
+        default_width = 800
+        default_height = 600
+        layout_adjustments = calculate_layout_for_long_labels(labels, legend_items, title, legend_labels, default_width, default_height)
+        
         # Apply default layout
         fig.update_layout(**self.default_layout)
+        
+        # Apply dynamic layout adjustments if needed
+        if layout_adjustments:
+            fig.update_layout(
+                width=layout_adjustments.get("width", default_width),
+                height=layout_adjustments.get("height", default_height),
+                margin=layout_adjustments["margin"],
+                legend=layout_adjustments["legend"]
+            )
+            fig.update_xaxes(
+                title_standoff=layout_adjustments["xaxis_title_standoff"],
+                tickangle=layout_adjustments["xaxis_tickangle"]
+            )
         
         return fig
     
@@ -174,22 +209,39 @@ class PlotlyRenderer:
     
     def export_to_html(self, fig: go.Figure, filepath: str, 
                       include_plotlyjs: bool = True, full_html: bool = True) -> None:
-        """Export figure to HTML file."""
+        """Export figure to HTML file with offline CDN support."""
         fig.write_html(
             filepath,
-            include_plotlyjs=include_plotlyjs,
-            full_html=full_html
+            include_plotlyjs='cdn' if include_plotlyjs else False,
+            full_html=full_html,
+            config=dict(
+                editable=True,
+                edits=dict(
+                    axisTitleText=True,  # Editable axis labels
+                    titleText=True,      # Editable chart title
+                    legendText=True      # Editable legend items
+                )
+            )
         )
     
     def export_to_image(self, fig: go.Figure, filepath: str, 
-                       format: str = 'png', width: int = 800, height: int = 600) -> None:
+                       format: str = 'png', width: int = 800, height: int = 800) -> None:
         """Export figure to image file."""
         fig.write_image(
             filepath,
             format=format,
             width=width,
-            height=height
+            height=height,
+            scale=6  # 600 DPI equivalent
         )
+    
+    def export_to_pdf(self, fig: go.Figure, filepath: str, 
+                     width: int = 1800, height: int = 600, scale: int = 1) -> None:
+        """Export figure to PDF format with publication-ready settings."""
+        # Export plot (excluding legend if desired by temp hiding)
+        temp_fig = fig  # Copy to modify
+        # Optional: Hide legend for export: temp_fig.update_layout(showlegend=False)
+        temp_fig.write_image(filepath, width=width, height=height, scale=scale)  # 6x2 inches at 300 DPI
     
     def get_figure_info(self, fig: go.Figure) -> Dict[str, Any]:
         """Get information about a figure."""
