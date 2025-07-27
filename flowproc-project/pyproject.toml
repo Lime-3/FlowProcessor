@@ -57,7 +57,7 @@ test_requires = [
 ]
 
 [tool.briefcase.app.flowproc.macOS]
-icon = "flowproc/resources/icon"
+icon = "flowproc/resources/icons/icon.icns"
 entitlements = "flowproc/resources/entitlements.plist"  # Reference to external entitlements file
 
 [tool.briefcase.app.flowproc.windows]

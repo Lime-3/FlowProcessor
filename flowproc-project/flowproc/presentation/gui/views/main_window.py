@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QDialog,
 )
 from PySide6.QtCore import Qt, QEvent, Slot
-from PySide6.QtGui import QPalette, QColor, QFont
+from PySide6.QtGui import QPalette, QColor, QFont, QIcon
 from pathlib import Path
 import logging
 from typing import List, Optional
@@ -50,6 +50,9 @@ class MainWindow(QMainWindow):
         
         # Initialize processing manager
         self.processing_manager = ProcessingManager(self)
+
+        # Set application icon
+        self.setup_application_icon()
 
         # Set window properties for resizing
         self.setMinimumSize(800, 600)
@@ -95,6 +98,19 @@ class MainWindow(QMainWindow):
         else:
             self.processing_manager.cleanup()
             event.accept()
+
+    def setup_application_icon(self) -> None:
+        """Set up the application icon."""
+        try:
+            from ....resource_utils import get_resource_path
+            icon_path = get_resource_path("resources/icons/icon.icns")
+            if icon_path.exists():
+                self.setWindowIcon(QIcon(str(icon_path)))
+                logger.info(f"Application icon set from: {icon_path}")
+            else:
+                logger.warning(f"Application icon not found at: {icon_path}")
+        except Exception as e:
+            logger.warning(f"Failed to set application icon: {e}")
 
     def setup_palette_and_style(self) -> None:
         """Set up the dark palette and apply the application stylesheet."""

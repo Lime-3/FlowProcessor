@@ -22,18 +22,18 @@ pip install -e .
 pip install pyinstaller
 
 # Check for required files
-if [ ! -f "flowproc/resources/icon.icns" ]; then
+if [ ! -f "flowproc/resources/icons/icon.icns" ]; then
     echo "⚠️  No icon found, creating default one..."
-    mkdir -p flowproc/resources
+    mkdir -p flowproc/resources/icons
     # Create a simple default icon (you can replace this later)
     python3 -c "
 from PIL import Image, ImageDraw
 import os
-os.makedirs('flowproc/resources', exist_ok=True)
+os.makedirs('flowproc/resources/icons', exist_ok=True)
 img = Image.new('RGB', (512, 512), color='#4A90E2')
 draw = ImageDraw.Draw(img)
 draw.text((180, 220), 'FP', fill='white', font_size=100)
-img.save('flowproc/resources/icon.icns', 'ICNS')
+img.save('flowproc/resources/icons/icon.icns', 'ICNS')
 print('✅ Created default icon')
 " 2>/dev/null || echo "ℹ️  PIL not available, skipping icon creation"
 fi
@@ -61,9 +61,9 @@ pyinstaller \
     flowproc/presentation/gui/main.py
 
 # Add icon if it exists
-if [ -f "flowproc/resources/icon.icns" ]; then
+if [ -f "flowproc/resources/icons/icon.icns" ]; then
     echo "🎨 Adding app icon..."
-    cp flowproc/resources/icon.icns dist/FlowProcessor.app/Contents/Resources/icon.icns
+    cp flowproc/resources/icons/icon.icns dist/FlowProcessor.app/Contents/Resources/icon.icns
     # Update Info.plist
     /usr/libexec/PlistBuddy -c "Set :CFBundleIconFile icon.icns" dist/FlowProcessor.app/Contents/Info.plist 2>/dev/null || true
 fi
