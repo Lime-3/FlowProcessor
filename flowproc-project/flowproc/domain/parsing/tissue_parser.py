@@ -112,6 +112,14 @@ class TissueParser:
         for full_name, code in self.REVERSE_MAP.items():
             if full_name in text_lower:
                 return code
+        
+        # Look for tissue codes anywhere in the text (for cases like "2 hours_SP_A1_1.1")
+        for code in self.TISSUE_MAP:
+            # Look for tissue code surrounded by delimiters or at word boundaries
+            import re
+            pattern = r'[_-]' + re.escape(code) + r'[_-]'
+            if re.search(pattern, text_upper):
+                return code
                 
         return self.unknown_code
         

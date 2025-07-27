@@ -44,13 +44,15 @@ from ...core.exceptions import VisualizationError, DataError as DataProcessingEr
 class VisualizationConfig:
     """Configuration for visualization generation."""
     metric: Optional[str]
-    width: int = 1000  # Increased width for better timecourse plot visibility
-    height: int = 275  # User requirement: 2-2.5 inches height (275px at 96 DPI) - increased by 25%
+    width: int = 600  # Wide width for better timecourse aspect ratio
+    height: int = 300  # Short height for better timecourse visualization
     theme: str = "default"  # Changed from "dark" to "default"
     time_course_mode: bool = False
     user_replicates: Optional[List[int]] = None
     auto_parse_groups: bool = True
     user_group_labels: Optional[List[str]] = None
+    tissue_filter: Optional[str] = None
+    subpopulation_filter: Optional[str] = None
     
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
@@ -98,6 +100,22 @@ class DataProcessor:
         df_mapped, replicate_count = self._map_replicates()
         if replicate_count == 0:
             raise DataProcessingError("No replicates found")
+        
+        # Apply tissue filtering if specified
+        if self.config.tissue_filter and 'Tissue' in df_mapped.columns:
+            original_count = len(df_mapped)
+            df_mapped = df_mapped[df_mapped['Tissue'] == self.config.tissue_filter]
+            filtered_count = len(df_mapped)
+            logger.info(f"Applied tissue filter '{self.config.tissue_filter}': {original_count} -> {filtered_count} rows")
+            
+            if df_mapped.empty:
+                raise DataProcessingError(f"No data found for tissue '{self.config.tissue_filter}'")
+        
+        # Apply subpopulation filtering if specified (for time-course mode)
+        if self.config.subpopulation_filter and self.config.time_course_mode:
+            # Note: Subpopulation filtering will be applied after aggregation
+            # since subpopulations are created during the aggregation process
+            logger.info(f"Subpopulation filter '{self.config.subpopulation_filter}' will be applied during visualization")
         
         # Update aggregator with mapped data
         self.aggregator.df = df_mapped
@@ -157,8 +175,8 @@ class DataProcessor:
             else:
                 times = [None]
             
-            # Check for tissues
-            tissues_detected = 'Tissue' in df.columns and df['Tissue'].nunique() > 1
+            # Check for tissues - if tissue filter is applied, only one tissue should remain
+            tissues_detected = 'Tissue' in df.columns and df['Tissue'].nunique() > 1 and not self.config.tissue_filter
             
             # Create group map - use user_group_labels if provided, otherwise use default labels
             group_map = {}
@@ -267,54 +285,97 @@ class Visualizer:
         # Combine all dataframes
         all_data = self._combine_dataframes(processed_data)
         
-        # Get unique dimensions
-        unique_subpops = sorted(all_data['Subpopulation'].unique())
-        unique_tissues = sorted(all_data['Tissue'].unique())
-        num_rows = len(unique_subpops) * len(unique_tissues)
+        # Apply subpopulation filtering if specified
+        if self.config.subpopulation_filter and 'Subpopulation' in all_data.columns:
+            original_count = len(all_data)
+            available_subpops = sorted(all_data['Subpopulation'].unique())
+            logger.debug(f"Available subpopulations in data: {available_subpops}")
+            logger.debug(f"Looking for subpopulation: '{self.config.subpopulation_filter}'")
+            all_data = all_data[all_data['Subpopulation'] == self.config.subpopulation_filter]
+            filtered_count = len(all_data)
+            logger.info(f"Applied subpopulation filter '{self.config.subpopulation_filter}': {original_count} -> {filtered_count} rows")
+            
+            if all_data.empty:
+                raise DataProcessingError(f"No data found for subpopulation '{self.config.subpopulation_filter}'")
         
-        # Create subplots
+        # Get unique dimensions from the filtered data
+        unique_subpops = sorted(all_data['Subpopulation'].unique())
+        # Filter out UNK tissues from the list
+        unique_tissues = sorted([t for t in all_data['Tissue'].unique() if t != 'UNK'])
+        
+        # Ensure we have at least one row for subplots
+        if not unique_tissues:
+            # If no valid tissues, use subpopulations only
+            num_rows = len(unique_subpops)
+            unique_tissues = ['']  # Empty string for tissue display
+        else:
+            num_rows = len(unique_subpops) * len(unique_tissues)
+        
+        # Create subplots with balanced spacing - not too tight, not too loose
+        # Use moderate vertical spacing for good readability
+        vertical_spacing = 0.08 if num_rows > 1 else 0.03
+        
         fig = make_subplots(
             rows=num_rows, cols=1,
             shared_xaxes=True,
-            vertical_spacing=0.15,  # Increased spacing between subplots
-            subplot_titles=self._generate_subplot_titles(unique_tissues, unique_subpops)
+            vertical_spacing=vertical_spacing,
+            subplot_titles=self._generate_subplot_titles(unique_tissues, unique_subpops),
+            # Ensure proper sizing for timecourse visualization
+            specs=[[{"secondary_y": False}] for _ in range(num_rows)]
         )
         
         # Add traces
         self._add_time_course_traces(fig, all_data, unique_tissues, unique_subpops)
         
-        # Update layout
-        updated_height = self.config.height * num_rows
+        # Update layout with balanced height calculation
+        # Use a moderate minimum height per subplot for good spacing
+        min_height_per_subplot = 300  # Balanced minimum height for each subplot
+        title_height = 60  # Extra height for title and spacing
+        spacing_height = 30 * num_rows  # Moderate spacing between subplots
+        updated_height = max(min_height_per_subplot * num_rows + title_height + spacing_height, self.config.height)
         title = self.config.metric if self.config.metric else 'Metrics Visualization'
         y_axis_title = self.config.metric if self.config.metric else 'Metrics'
         fig.update_layout(
             title=title,
             xaxis_title='Time',
             yaxis_title=y_axis_title,
-            width=self.config.width,
-            height=updated_height
+            height=updated_height,
+            width=self.config.width  # Set width here to ensure it's applied before theme
         )
         
-        # Update x-axes and y-axes for all subplots
+        # Update x-axes and y-axes for all subplots with better spacing
         for row in range(1, num_rows + 1):
             fig.update_xaxes(
                 title_text='Time',
-                title_standoff=0,
+                title_standoff=10,
                 showticklabels=True,
                 autorange=True,
+                tickmode='auto',
+                nticks=8,  # Limit number of ticks for cleaner appearance
                 row=row, col=1
             )
             # Update y-axis title for each subplot
             fig.update_yaxes(
                 title_text=self.config.metric if self.config.metric else 'Metrics',
-                title_standoff=0,
+                title_standoff=10,
                 showticklabels=True,
                 autorange=True,
+                tickmode='auto',
+                nticks=6,  # Limit number of ticks for cleaner appearance
                 row=row, col=1
             )
         
         # Apply custom theme AFTER all axis updates to ensure theme is not overridden
         self.themes.apply_theme(fig, self.config.theme)
+        
+        # Ensure proper subplot sizing for timecourse visualization
+        # This fixes the issue where width was not applying to plots when multiple graphs are displayed
+        # The width is set both before and after theme application to ensure it's not overridden
+        fig.update_layout(
+            width=self.config.width,  # Re-apply width after theme to ensure it's not overridden
+            # Ensure proper margins for subplots with balanced spacing
+            margin=dict(l=65, r=65, t=85, b=70)
+        )
         
         return fig
     
@@ -524,10 +585,12 @@ class Visualizer:
         titles = []
         for tissue in tissues:
             for subpop in subpops:
-                if tissue and subpop:
-                    titles.append(f"{tissue} - {subpop}")
-                elif tissue:
-                    titles.append(tissue)
+                # Don't include UNK tissue or empty tissue strings in subplot titles
+                tissue_display = tissue if tissue != 'UNK' and tissue != '' else ''
+                if tissue_display and subpop:
+                    titles.append(f"{tissue_display} - {subpop}")
+                elif tissue_display:
+                    titles.append(tissue_display)
                 elif subpop:
                     titles.append(subpop)
                 else:
@@ -544,12 +607,24 @@ class Visualizer:
         color_sequence = px.colors.qualitative.Dark24
         group_color_map = {group: color_sequence[i % len(color_sequence)] for i, group in enumerate(all_unique_groups)}
         
+        # Determine if we're in single-tissue mode (when tissues is [''] or only has one tissue)
+        single_tissue_mode = len(tissues) == 1 and (tissues[0] == '' or len(tissues) == 1)
+        
         for i, tissue in enumerate(tissues):
             for j, subpop in enumerate(subpops):
-                row = i * len(subpops) + j + 1
+                if single_tissue_mode:
+                    # When we have only subpopulations (no valid tissues), use simple row numbering
+                    row = j + 1
+                else:
+                    # Original logic for multiple tissues
+                    row = i * len(subpops) + j + 1
                 
                 # Filter data for this subplot
-                mask = (all_data['Tissue'] == tissue) & (all_data['Subpopulation'] == subpop)
+                if tissue == '':
+                    # If tissue is empty string, include all tissues (including UNK)
+                    mask = (all_data['Subpopulation'] == subpop)
+                else:
+                    mask = (all_data['Tissue'] == tissue) & (all_data['Subpopulation'] == subpop)
                 subplot_data = all_data[mask]
                 
                 if not subplot_data.empty:
@@ -562,18 +637,21 @@ class Visualizer:
                         
                         if not group_data.empty:
                             # Add line trace for this group with consistent color
+                            # Don't include UNK tissue in the name
+                            tissue_display = tissue if tissue != 'UNK' else ''
+                            name = f"{group} ({tissue_display} - {subpop})" if tissue_display else f"{group} ({subpop})"
                             fig.add_trace(
                                 go.Scatter(
                                     x=group_data['Time'],
                                     y=group_data['Mean'],
                                     mode='lines+markers',
-                                    name=f"{group} ({tissue} - {subpop})",
+                                    name=name,
                                     error_y=dict(
                                         type='data',
                                         array=group_data['Std'],
                                         visible=True,
-                                        thickness=0.5,
-                                        width=0.75  # Endcaps 50% wider than main line
+                                        thickness=0.3,
+                                        width=0.5  # Reduced width to prevent overlap
                                     ),
                                     showlegend=(row == 1),  # Only show legend for first row
                                     legendgroup=group,
@@ -587,13 +665,15 @@ def visualize_data(
     csv_path: PathLike,
     output_html: PathLike,
     metric: Optional[str] = None,
-    width: int = 1000,  # Increased width for better timecourse plot visibility
-    height: int = 275,  # User requirement: 2-2.5 inches height (275px at 96 DPI) - increased by 25%
+    width: int = 600,  # Wide width for better timecourse aspect ratio
+    height: int = 300,  # Short height for better timecourse visualization
     theme: str = "default",  # Changed from "dark" to "default"
     time_course_mode: bool = False,
     user_replicates: Optional[List[int]] = None,
     auto_parse_groups: bool = True,
-    user_group_labels: Optional[List[str]] = None
+    user_group_labels: Optional[List[str]] = None,
+    tissue_filter: Optional[str] = None,
+    subpopulation_filter: Optional[str] = None
 ) -> Figure:
     """
     Generate interactive plots using vectorized data processing.
@@ -646,7 +726,9 @@ def visualize_data(
             time_course_mode=time_course_mode,
             user_replicates=user_replicates,
             auto_parse_groups=auto_parse_groups,
-            user_group_labels=user_group_labels
+            user_group_labels=user_group_labels,
+            tissue_filter=tissue_filter,
+            subpopulation_filter=subpopulation_filter
         )
         
         # Load and process data
@@ -718,8 +800,8 @@ def main() -> None:
     parser.add_argument("--csv", required=True, help="Input CSV path")
     parser.add_argument("--output-html", required=True, help="Output HTML path")
     parser.add_argument("--metric", default=None, help="Specific metric to visualize")
-    parser.add_argument("--width", type=int, default=800, help="Plot width in pixels")
-    parser.add_argument("--height", type=int, default=800, help="Plot height in pixels")
+    parser.add_argument("--width", type=int, default=600, help="Plot width in pixels")
+    parser.add_argument("--height", type=int, default=300, help="Plot height in pixels")
     parser.add_argument("--theme", default="default", help="Custom theme name")
     parser.add_argument("--time-course", action="store_true", help="Enable time-course mode")
     

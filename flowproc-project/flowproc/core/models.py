@@ -42,8 +42,8 @@ class VisualizationOptions(BaseModel):
     
     plot_type: VisualizationType = VisualizationType.BAR_PLOT
     theme: str = 'plotly'
-    width: int = Field(default=1000, ge=400)  # Increased default width for better timecourse plot visibility
-    height: int = Field(default=275, ge=300)  # User requirement: 2-2.5 inches height - increased by 25%
+    width: int = Field(default=600, ge=300)  # Wide default width for better timecourse aspect ratio
+    height: int = Field(default=300, ge=300)  # Short height for better timecourse visualization
     dpi: int = Field(default=600, ge=72, le=1200)
     show_legend: bool = True
     show_grid: bool = True
@@ -90,18 +90,18 @@ class VisualizationConfig(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
         json_schema_extra={
-            "example": {
-                "plot_type": "bar",
-                "width": 1000,
-                "height": 275,
-                "title": "Flow Cytometry Results"
-            }
+                    "example": {
+            "plot_type": "bar",
+            "width": 500,
+            "height": 300,
+            "title": "Flow Cytometry Results"
+        }
         }
     )
     
     plot_type: str = Field(default='bar', pattern='^(bar|line|scatter|box|violin)$')
-    width: int = Field(default=1000, ge=400, le=3000)  # Increased default width for better timecourse plot visibility
-    height: int = Field(default=275, ge=300, le=1500)  # User requirement: 2-2.5 inches height - increased by 25%
+    width: int = Field(default=600, ge=300, le=3000)  # Wide default width for better timecourse aspect ratio
+    height: int = Field(default=300, ge=300, le=1500)  # Short height for better timecourse visualization
     title: Optional[str] = None
     x_label: Optional[str] = None
     y_label: Optional[str] = None

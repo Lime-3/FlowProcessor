@@ -55,7 +55,7 @@ PLOT_STYLE = {
     "modebar": {"orientation": "h"},
 }
 
-def calculate_layout_for_long_labels(labels: list[str], legend_items: int = 0, title: str = "", legend_labels: list[str] = None, base_width: int = 1000, base_height: int = 275) -> dict:
+def calculate_layout_for_long_labels(labels: list[str], legend_items: int = 0, title: str = "", legend_labels: list[str] = None, base_width: int = 600, base_height: int = 300) -> dict:
     """
     Calculate optimal layout settings to prevent label overlap while maintaining aspect ratio.
     
@@ -257,7 +257,11 @@ def create_bar_plot(
     
     # Use Group_Number for x-axis if we have tissue information
     if 'Tissue' in plot_df.columns and plot_df['Tissue'].nunique() > 1:
-        plot_df['X_Label'] = plot_df['Group_Number'].astype(str) + ' (' + plot_df['Tissue'] + ')'
+        # Filter out UNK tissues when creating labels
+        plot_df['X_Label'] = plot_df.apply(
+            lambda row: f"{row['Group_Number']} ({row['Tissue']})" if row['Tissue'] != 'UNK' else str(row['Group_Number']), 
+            axis=1
+        )
         x_axis = 'X_Label'
     else:
         x_axis = 'Group_Number'
@@ -358,7 +362,7 @@ def create_line_plot(
         rows=num_subpops,
         cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.05,  # User's change: Balanced spacing for larger heights
+        vertical_spacing=0.02,  # Reduced spacing to prevent vertical compression
         subplot_titles=[f"{metric_name} - {subpop}" for subpop in unique_subpops]
     )
 
@@ -416,7 +420,8 @@ def create_line_plot(
             tissue: str = group_df['Tissue'].iloc[0] if tissues_detected and not group_df.empty else ''
             # Use integer label for display
             group_number = group_display_numbers[i]
-            name: str = f"{group_number} ({tissue})" if tissue else str(group_number)
+            # Don't include UNK tissue in the name
+            name: str = f"{group_number} ({tissue})" if tissue and tissue != 'UNK' else str(group_number)
             fig.add_trace(
                 go.Scatter(
                     x=group_df['Time'],

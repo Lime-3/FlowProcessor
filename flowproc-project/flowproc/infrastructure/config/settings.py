@@ -44,8 +44,8 @@ class VisualizationSettings(BaseModel):
     model_config = ConfigDict(extra='forbid')
     
     default_theme: str = "plotly"
-    default_width: int = Field(default=1000, ge=400)  # Increased default width for better timecourse plot visibility
-    default_height: int = Field(default=275, ge=300)  # User requirement: 2-2.5 inches height - increased by 25%
+    default_width: int = Field(default=600, ge=300)  # Wide default width for better timecourse aspect ratio
+    default_height: int = Field(default=300, ge=300)  # Short height for better timecourse visualization
     dpi: int = Field(default=600, ge=72, le=1200)
     save_format: str = "png"
     interactive: bool = True
