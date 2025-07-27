@@ -86,16 +86,86 @@ class VisualizationDialog(QDialog):
         self.current_fig: Optional[go.Figure] = None
         self.temp_html: Optional[Path] = None
         self.themes = VisualizationThemes()
+        self.available_tissues: List[str] = []
+        self.selected_tissue: Optional[str] = None
+        self.available_subpopulations: List[str] = []
+        self.selected_subpopulation: Optional[str] = None
         
         self.setWindowTitle(f"Visualization Preview - {metric_name}")
         self.setModal(True)
-        self.resize(800, 500)  # Adjusted dialog size for taller plots
-        self.setMinimumSize(600, 400)
+        self.resize(1400, 500)  # Increased width to accommodate metric selector
+        self.setMinimumSize(1200, 400)  # Increased minimum width
         
+        # Center the dialog on the screen
+        self.setGeometry(
+            (self.screen().size().width() - self.width()) // 2,
+            (self.screen().size().height() - self.height()) // 2,
+            self.width(),
+            self.height()
+        )
+        
+        self._load_available_tissues()
+        self._load_available_subpopulations()
         self._setup_ui()
         self._setup_styling()
         self._setup_web_view_signals()
         self._generate_plot()
+        
+    def _load_available_tissues(self):
+        """Load available tissues from the CSV data."""
+        try:
+            # Load and parse the data to get available tissues
+            df, _ = load_and_parse_df(self.csv_path)
+            if 'Tissue' in df.columns:
+                self.available_tissues = sorted(df['Tissue'].unique().tolist())
+                logger.debug(f"Available tissues: {self.available_tissues}")
+            else:
+                self.available_tissues = []
+                logger.debug("No tissue column found in data")
+        except Exception as e:
+            logger.warning(f"Failed to load available tissues: {e}")
+            self.available_tissues = []
+    
+    def _load_available_subpopulations(self):
+        """Load available subpopulations from the CSV data."""
+        try:
+            # Load and parse the data to get available subpopulations
+            df, _ = load_and_parse_df(self.csv_path)
+            
+            # For time-course mode, we need to process the data to get subpopulations
+            if self.time_course_mode:
+                # Get the metric columns that contain subpopulation information
+                # Filter to only include columns that match the selected metric
+                metric_cols = []
+                if self.metric_name:
+                    # Look for columns that contain the metric name
+                    for col in df.columns:
+                        if '|' in col and self.metric_name in col:
+                            metric_cols.append(col)
+                else:
+                    # If no specific metric, include all columns with pipes
+                    metric_cols = [col for col in df.columns if '|' in col]
+                
+                if metric_cols:
+                    # Extract subpopulation names from metric columns
+                    subpopulations = set()
+                    for col in metric_cols:
+                        # Extract the part before the pipe (subpopulation name)
+                        # Use the same logic as the aggregation process
+                        subpop_name = col.split(' | ')[0].strip() if ' | ' in col else col.strip()
+                        subpopulations.add(subpop_name)
+                    
+                    self.available_subpopulations = sorted(list(subpopulations))
+                    logger.debug(f"Available subpopulations from GUI for metric '{self.metric_name}': {self.available_subpopulations}")
+                else:
+                    self.available_subpopulations = []
+                    logger.debug(f"No subpopulation columns found in data for metric '{self.metric_name}'")
+            else:
+                self.available_subpopulations = []
+                logger.debug("Not in time-course mode, skipping subpopulation loading")
+        except Exception as e:
+            logger.warning(f"Failed to load available subpopulations: {e}")
+            self.available_subpopulations = []
         
     def _setup_ui(self):
         """Set up the user interface components."""
@@ -106,16 +176,66 @@ class VisualizationDialog(QDialog):
         # Controls group
         controls_group = QGroupBox("Plot Controls")
         controls_layout = QHBoxLayout(controls_group)  # Changed to horizontal layout
+        controls_layout.setSpacing(12)  # Add spacing between controls
         
         # Theme selection with wider combo box
         theme_label = QLabel("Theme:")
         self.theme_combo = QComboBox()
-        self.theme_combo.setMinimumWidth(200)  # Make combo box wider
+        self.theme_combo.setMinimumWidth(180)  # Increased width for better readability
         available_themes = self.themes.get_available_themes()
         for theme in available_themes:
             self.theme_combo.addItem(theme.title(), theme)
         self.theme_combo.setCurrentText("Default")  # Changed default to Default theme
         self.theme_combo.currentTextChanged.connect(self._on_theme_changed)
+        
+        # Metric selection
+        metric_label = QLabel("Metric:")
+        self.metric_combo = QComboBox()
+        self.metric_combo.setMinimumWidth(160)  # Width for metric names
+        # Add all available metrics from KEYWORDS
+        for metric in KEYWORDS.keys():
+            self.metric_combo.addItem(metric, metric)
+        # Set current metric
+        current_index = self.metric_combo.findText(self.metric_name)
+        if current_index >= 0:
+            self.metric_combo.setCurrentIndex(current_index)
+        self.metric_combo.currentTextChanged.connect(self._on_metric_changed)
+        
+        # Tissue filter (only show if multiple tissues are available)
+        if len(self.available_tissues) > 1:
+            tissue_label = QLabel("Tissue:")
+            self.tissue_combo = QComboBox()
+            self.tissue_combo.setMinimumWidth(140)
+            self.tissue_combo.addItem("All Tissues", None)
+            for tissue in self.available_tissues:
+                self.tissue_combo.addItem(tissue, tissue)
+            self.tissue_combo.currentTextChanged.connect(self._on_tissue_changed)
+            
+            controls_layout.addWidget(theme_label)
+            controls_layout.addWidget(self.theme_combo)
+            controls_layout.addWidget(metric_label)
+            controls_layout.addWidget(self.metric_combo)
+            controls_layout.addWidget(tissue_label)
+            controls_layout.addWidget(self.tissue_combo)
+        else:
+            # Single tissue or no tissue data - show theme and metric
+            controls_layout.addWidget(theme_label)
+            controls_layout.addWidget(self.theme_combo)
+            controls_layout.addWidget(metric_label)
+            controls_layout.addWidget(self.metric_combo)
+        
+        # Population filter (only show in time-course mode if multiple populations are available)
+        if self.time_course_mode and len(self.available_subpopulations) > 1:
+            subpop_label = QLabel("Population:")
+            self.subpop_combo = QComboBox()
+            self.subpop_combo.setMinimumWidth(200)  # Increased width for longer population names
+            self.subpop_combo.addItem("All Populations", None)
+            for subpop in self.available_subpopulations:
+                self.subpop_combo.addItem(subpop, subpop)
+            self.subpop_combo.currentTextChanged.connect(self._on_subpopulation_changed)
+            
+            controls_layout.addWidget(subpop_label)
+            controls_layout.addWidget(self.subpop_combo)
         
         # Buttons
         self.refresh_button = QPushButton("Refresh Plot")
@@ -133,10 +253,8 @@ class VisualizationDialog(QDialog):
         self.close_button = QPushButton("Close")
         self.close_button.clicked.connect(self.accept)
         
-        # Add all controls to the horizontal layout
-        controls_layout.addWidget(theme_label)
-        controls_layout.addWidget(self.theme_combo)
-        controls_layout.addStretch()  # Add stretch to push buttons to the right
+        # Add stretch to push buttons to the right
+        controls_layout.addStretch()
         controls_layout.addWidget(self.refresh_button)
         controls_layout.addWidget(self.save_button)
         controls_layout.addWidget(self.export_pdf_button)
@@ -192,6 +310,11 @@ class VisualizationDialog(QDialog):
                 padding: 8px;
                 border-radius: 4px;
                 min-height: 30px;
+            }
+            
+            QLabel {
+                color: #F0F0F0;
+                font-weight: 500;
             }
             
             QComboBox::drop-down {
@@ -276,11 +399,46 @@ class VisualizationDialog(QDialog):
         if self.current_fig is not None:
             self._generate_plot()
             
+    def _on_metric_changed(self, metric_name: str):
+        """Handle metric selection change."""
+        self.metric_name = metric_name
+        # Update dialog title to reflect new metric
+        self.setWindowTitle(f"Visualization Preview - {metric_name}")
+        # Reload available subpopulations for the new metric
+        self._load_available_subpopulations()
+        # Update population combo if it exists
+        if hasattr(self, 'subpop_combo'):
+            self.subpop_combo.clear()
+            self.subpop_combo.addItem("All Populations", None)
+            for subpop in self.available_subpopulations:
+                self.subpop_combo.addItem(subpop, subpop)
+        self._generate_plot()
+            
+    def _on_tissue_changed(self, tissue_name: str):
+        """Handle tissue filter selection change."""
+        if self.current_fig is not None:
+            self._generate_plot()
+            
+    def _on_subpopulation_changed(self, subpopulation_name: str):
+        """Handle subpopulation filter selection change."""
+        if self.current_fig is not None:
+            self._generate_plot()
+            
     def _generate_plot(self):
         """Generate the plot with current settings."""
         try:
             # Get selected theme
             theme_name = self.theme_combo.currentData()
+            
+            # Get selected tissue filter (only if tissue combo exists)
+            tissue_filter = None
+            if hasattr(self, 'tissue_combo'):
+                tissue_filter = self.tissue_combo.currentData()
+            
+            # Get selected subpopulation filter (only if subpop combo exists)
+            subpopulation_filter = None
+            if hasattr(self, 'subpop_combo'):
+                subpopulation_filter = self.subpop_combo.currentData()
             
             # Create temporary HTML file for output
             if self.temp_html and self.temp_html.exists():
@@ -298,20 +456,28 @@ class VisualizationDialog(QDialog):
             
             # Generate visualization using the domain function
             # This already writes the HTML file with include_plotlyjs=True
-            # Use wider width for timecourse plots
-            plot_width = 1000 if self.time_course_mode else 650
+            # Calculate dynamic width based on available space for better timecourse visualization
+            # Get the available width from the web view
+            available_width = self.view.width()
+            if available_width <= 0:
+                available_width = 800  # Fallback width if view not yet sized
+            
+            # Use the available width, but ensure it's reasonable
+            plot_width = max(600, min(available_width - 100, 1200))  # Between 600 and 1200 pixels
             
             self.current_fig = visualize_data(
                 csv_path=self.csv_path,
                 output_html=self.temp_html,
                 metric=self.metric_name,  # Use the renamed attribute
-                width=plot_width,  # Wider width for timecourse plots
-                height=275,  # User requirement: 2-2.5 inches height (275px at 96 DPI) - increased by 25%
+                width=plot_width,  # Dynamic width based on available space
+                height=300,  # Consistent height for all plot types
                 theme=theme_name,
                 time_course_mode=self.time_course_mode,
                 user_replicates=USER_REPLICATES if USER_REPLICATES else None,
                 auto_parse_groups=AUTO_PARSE_GROUPS,
-                user_group_labels=group_labels_to_use
+                user_group_labels=group_labels_to_use,
+                tissue_filter=tissue_filter, # Pass the selected tissue filter
+                subpopulation_filter=subpopulation_filter # Pass the selected subpopulation filter
             )
             
             # Note: visualize_data already writes the HTML file, so we don't need to write it again
@@ -439,6 +605,12 @@ class VisualizationDialog(QDialog):
         super().resizeEvent(event)
         logger.debug(f"Dialog resized to {event.size()}")
         
+        # Regenerate plot with new width if we have a current figure
+        # This ensures timecourse plots use the full available width
+        if self.current_fig is not None:
+            # Add a small delay to avoid too many regenerations during resize
+            QTimer.singleShot(500, self._generate_plot)
+        
     def closeEvent(self, event) -> None:
         """Handle dialog close event."""
         # Clean up temporary file
@@ -455,7 +627,9 @@ def visualize_metric(
     metric: str,
     time_course_mode: bool,
     parent_widget: Optional[QWidget] = None,
-    user_group_labels: Optional[List[str]] = None
+    user_group_labels: Optional[List[str]] = None,
+    tissue_filter: Optional[str] = None,
+    subpopulation_filter: Optional[str] = None
 ) -> None:
     """Generate and display visualization for the given CSV and metric using the enhanced dialog."""
     if not csv_path or not csv_path.exists():

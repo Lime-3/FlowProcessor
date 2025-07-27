@@ -51,6 +51,11 @@ class MainWindow(QMainWindow):
         # Initialize processing manager
         self.processing_manager = ProcessingManager(self)
 
+        # Set window properties for resizing
+        self.setMinimumSize(800, 600)
+        self.resize(1000, 700)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
         self.setup_palette_and_style()
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -61,7 +66,6 @@ class MainWindow(QMainWindow):
         self.setup_options_group()
         self.setup_io_group()
         self.setup_process_controls()
-        self.setup_visualize_section()
         self.setup_progress_and_status()
 
         self.add_tooltips()
@@ -112,8 +116,9 @@ class MainWindow(QMainWindow):
             QMainWindow, QWidget { background-color: #0F0F0F; border-radius: 8px; }
             QLabel { color: #F0F0F0; font-size: 14px; font-family: 'Arial', sans-serif; }
             QLineEdit { background-color: #191919; color: #F0F0F0; border: 1px solid #303030;
-                        padding: 8px; border-radius: 4px; min-height: 40px; max-width: 480px; }
-            QLineEdit#groupEntry { min-height: 40px; }
+                        padding: 8px; border-radius: 4px; }
+            QLineEdit#groupEntry { min-height: 25px; max-height: 25px; max-width: 100px; padding: 2px; }
+            QLineEdit#replicateEntry { min-height: 25px; max-height: 25px; max-width: 100px; padding: 2px; }
             QPushButton { border: none; background-color: #007BFF; color: white; padding: 8px 16px;
                           border-radius: 4px; font-size: 12px; min-height: 30px; font-weight: 600; }
             QPushButton:hover { background-color: #0056b3; }
@@ -144,6 +149,10 @@ class MainWindow(QMainWindow):
             QComboBox { background-color: #191919; color: #F0F0F0; border: 1px solid #303030;
                         padding: 8px; border-radius: 4px; min-height: 40px; }
             QDialog { background-color: #0F0F0F; }
+            
+            /* Enhanced styling for resizable input fields */
+            QLineEdit:focus { border: 2px solid #0064FF; background-color: #1A1A1A; }
+            QLineEdit:hover { border: 1px solid #404040; }
             """
         )
 
@@ -173,33 +182,44 @@ class MainWindow(QMainWindow):
         manual_layout.setContentsMargins(0, 0, 0, 0)
         manual_layout.setSpacing(10)
 
-        group_row = QWidget()
-        group_layout = QHBoxLayout(group_row)
+        # Group section with left-justified layout
+        group_section = QWidget()
+        group_layout = QVBoxLayout(group_section)
         group_layout.setContentsMargins(0, 0, 0, 0)
+        group_layout.setSpacing(5)
+        
         group_label = QLabel("Group Numbers:")
-        group_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        group_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        group_label.setStyleSheet("font-weight: 500; color: #F0F0F0;")
+        
         self.groups_entry = QLineEdit("1-10")
         self.groups_entry.setEnabled(False)
         self.groups_entry.setObjectName("groupEntry")
-        self.groups_entry.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.groups_entry.setFixedHeight(40)
-        self.groups_entry.setFixedWidth(400)
+        self.groups_entry.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.groups_entry.setFixedHeight(25)
+        self.groups_entry.setFixedWidth(100)
+        
         group_layout.addWidget(group_label)
-        group_layout.addSpacing(10)
         group_layout.addWidget(self.groups_entry)
 
-        replicate_row = QWidget()
-        replicate_layout = QHBoxLayout(replicate_row)
+        # Replicate section with left-justified layout
+        replicate_section = QWidget()
+        replicate_layout = QVBoxLayout(replicate_section)
         replicate_layout.setContentsMargins(0, 0, 0, 0)
+        replicate_layout.setSpacing(5)
+        
         replicate_label = QLabel("Replicate Numbers:")
-        replicate_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        replicate_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        replicate_label.setStyleSheet("font-weight: 500; color: #F0F0F0;")
+        
         self.replicates_entry = QLineEdit("1-3")
         self.replicates_entry.setEnabled(False)
-        self.replicates_entry.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.replicates_entry.setFixedHeight(40)
-        self.replicates_entry.setFixedWidth(400)
+        self.replicates_entry.setObjectName("replicateEntry")
+        self.replicates_entry.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.replicates_entry.setFixedHeight(25)
+        self.replicates_entry.setFixedWidth(100)
+        
         replicate_layout.addWidget(replicate_label)
-        replicate_layout.addSpacing(10)
         replicate_layout.addWidget(self.replicates_entry)
 
         self.save_button = QPushButton("Save")
@@ -207,15 +227,27 @@ class MainWindow(QMainWindow):
         self.save_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.save_button.setFixedHeight(30)
 
+        # Arrange sections in two columns with save button on the right
         manual_row_layout = QHBoxLayout()
+        
+        # Left column: Group section
         left_layout = QVBoxLayout()
-        left_layout.addWidget(group_row)
-        left_layout.addWidget(replicate_row)
+        left_layout.addWidget(group_section)
+        
+        # Middle column: Replicate section
+        middle_layout = QVBoxLayout()
+        middle_layout.addWidget(replicate_section)
+        
+        # Right column: Save button
         right_layout = QVBoxLayout()
         right_layout.addStretch()
         right_layout.addWidget(self.save_button)
         right_layout.addStretch()
+        
         manual_row_layout.addLayout(left_layout, stretch=1)
+        manual_row_layout.addSpacing(20)
+        manual_row_layout.addLayout(middle_layout, stretch=1)
+        manual_row_layout.addSpacing(20)
         manual_row_layout.addLayout(right_layout, stretch=0)
         manual_layout.addLayout(manual_row_layout)
         options_layout.addWidget(self.manual_widget)
@@ -229,53 +261,78 @@ class MainWindow(QMainWindow):
         self.main_layout.addWidget(io_label)
 
         self.io_group = QGroupBox()
-        io_layout = QFormLayout(self.io_group)
+        io_layout = QVBoxLayout(self.io_group)
         io_layout.setSpacing(10)
-        io_layout.setVerticalSpacing(10)
-        io_layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        io_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        io_layout.setContentsMargins(15, 15, 15, 15)
 
-        out_dir_widget = QWidget()
-        out_dir_layout = QHBoxLayout(out_dir_widget)
+        # Output Directory Section
+        out_dir_section = QWidget()
+        out_dir_layout = QVBoxLayout(out_dir_section)
         out_dir_layout.setContentsMargins(0, 0, 0, 0)
+        out_dir_layout.setSpacing(5)
+        
         out_dir_label = QLabel("Output Directory:")
-        out_dir_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        out_dir_label.setStyleSheet("font-weight: 500; color: #F0F0F0;")
+        
+        out_dir_input_widget = QWidget()
+        out_dir_input_layout = QHBoxLayout(out_dir_input_widget)
+        out_dir_input_layout.setContentsMargins(0, 0, 0, 0)
+        out_dir_input_layout.setSpacing(10)
+        
         self.out_dir_entry = QLineEdit(load_last_output_dir())
         self.out_dir_entry.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.out_dir_entry.setFixedWidth(400)
+        self.out_dir_entry.setMinimumHeight(35)
         self.out_dir_button = QPushButton("Browse")
         self.out_dir_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.out_dir_button.setMinimumHeight(35)
+        
+        out_dir_input_layout.addWidget(self.out_dir_entry)
+        out_dir_input_layout.addWidget(self.out_dir_button)
+        
         out_dir_layout.addWidget(out_dir_label)
-        out_dir_layout.addSpacing(10)
-        out_dir_layout.addWidget(self.out_dir_entry)
-        out_dir_layout.addStretch()
-        out_dir_layout.addWidget(self.out_dir_button, alignment=Qt.AlignmentFlag.AlignRight)
-        io_layout.addRow(out_dir_widget)
+        out_dir_layout.addWidget(out_dir_input_widget)
 
-
-
-        input_widget = QWidget()
-        input_layout = QHBoxLayout(input_widget)
+        # Input File/Folder Section
+        input_section = QWidget()
+        input_layout = QVBoxLayout(input_section)
         input_layout.setContentsMargins(0, 0, 0, 0)
+        input_layout.setSpacing(5)
+        
         input_label = QLabel("Input File/Folder:")
-        input_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        input_label.setStyleSheet("font-weight: 500; color: #F0F0F0;")
+        
+        input_input_widget = QWidget()
+        input_input_layout = QHBoxLayout(input_input_widget)
+        input_input_layout.setContentsMargins(0, 0, 0, 0)
+        input_input_layout.setSpacing(10)
+        
         self.path_entry = DropLineEdit(self)
         self.path_entry.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.path_entry.setFixedWidth(400)
+        self.path_entry.setMinimumHeight(35)
+        
         self.browse_input_button = QPushButton("Browse")
         self.browse_input_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.browse_input_button.setMinimumHeight(35)
+        
         self.preview_button = QPushButton("Preview CSV")
         self.preview_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.preview_button.setMinimumHeight(35)
+        
         self.clear_button = QPushButton("Clear")
         self.clear_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.clear_button.setMinimumHeight(35)
+        
+        input_input_layout.addWidget(self.path_entry)
+        input_input_layout.addWidget(self.browse_input_button)
+        input_input_layout.addWidget(self.preview_button)
+        input_input_layout.addWidget(self.clear_button)
+        
         input_layout.addWidget(input_label)
-        input_layout.addSpacing(10)
-        input_layout.addWidget(self.path_entry)
-        input_layout.addStretch()
-        input_layout.addWidget(self.browse_input_button)
-        input_layout.addWidget(self.preview_button)
-        input_layout.addWidget(self.clear_button)
-        io_layout.addRow(input_widget)
+        input_layout.addWidget(input_input_widget)
+
+        # Add sections to main IO layout
+        io_layout.addWidget(out_dir_section)
+        io_layout.addWidget(input_section)
 
         self.main_layout.addWidget(self.io_group)
 
@@ -315,27 +372,23 @@ class MainWindow(QMainWindow):
         self.group_labels_button.setFixedHeight(48)
         self.group_labels_button.setStyleSheet("border-radius: 10px; background-color: #28a745;")
         
+        # Visualize button
+        self.visualize_button = QPushButton("Visualize")
+        self.visualize_button.setFixedWidth(120)
+        self.visualize_button.setFixedHeight(48)
+        self.visualize_button.setStyleSheet("border-radius: 10px; background-color: #17a2b8;")
+        
         controls_layout.addStretch()
         controls_layout.addWidget(self.process_button)
         controls_layout.addWidget(self.cancel_button)
         controls_layout.addWidget(self.pause_button)
         controls_layout.addWidget(self.group_labels_button)
+        controls_layout.addWidget(self.visualize_button)
         controls_layout.addStretch()
         
         self.main_layout.addWidget(process_controls)
 
-    def setup_visualize_section(self) -> None:
-        """Set up the visualization selection section."""
-        visualize_label = QLabel("Select Metric to Visualize:")
-        self.visualize_combo = QComboBox()
-        self.visualize_combo.addItems(list(KEYWORDS.keys()))
-        self.visualize_button = QPushButton("Visualize")
-        visualize_layout = QHBoxLayout()
-        visualize_layout.addWidget(visualize_label)
-        self.visualize_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        visualize_layout.addWidget(self.visualize_combo)
-        visualize_layout.addWidget(self.visualize_button)
-        self.main_layout.addLayout(visualize_layout)
+
 
     def setup_progress_and_status(self) -> None:
         """Set up the progress bar and status label."""
@@ -627,11 +680,12 @@ class MainWindow(QMainWindow):
         self.pause_button.setText("Pause")
 
     def visualize_selected(self) -> None:
-        """Generate and display a visualization for the selected metric."""
-        metric = self.visualize_combo.currentText()
+        """Generate and display a visualization for the first available metric."""
+        # Use the first available metric as default
+        default_metric = list(KEYWORDS.keys())[0] if KEYWORDS else "Freq. of Parent"
         visualize_metric(
             csv_path=self.last_csv,
-            metric=metric,
+            metric=default_metric,
             time_course_mode=self.time_course_checkbox.isChecked(),
             parent_widget=self,
             user_group_labels=self.current_group_labels if self.current_group_labels else None
@@ -647,6 +701,5 @@ class MainWindow(QMainWindow):
         self.pause_button.setToolTip("Pause or resume the current processing operation.")
         self.group_labels_button.setToolTip("Manage group labels for data processing.")
         self.time_course_checkbox.setToolTip("Enable for time-course output; requires 'Time' data in CSV.")
-        self.visualize_button.setToolTip("Visualize selected metric from the first CSV file. Uses current group labels if set.")
-        self.visualize_combo.setToolTip("Select a metric to visualize (e.g., Freq. of Parent).")
+        self.visualize_button.setToolTip("Visualize data from the first CSV file. Metric can be changed in the dialog. Uses current group labels if set.")
         logger.debug("Tooltips added to GUI widgets")

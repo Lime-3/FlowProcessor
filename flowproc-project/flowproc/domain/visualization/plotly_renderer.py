@@ -63,9 +63,9 @@ class PlotlyRenderer:
         
         # Import the layout calculation function
         from .plotting import calculate_layout_for_long_labels
-        # Use a default width of 800 and height of 600 if not specified
-        default_width = 800
-        default_height = 600
+        # Use consistent default dimensions
+        default_width = 600
+        default_height = 300
         layout_adjustments = calculate_layout_for_long_labels(labels, legend_items, title, legend_labels, default_width, default_height)
         
         # Apply default layout

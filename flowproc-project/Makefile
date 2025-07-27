@@ -1,7 +1,7 @@
 # FlowProcessor Makefile
 # Common commands for development and installation
 
-.PHONY: help install install-dev install-test clean test run setup venv
+.PHONY: help install install-dev install-test clean test run setup venv pre-commit-setup pre-commit-run pre-commit-clean quick-test
 
 # Default target
 help:
@@ -18,13 +18,21 @@ help:
 	@echo "  test         - Run tests"
 	@echo "  test-cov     - Run tests with coverage"
 	@echo "  test-kaleido - Test Kaleido image export"
+	@echo "  quick-test   - Quick test suite (tests + linting + type checking)"
 	@echo "  clean        - Clean build artifacts"
 	@echo "  run          - Run the application"
+	@echo ""
+	@echo "Pre-commit:"
+	@echo "  pre-commit-setup - Setup pre-commit hooks"
+	@echo "  pre-commit-run   - Run pre-commit hooks"
+	@echo "  pre-commit-clean - Clean pre-commit cache"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make install-dev  # Install with dev dependencies"
 	@echo "  make setup        # Full setup"
 	@echo "  make test         # Run tests"
+	@echo "  make quick-test   # Quick test before committing"
+	@echo "  make pre-commit-setup  # Setup testing hooks"
 
 # Installation targets
 install:
@@ -62,6 +70,10 @@ test-kaleido:
 	@echo "Testing Kaleido image export functionality..."
 	@python -c "import plotly.graph_objects as go; import plotly.io as pio; fig = go.Figure(data=go.Scatter(x=[1,2,3], y=[1,2,3])); fig.write_image('test_kaleido.png'); import os; os.remove('test_kaleido.png'); print('✅ Kaleido export test passed')"
 
+quick-test:
+	@echo "Running quick test suite..."
+	@./scripts/quick-test.sh
+
 clean:
 	rm -rf build/
 	rm -rf dist/
@@ -71,6 +83,19 @@ clean:
 
 run:
 	python -m flowproc
+
+# Pre-commit targets
+pre-commit-setup:
+	@echo "Setting up pre-commit hooks..."
+	@./scripts/setup-pre-commit.sh
+
+pre-commit-run:
+	@echo "Running pre-commit hooks..."
+	@pre-commit run --all-files
+
+pre-commit-clean:
+	@echo "Cleaning pre-commit cache..."
+	@pre-commit clean
 
 # Quick install scripts
 quick-install:

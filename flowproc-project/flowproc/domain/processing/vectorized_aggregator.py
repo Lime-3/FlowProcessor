@@ -207,8 +207,8 @@ class VectorizedAggregator:
         agg_result['Group_Label'] = agg_result['Group'].map(config.group_map)
         agg_result['Metric'] = metric_name
         
-        # Split by tissue if multiple detected
-        if 'Tissue' in agg_result.columns:
+        # Split by tissue if multiple detected and no tissue filter applied
+        if 'Tissue' in agg_result.columns and config.tissues_detected:
             tissues = sorted(agg_result['Tissue'].unique())
             result_dfs = []
             
@@ -217,7 +217,7 @@ class VectorizedAggregator:
                 if not tissue_df.empty:
                     result_dfs.append(tissue_df)
         else:
-            # No tissue column, return single dataframe
+            # No tissue column or tissue filter applied, return single dataframe
             result_dfs = [agg_result]
                 
         logger.debug(

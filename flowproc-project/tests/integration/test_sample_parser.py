@@ -24,21 +24,21 @@ class TestSampleIDParser:
         
     @pytest.mark.parametrize("sample_id,expected", [
         # Standard format
-        ("SP_A1_1.1", ParsedSampleID("SP", "A1", 1, 1)),
-        ("BM_B2_2.3", ParsedSampleID("BM", "B2", 2, 3)),
+        ("SP_A1_1.1", ParsedSampleID(1, 1, "SP", "A1")),
+        ("BM_B2_2.3", ParsedSampleID(2, 3, "BM", "B2")),
         
         # With time
-        ("2h_SP_A1_1.1", ParsedSampleID("SP", "A1", 1, 1, 2.0)),
-        ("30min_BM_B2_2.3", ParsedSampleID("BM", "B2", 2, 3, 0.5)),
-        ("1day_LN_C3_3.4", ParsedSampleID("LN", "C3", 3, 4, 24.0)),
+        ("2h_SP_A1_1.1", ParsedSampleID(1, 1, "SP", "A1", 2.0)),
+        ("30min_BM_B2_2.3", ParsedSampleID(2, 3, "BM", "B2", 0.5)),
+        ("1day_LN_C3_3.4", ParsedSampleID(3, 4, "LN", "C3", 24.0)),
         
         # Simple format
-        ("1.1", ParsedSampleID("UNK", "UNK", 1, 1)),
-        ("10.15", ParsedSampleID("UNK", "UNK", 10, 15)),
+        ("1.1", ParsedSampleID(1, 1, "UNK", "UNK")),
+        ("10.15", ParsedSampleID(10, 15, "UNK", "UNK")),
         
         # With .fcs extension
-        ("SP_A1_1.1.fcs", ParsedSampleID("SP", "A1", 1, 1)),
-        ("2h_BM_B2_2.3.fcs", ParsedSampleID("BM", "B2", 2, 3, 2.0)),
+        ("SP_A1_1.1.fcs", ParsedSampleID(1, 1, "SP", "A1")),
+        ("2h_BM_B2_2.3.fcs", ParsedSampleID(2, 3, "BM", "B2", 2.0)),
     ])
     def test_valid_sample_ids(self, parser, sample_id, expected):
         """Test parsing valid sample IDs."""

@@ -48,7 +48,7 @@ class SampleIDParser:
         
         self._cache: Dict[str, Optional[ParsedSampleID]] = {}
         
-    def parse(self, sample_id: str) -> Optional[ParsedSampleID]:
+    def parse(self, sample_id) -> Optional[ParsedSampleID]:
         """
         Parse complete sample ID.
         
@@ -61,6 +61,12 @@ class SampleIDParser:
         Raises:
             ParseError: If strict mode and parsing fails
         """
+        # Type validation
+        if not isinstance(sample_id, str):
+            if self.strict:
+                raise ParseError("Sample ID must be a string")
+            return None
+            
         if not sample_id:
             if self.strict:
                 raise ParseError("Empty sample ID")

@@ -13,6 +13,7 @@ pytest-qt-plugins>=3.3.0
 pytest-qt-plugins-pyside6>=3.3.0
 pytest-qt-plugins-pyside6-essentials>=3.3.0
 pytest-qt-plugins-pyside6-addons>=3.3.0
+hypothesis>=6.0.0
 
 # Code quality tools
 black>=24.0.0

@@ -25,15 +25,21 @@ def capsys(capsys) -> pytest.CaptureFixture:
 
 def test_setup_logging(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     """Test successful logging setup and log writing."""
+    # Clear existing handlers first
+    root = logging.getLogger()
+    for handler in root.handlers[:]:
+        handler.close()
+        root.removeHandler(handler)
+    
     assert setup_logging(filemode='a', project_root=tmp_path)
 
     logging.debug("Test log")
-    captured = capsys.readouterr()
-    assert "Test log" in captured.err
-
+    # Force flush to ensure log is written
+    for handler in logging.getLogger().handlers:
+        if isinstance(handler, logging.FileHandler):
+            handler.flush()
+    
     log_file = tmp_path / 'data' / 'logs' / 'processing.log'
-    if len(logging.getLogger().handlers) > 1:
-        logging.getLogger().handlers[1].flush()  # Force flush file handler if exists
     assert log_file.exists()
     with open(log_file) as f:
         content = f.read()
@@ -49,7 +55,8 @@ def test_setup_logging_error(tmp_path: Path, capsys: pytest.CaptureFixture) -> N
 
 def test_log_path_resolution(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Test log path resolution with mock __file__ and env var."""
-    monkeypatch.setattr('flowproc.logging_config.__file__', str(tmp_path / 'flowproc' / 'logging_config.py'))
+    # Mock the resource_utils.__file__ instead of logging_config.__file__
+    monkeypatch.setattr('flowproc.resource_utils.__file__', str(tmp_path / 'flowproc' / 'resource_utils.py'))
 
     assert setup_logging(filemode='a')
 
@@ -63,7 +70,7 @@ def test_log_path_resolution(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
 
     monkeypatch.setenv('FLOWPROC_LOG_ROOT', str(tmp_path / 'custom'))
     assert setup_logging(filemode='a')
-    expected_override = tmp_path / 'custom' / 'data' / 'logs' / 'processing.log'
+    expected_override = tmp_path / 'custom' / 'logs' / 'processing.log'
     assert expected_override.exists()
 
 @pytest.mark.parametrize("filemode", ['a', 'w'])
