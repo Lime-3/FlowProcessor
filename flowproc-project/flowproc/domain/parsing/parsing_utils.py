@@ -84,7 +84,7 @@ def load_and_parse_df(file_path: Path) -> Tuple[pd.DataFrame, str]:
         sid_col = 'SampleID'
         
         # Transform the data
-        df = transformer.transform(df)
+        df = transformer.transform(df, file_path)
         
         # Validate the parsed data
         validate_parsed_data(df, sid_col)

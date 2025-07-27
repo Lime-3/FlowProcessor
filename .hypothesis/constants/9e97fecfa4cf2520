@@ -1,4 +1,0 @@
-# file: /Users/franklin.lime/Documents/GitHub/FlowProcessor/flowproc-project/flowproc/plotting.py
-# hypothesis_version: 6.136.2
-
-[-0.2, -0.025, 0.05, 0.2, 0.3, 0.5, 0.75, 150, ' (', '#0F0F0F', ')', 'Arial', 'Group_Label', 'Mean', 'Std', 'Subpopulation', 'Time', 'Tissue', 'X_Label', 'b', 'bargap', 'bargroupgap', 'black', 'borderwidth', 'center', 'constant', 'data', 'font_family', 'font_size', 'group', 'h', 'itemsizing', 'itemwidth', 'l', 'legend', 'lines+markers', 'margin', 'modebar', 'orientation', 'paper_bgcolor', 'plot_bgcolor', 'r', 'rgba(0,0,0,0)', 'showlegend', 't', 'title', 'title_font_size', 'top', 'x', 'xanchor', 'xaxis_gridwidth', 'xaxis_linewidth', 'xaxis_showgrid', 'xaxis_tickfont_size', 'xaxis_ticklen', 'xaxis_tickwidth', 'y', 'yanchor', 'yaxis_gridwidth', 'yaxis_linewidth', 'yaxis_range', 'yaxis_showgrid', 'yaxis_tickfont_size', 'yaxis_ticklen', 'yaxis_tickwidth']

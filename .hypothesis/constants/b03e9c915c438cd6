@@ -1,4 +1,0 @@
-# file: /Users/franklin.lime/Documents/GitHub/FlowProcessor/flowproc-project/flowproc/writer.py
-# hypothesis_version: 6.136.2
-
-['**/', '*.csv', 'All', 'Animal', 'CV', 'Count', 'Freq. of Live', 'Freq. of Parent', 'GeoMean', 'Group', 'Max', 'Mean', 'Median', 'Min', 'Mode', 'No CSV files found.', 'No Data', 'No replicates found', 'Range', 'Replicate', 'SD', 'Sum', 'Time', 'Tissue', 'Well', 'center', 'count', 'cv', 'freq. of live', 'freq. of parent', 'geomean', 'max', 'mean', 'median', 'min', 'mode', 'range', 'sd', 'sum']

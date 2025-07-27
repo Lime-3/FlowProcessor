@@ -25,6 +25,7 @@ from flowproc.config import USER_GROUP_LABELS
 from flowproc.domain.parsing import load_and_parse_df, extract_tissue
 from flowproc.domain.processing.transform import map_replicates
 from flowproc.domain.visualization.plotting import apply_plot_style, PLOT_STYLE
+from flowproc.domain.visualization.themes import VisualizationThemes
 from flowproc.domain.processing.vectorized_aggregator import VectorizedAggregator, AggregationConfig
 from flowproc.core.constants import KEYWORDS, METRIC_KEYWORDS
 
@@ -43,9 +44,9 @@ from ...core.exceptions import VisualizationError, DataError as DataProcessingEr
 class VisualizationConfig:
     """Configuration for visualization generation."""
     metric: Optional[str]
-    width: int = 800
-    height: int = 600
-    theme: str = "plotly_dark"
+    width: int = 1000  # Increased width for better timecourse plot visibility
+    height: int = 275  # User requirement: 2-2.5 inches height (275px at 96 DPI) - increased by 25%
+    theme: str = "default"  # Changed from "dark" to "default"
     time_course_mode: bool = False
     user_replicates: Optional[List[int]] = None
     auto_parse_groups: bool = True
@@ -59,10 +60,10 @@ class VisualizationConfig:
             raise ValueError(f"Invalid metric '{self.metric}'. Valid options: {', '.join(KEYWORDS.keys())}")
 
 
-@dataclass
+@dataclass(frozen=True)
 class ProcessedData:
     """Container for processed visualization data."""
-    dataframes: List[List[DataFrame]]
+    dataframes: List[DataFrame]
     metrics: List[str]
     groups: List[int]
     times: List[Optional[float]]
@@ -131,101 +132,87 @@ class DataProcessor:
         )
     
     def _map_replicates(self) -> Tuple[DataFrame, int]:
-        """Map replicates with error handling."""
+        """Map replicates using the transform module."""
         try:
-            user_groups = None
-            if not self.config.auto_parse_groups:
-                user_groups = sorted(self.df["Group"].dropna().unique().astype(int))
-            
-            return map_replicates(
-                self.df,
+            df_mapped, replicate_count = map_replicates(
+                self.df, 
                 auto_parse=self.config.auto_parse_groups,
                 user_replicates=self.config.user_replicates,
-                user_groups=user_groups
+                user_groups=None  # Let the function auto-detect groups
             )
-        except (ValueError, KeyError, TypeError) as e:
+            return df_mapped, replicate_count
+        except Exception as e:
             raise DataProcessingError(f"Failed to map replicates: {str(e)}") from e
     
     def _extract_metadata(self, df: DataFrame) -> Tuple[List[int], List[Optional[float]], bool, Dict[int, str]]:
         """Extract metadata from processed DataFrame."""
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError(f"Expected DataFrame, got {type(df)}")
-        groups = sorted(df["Group"].dropna().unique().astype(int))
-        
-        times: List[Optional[float]] = [None]
-        if "Time" in df.columns and df["Time"].notna().any():
-            times = sorted(t for t in df["Time"].unique() if pd.notna(t))
-        
-        tissues_detected = df[self.sid_col].apply(extract_tissue).nunique() > 1
-        group_map = self._create_group_map(tuple(groups))  # Convert list to tuple for lru_cache
-        
-        return groups, times, tissues_detected, group_map
-    
-    @lru_cache(maxsize=1)
-    def _create_group_map(self, groups: Tuple[int, ...]) -> Dict[int, str]:
-        """Create mapping from group numbers to labels."""
-        groups_list = list(groups)
-        
-        # Check user-provided labels
-        if self.config.user_group_labels and len(self.config.user_group_labels) >= len(groups_list):
-            return {groups_list[i]: self.config.user_group_labels[i] for i in range(len(groups_list))}
-        
-        # Check global labels
-        if USER_GROUP_LABELS and len(USER_GROUP_LABELS) >= len(groups_list):
-            return {groups_list[i]: USER_GROUP_LABELS[i] for i in range(len(groups_list))}
-        
-        # Default labels
-        return {g: f"Group {g}" for g in groups_list}
+        try:
+            # Extract groups - convert to int for AggregationConfig
+            groups = sorted([int(g) for g in df['Group'].unique().tolist()])
+            
+            # Extract times - convert to float for AggregationConfig
+            times = []
+            if 'Time' in df.columns:
+                times = sorted([float(t) if pd.notna(t) else None for t in df['Time'].unique().tolist()])
+            else:
+                times = [None]
+            
+            # Check for tissues
+            tissues_detected = 'Tissue' in df.columns and df['Tissue'].nunique() > 1
+            
+            # Create group map - use user_group_labels if provided, otherwise use default labels
+            group_map = {}
+            if 'Group' in df.columns:
+                if self.config.user_group_labels and len(self.config.user_group_labels) >= len(groups):
+                    # Use user-provided group labels
+                    group_map = {groups[i]: self.config.user_group_labels[i] for i in range(len(groups))}
+                else:
+                    # Use default group labels
+                    group_map = {int(g): f"Group {int(g)}" for g in df['Group'].unique()}
+            
+            return groups, times, tissues_detected, group_map
+            
+        except Exception as e:
+            raise DataProcessingError(f"Failed to extract metadata: {str(e)}") from e
     
     def _get_metrics_to_process(self) -> List[str]:
         """Determine which metrics to process."""
         if self.config.metric:
-            metrics = [m for m in KEYWORDS.keys() if m.lower() == self.config.metric.lower()]
-            if not metrics:
-                raise DataProcessingError(
-                    f"Invalid metric '{self.config.metric}'. Valid options: {', '.join(KEYWORDS.keys())}"
-                )
-            return metrics
-        return list(KEYWORDS.keys())
+            if self.config.metric not in KEYWORDS:
+                raise DataProcessingError(f"Invalid metric: {self.config.metric}")
+            return [self.config.metric]
+        else:
+            # Process all available metrics
+            available_metrics = []
+            for col in self.df.columns:
+                if col in KEYWORDS:
+                    available_metrics.append(col)
+            return available_metrics
     
-    def _aggregate_metrics(self, metrics: List[str], agg_config: AggregationConfig) -> List[List[DataFrame]]:
+    def _aggregate_metrics(self, metrics: List[str], agg_config: AggregationConfig) -> List[DataFrame]:
         """Aggregate metrics using vectorized operations."""
-        aggregated_lists: List[List[DataFrame]] = []
-        
-        for metric_name in metrics:
-            # Map metric name to key substring using KEYWORDS dictionary
-            key_substring = KEYWORDS.get(metric_name, metric_name.lower())
-            # Check if we have a specific mapping in METRIC_KEYWORDS
-            for metric_type, keywords in METRIC_KEYWORDS.items():
-                if metric_name.lower() in [kw.lower() for kw in keywords]:
-                    key_substring = keywords[0]  # Use the first keyword as the substring
-                    break
+        try:
+            aggregated_lists = []
+            for metric in metrics:
+                # Find raw columns that match this metric
+                key_substring = KEYWORDS.get(metric, metric.lower())
+                raw_cols = [
+                    col for col in self.df.columns
+                    if key_substring in col.lower()
+                    and col not in {self.sid_col, 'Well', 'Group', 'Animal', 
+                                  'Time', 'Replicate', 'Tissue'}
+                    and not self.df[col].isna().all()
+                ]
+                
+                if raw_cols:
+                    agg_dfs = self.aggregator.aggregate_metric(metric, raw_cols, agg_config)
+                    if agg_dfs:
+                        aggregated_lists.extend(agg_dfs)
             
-            # Find matching columns efficiently
-            raw_cols = self._find_metric_columns(key_substring)
+            return aggregated_lists
             
-            if not raw_cols:
-                logger.info(f"No data for metric '{metric_name}'")
-                continue
-            
-            # Use vectorized aggregation
-            agg_dfs = self.aggregator.aggregate_metric(metric_name, raw_cols, agg_config)
-            
-            if agg_dfs:
-                aggregated_lists.append(agg_dfs)
-        
-        return aggregated_lists
-    
-    def _find_metric_columns(self, key_substring: str) -> List[str]:
-        """Find columns matching the metric keyword."""
-        excluded_cols = {self.sid_col, "Well", "Group", "Animal", "Time", "Replicate", "Tissue"}
-        
-        return [
-            col for col in self.aggregator.df.columns
-            if key_substring in col.lower()
-            and col not in excluded_cols
-            and not self.aggregator.df[col].isna().all()
-        ]
+        except Exception as e:
+            raise DataProcessingError(f"Failed to aggregate metrics: {str(e)}") from e
 
 
 class Visualizer:
@@ -233,6 +220,7 @@ class Visualizer:
     
     def __init__(self, config: VisualizationConfig):
         self.config = config
+        self.themes = VisualizationThemes()
         
     def create_figure(self, processed_data: ProcessedData) -> Figure:
         """
@@ -269,7 +257,9 @@ class Visualizer:
             showarrow=False,
             font=dict(size=20)
         )
-        apply_plot_style(fig, "", "", self.config.theme, self.config.width, self.config.height)
+        # Apply custom theme instead of using apply_plot_style
+        self.themes.apply_theme(fig, self.config.theme)
+        fig.update_layout(width=self.config.width, height=self.config.height)
         return fig
     
     def _create_time_course_figure(self, processed_data: ProcessedData) -> Figure:
@@ -286,7 +276,7 @@ class Visualizer:
         fig = make_subplots(
             rows=num_rows, cols=1,
             shared_xaxes=True,
-            vertical_spacing=0.05,
+            vertical_spacing=0.15,  # Increased spacing between subplots
             subplot_titles=self._generate_subplot_titles(unique_tissues, unique_subpops)
         )
         
@@ -295,12 +285,17 @@ class Visualizer:
         
         # Update layout
         updated_height = self.config.height * num_rows
-        apply_plot_style(
-            fig, 'Time', 'Metrics', 
-            self.config.theme, self.config.width, updated_height
+        title = self.config.metric if self.config.metric else 'Metrics Visualization'
+        y_axis_title = self.config.metric if self.config.metric else 'Metrics'
+        fig.update_layout(
+            title=title,
+            xaxis_title='Time',
+            yaxis_title=y_axis_title,
+            width=self.config.width,
+            height=updated_height
         )
         
-        # Update x-axes
+        # Update x-axes and y-axes for all subplots
         for row in range(1, num_rows + 1):
             fig.update_xaxes(
                 title_text='Time',
@@ -309,6 +304,17 @@ class Visualizer:
                 autorange=True,
                 row=row, col=1
             )
+            # Update y-axis title for each subplot
+            fig.update_yaxes(
+                title_text=self.config.metric if self.config.metric else 'Metrics',
+                title_standoff=0,
+                showticklabels=True,
+                autorange=True,
+                row=row, col=1
+            )
+        
+        # Apply custom theme AFTER all axis updates to ensure theme is not overridden
+        self.themes.apply_theme(fig, self.config.theme)
         
         return fig
     
@@ -317,153 +323,273 @@ class Visualizer:
         # Combine all dataframes
         all_data = self._combine_dataframes(processed_data)
         
-        # Create bar plot
-        fig = px.bar(
-            all_data,
-            x='Group_Label',
-            y='Mean',
-            error_y='Std',
-            color='Subpopulation',
-            facet_col='Tissue' if processed_data.tissues_detected else None,
-            title='Metrics Visualization',
-            barmode='group',
-            color_discrete_sequence=px.colors.qualitative.Dark24
+        # Check if we should use facet_col for tissue
+        use_facet_col = False
+        if processed_data.tissues_detected and 'Tissue' in all_data.columns:
+            unique_tissues = all_data['Tissue'].nunique()
+            use_facet_col = unique_tissues > 1
+        
+        # Create bar plot with manual positioning to control spacing
+        title = self.config.metric if self.config.metric else 'Metrics Visualization'
+        
+        # Create figure manually to control bar positioning
+        fig = go.Figure()
+        
+        # Extract integer labels from Group_Label for display
+        def extract_group_number(label):
+            """Extract the integer part from group labels like 'Group 1' -> '1'"""
+            if pd.isna(label):
+                return label
+            label_str = str(label)
+            # Try to extract number from "Group X" format
+            import re
+            if 'Group' in label_str:
+                match = re.search(r'Group\s*(\d+)', label_str, re.IGNORECASE)
+                if match:
+                    return match.group(1)
+            # If no "Group" prefix, try to extract any number
+            numbers = re.findall(r'\d+', label_str)
+            if numbers:
+                return numbers[0]
+            # Fallback to original label
+            return label_str
+        
+        # Get unique groups and subpopulations
+        all_groups = all_data['Group_Label'].unique()
+        unique_subpops = sorted(all_data['Subpopulation'].unique()) if 'Subpopulation' in all_data.columns else ['Default']
+        
+        # Create a list of tuples (original_group, extracted_number) for sorting
+        group_number_pairs = []
+        for group in all_groups:
+            group_number = extract_group_number(group)
+            try:
+                # Try to convert to int for numerical sorting
+                sort_key = int(group_number)
+            except (ValueError, TypeError):
+                # If not a number, use a large number to put it at the end
+                sort_key = 999999
+            group_number_pairs.append((group, group_number, sort_key))
+        
+        # Sort by the numerical key
+        group_number_pairs.sort(key=lambda x: x[2])
+        
+        # Extract the sorted groups and their display numbers
+        unique_groups = [pair[0] for pair in group_number_pairs]
+        unique_group_numbers = [pair[1] for pair in group_number_pairs]
+        
+        # Calculate bar positions
+        group_positions = list(range(len(unique_groups)))
+        bar_width = 0.15  # Fixed bar width
+        subpop_spacing = 0.25  # 25% spacing between bars within groups
+        
+        # Add bars for each subpopulation
+        for i, subpop in enumerate(unique_subpops):
+            subpop_data = all_data[all_data['Subpopulation'] == subpop] if 'Subpopulation' in all_data.columns else all_data
+            
+            # Calculate x positions for this subpopulation
+            x_positions = []
+            for group in unique_groups:
+                group_data = subpop_data[subpop_data['Group_Label'] == group]
+                if not group_data.empty:
+                    # Position bars within each group with spacing
+                    group_idx = unique_groups.index(group)
+                    # Offset each subpopulation within the group
+                    x_pos = group_idx + (i - len(unique_subpops)/2) * (bar_width + subpop_spacing * bar_width)
+                    x_positions.append(x_pos)
+                else:
+                    x_positions.append(None)
+            
+            # Filter out None values
+            valid_data = [(x, y, std) for x, y, std in zip(x_positions, subpop_data['Mean'], subpop_data['Std']) if x is not None]
+            if valid_data:
+                x_vals, y_vals, std_vals = zip(*valid_data)
+                
+                fig.add_trace(go.Bar(
+                    x=x_vals,
+                    y=y_vals,
+                    error_y=dict(type='data', array=std_vals, visible=True, thickness=0.5, width=0.75),  # Endcaps 50% wider than main line
+                    name=subpop,
+                    width=bar_width,
+                    marker_line_width=0.5,
+                    marker_line_color='black'
+                ))
+        
+        # Set x-axis labels using integer group numbers
+        fig.update_xaxes(
+            ticktext=unique_group_numbers,
+            tickvals=list(range(len(unique_groups))),
+            title='Group'
         )
         
-        # Apply styling
-        apply_plot_style(
-            fig, 'Group', 'Value',
-            self.config.theme, self.config.width, self.config.height
-        )
-        
-        # Update layout for better appearance
+        # Set title and other properties
         fig.update_layout(
-            legend=dict(y=-0.2),
-            margin=dict(b=80)
+            title=title,
+            yaxis_title=self.config.metric if self.config.metric else 'Value',  # Use metric name as y-axis title
+            barmode='overlay'
         )
-        fig.update_xaxes(title_standoff=10)
-        fig.update_traces(
-            marker_line_width=0.5,
-            marker_line_color='black',
-            error_y=dict(thickness=0.75, width=5),
-            width=0.2
+        
+        # Calculate optimal layout based on label lengths (use integer labels for calculation)
+        labels = unique_group_numbers
+        legend_items = len(all_data['Subpopulation'].unique()) if 'Subpopulation' in all_data.columns else 0
+        legend_labels = all_data['Subpopulation'].unique().tolist() if 'Subpopulation' in all_data.columns else []
+        
+        # Import the layout calculation function
+        from .plotting import calculate_layout_for_long_labels
+        layout_adjustments = calculate_layout_for_long_labels(labels, legend_items, "Metrics Visualization", legend_labels, self.config.width, self.config.height)
+        
+        # Apply styling with dynamic width and height
+        dynamic_width = layout_adjustments.get("width", self.config.width)
+        dynamic_height = layout_adjustments.get("height", self.config.height)
+        
+        # Apply custom theme first
+        self.themes.apply_theme(fig, self.config.theme)
+        
+        # Apply our custom styling after theme to override theme defaults
+        fig.update_layout(
+            xaxis_title='Group',
+            yaxis_title=self.config.metric if self.config.metric else 'Value',  # Use metric name as y-axis title
+            width=dynamic_width,
+            height=dynamic_height
+        )
+        
+        # Apply user-required styling (overrides theme)
+        fig.update_xaxes(title_font=dict(size=12, color='black'))
+        fig.update_yaxes(title_font=dict(size=12, color='black'))
+        
+        # Apply title styling (user requirement: 14pt bold, centered)
+        current_title = fig.layout.title.text if hasattr(fig.layout, 'title') and fig.layout.title else ""
+        fig.update_layout(
+            title=dict(
+                text=current_title,
+                font=dict(size=14, color='black'),
+                x=0.5,  # Center the title
+                xanchor='center'
+            )
+        )
+        
+        # Apply dynamic layout adjustments
+        if layout_adjustments:
+            fig.update_layout(
+                margin=layout_adjustments["margin"],
+                legend=layout_adjustments["legend"]
+            )
+            fig.update_xaxes(
+                title_standoff=layout_adjustments["xaxis_title_standoff"],
+                tickangle=layout_adjustments["xaxis_tickangle"]
+            )
+        else:
+            # Fallback to improved default settings with right-side legend
+            fig.update_layout(
+                legend=dict(
+                    font_size=11,  # User requirement: label font should be 11pt
+                    orientation="v",
+                    yanchor="middle",
+                    xanchor="left",
+                    x=1.01,  # Slightly closer to graph
+                    y=0.5,
+                    borderwidth=0,
+                    itemwidth=30,
+                    itemsizing="constant",
+                    tracegroupgap=6,  # Reduced spacing
+                    entrywidth=30,
+                    entrywidthmode="pixels",
+                    itemclick="toggle",
+                    itemdoubleclick="toggleothers"
+                ),
+                margin=dict(b=50, r=30),  # Slightly more right margin
+            )
+            fig.update_xaxes(title_standoff=15)
+        
+        # Update legend to match bar border styling
+        fig.update_layout(
+            legend=dict(
+                bordercolor='black',
+                borderwidth=0.5,  # Match the bar border width
+                bgcolor='rgba(255,255,255,0.8)',  # Semi-transparent white background
+            )
         )
         
         return fig
     
     def _combine_dataframes(self, processed_data: ProcessedData) -> DataFrame:
-        """Combine all processed dataframes."""
-        all_dfs: List[DataFrame] = []
-        
-        for agg_list in processed_data.dataframes:
-            for df in agg_list:
-                if not isinstance(df, pd.DataFrame):
-                    raise TypeError(f"Expected DataFrame, got {type(df)}")
-            all_dfs.extend(agg_list)
-        
-        if not all_dfs:
+        """Combine all processed dataframes into one."""
+        if not processed_data.dataframes:
             return pd.DataFrame()
         
-        return pd.concat(all_dfs, ignore_index=True)
+        combined = pd.concat(processed_data.dataframes, ignore_index=True)
+        return combined
     
     def _generate_subplot_titles(self, tissues: List[str], subpops: List[str]) -> List[str]:
-        """Generate subplot titles for time-course visualization."""
-        titles: List[str] = []
-        
+        """Generate titles for subplots."""
+        titles = []
         for tissue in tissues:
             for subpop in subpops:
-                if tissue != 'Unknown_tissue':
-                    titles.append(f"{subpop} ({tissue})")
-                else:
+                if tissue and subpop:
+                    titles.append(f"{tissue} - {subpop}")
+                elif tissue:
+                    titles.append(tissue)
+                elif subpop:
                     titles.append(subpop)
-        
+                else:
+                    titles.append("")
         return titles
     
-    def _add_time_course_traces(
-        self, 
-        fig: Figure, 
-        data: DataFrame, 
-        tissues: List[str], 
-        subpops: List[str]
-    ) -> None:
-        """Add traces to time-course figure."""
-        # Create color mapping
-        color_map = self._create_color_map(data['Group_Label'].unique())
+    def _add_time_course_traces(self, fig: Figure, all_data: DataFrame, 
+                               tissues: List[str], subpops: List[str]) -> None:
+        """Add traces to time-course subplots."""
+        # Get all unique groups across all data to create consistent color mapping
+        all_unique_groups = sorted(all_data['Group_Label'].unique())
         
-        row_idx = 1
-        for tissue in tissues:
-            for subpop in subpops:
-                # Filter data
-                mask = (data['Subpopulation'] == subpop) & (data['Tissue'] == tissue)
-                sub_df = data[mask]
-                
-                # Add trace for each group
-                for group in sorted(sub_df['Group_Label'].unique()):
-                    group_df = sub_df[sub_df['Group_Label'] == group].sort_values('Time')
-                    
-                    if not group_df.empty:
-                        self._add_single_trace(
-                            fig, group_df, group, tissue, 
-                            color_map[group], row_idx, show_legend=(row_idx == 1)
-                        )
-                
-                row_idx += 1
-    
-    def _create_color_map(self, groups) -> Dict[str, str]:
-        """Create consistent color mapping for groups."""
-        # Handle both pandas Series and numpy arrays
-        if hasattr(groups, 'unique'):
-            unique_groups = sorted(groups.unique())
-        else:
-            # Handle numpy array or other iterable
-            unique_groups = sorted(pd.Series(groups).unique())
-        
+        # Create color mapping for consistent colors across all subplots
         color_sequence = px.colors.qualitative.Dark24
+        group_color_map = {group: color_sequence[i % len(color_sequence)] for i, group in enumerate(all_unique_groups)}
         
-        return {
-            group: color_sequence[i % len(color_sequence)]
-            for i, group in enumerate(unique_groups)
-        }
-    
-    def _add_single_trace(
-        self,
-        fig: Figure,
-        data: DataFrame,
-        group: str,
-        tissue: str,
-        color: str,
-        row: int,
-        show_legend: bool
-    ) -> None:
-        """Add a single trace to the figure."""
-        name = f"{group}{f' ({tissue})' if tissue != 'Unknown_tissue' else ''}"
-        
-        fig.add_trace(
-            go.Scatter(
-                x=data['Time'],
-                y=data['Mean'],
-                error_y=dict(
-                    type='data',
-                    array=data['Std'],
-                    visible=True
-                ),
-                mode='lines+markers',
-                name=name,
-                legendgroup=group,
-                line=dict(color=color),
-                showlegend=show_legend
-            ),
-            row=row, col=1
-        )
+        for i, tissue in enumerate(tissues):
+            for j, subpop in enumerate(subpops):
+                row = i * len(subpops) + j + 1
+                
+                # Filter data for this subplot
+                mask = (all_data['Tissue'] == tissue) & (all_data['Subpopulation'] == subpop)
+                subplot_data = all_data[mask]
+                
+                if not subplot_data.empty:
+                    # Get unique groups for this subplot
+                    unique_groups = sorted(subplot_data['Group_Label'].unique())
+                    
+                    # Create a trace for each group
+                    for group in unique_groups:
+                        group_data = subplot_data[subplot_data['Group_Label'] == group].sort_values('Time')
+                        
+                        if not group_data.empty:
+                            # Add line trace for this group with consistent color
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=group_data['Time'],
+                                    y=group_data['Mean'],
+                                    mode='lines+markers',
+                                    name=f"{group} ({tissue} - {subpop})",
+                                    error_y=dict(
+                                        type='data',
+                                        array=group_data['Std'],
+                                        visible=True,
+                                        thickness=0.5,
+                                        width=0.75  # Endcaps 50% wider than main line
+                                    ),
+                                    showlegend=(row == 1),  # Only show legend for first row
+                                    legendgroup=group,
+                                    line=dict(color=group_color_map[group])  # Assign consistent color
+                                ),
+                                row=row, col=1
+                            )
 
 
 def visualize_data(
     csv_path: PathLike,
     output_html: PathLike,
     metric: Optional[str] = None,
-    width: int = 800,
-    height: int = 600,
-    theme: str = "plotly_dark",
+    width: int = 1000,  # Increased width for better timecourse plot visibility
+    height: int = 275,  # User requirement: 2-2.5 inches height (275px at 96 DPI) - increased by 25%
+    theme: str = "default",  # Changed from "dark" to "default"
     time_course_mode: bool = False,
     user_replicates: Optional[List[int]] = None,
     auto_parse_groups: bool = True,
@@ -482,7 +608,7 @@ def visualize_data(
         metric: Specific metric to visualize (None for all)
         width: Plot width in pixels
         height: Plot height in pixels
-        theme: Plotly theme name
+        theme: Custom theme name (default, scientific, dark, minimal, colorful, publication)
         time_course_mode: Whether to use time-course visualization
         user_replicates: User-defined replicates
         auto_parse_groups: Whether to auto-parse groups
@@ -529,6 +655,11 @@ def visualize_data(
         # Check for time data if time course mode requested
         if config.time_course_mode:
             has_time = "Time" in df.columns and df["Time"].notna().any()
+            logger.debug(f"Timecourse mode requested. Time column exists: {'Time' in df.columns}")
+            logger.debug(f"Time column has non-null values: {has_time}")
+            if "Time" in df.columns:
+                time_values = df["Time"].dropna().unique()
+                logger.debug(f"Unique time values found: {time_values}")
             if not has_time:
                 logger.warning("No time data available, falling back to standard mode")
                 config = VisualizationConfig(
@@ -544,7 +675,19 @@ def visualize_data(
         fig = visualizer.create_figure(processed_data)
         
         # Save HTML with embedded Plotly for offline viewing
-        fig.write_html(str(output_html), include_plotlyjs=True)
+        fig.write_html(
+            str(output_html), 
+            include_plotlyjs='cdn', 
+            full_html=True,
+            config=dict(
+                editable=True,
+                edits=dict(
+                    axisTitleText=True,  # Editable axis labels
+                    titleText=True,      # Editable chart title
+                    legendText=True      # Editable legend items
+                )
+            )
+        )
         
         # Log success
         if output_html.exists():
@@ -576,8 +719,8 @@ def main() -> None:
     parser.add_argument("--output-html", required=True, help="Output HTML path")
     parser.add_argument("--metric", default=None, help="Specific metric to visualize")
     parser.add_argument("--width", type=int, default=800, help="Plot width in pixels")
-    parser.add_argument("--height", type=int, default=600, help="Plot height in pixels")
-    parser.add_argument("--theme", default="plotly_dark", help="Plotly theme name")
+    parser.add_argument("--height", type=int, default=800, help="Plot height in pixels")
+    parser.add_argument("--theme", default="default", help="Custom theme name")
     parser.add_argument("--time-course", action="store_true", help="Enable time-course mode")
     
     args = parser.parse_args()

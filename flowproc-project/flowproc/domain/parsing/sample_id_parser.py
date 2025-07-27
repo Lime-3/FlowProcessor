@@ -143,8 +143,15 @@ class SampleIDParser:
         """Remove time pattern from text."""
         # This is a simplified version - could be more sophisticated
         import re
+        # Pattern for standard time units
         pattern = r'\d+(?:\.\d+)?\s*(?:hour|hr|h|minute|min|m|day|d)s?\s*[_-]?'
-        return re.sub(pattern, '', text, flags=re.IGNORECASE)
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+        
+        # Pattern for timecourse "Day X" format
+        timecourse_pattern = r'(?:^|\s|_)(day|d)\s*(\d+(?:\.\d+)?)(?:\s|_|$)'
+        text = re.sub(timecourse_pattern, '', text, flags=re.IGNORECASE)
+        
+        return text
         
     def _remove_tissue_pattern(self, text: str, tissue: str) -> str:
         """Remove tissue pattern from text."""

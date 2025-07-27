@@ -23,13 +23,25 @@ class TimeParser:
     
     # Regex for time extraction - more selective patterns
     TIME_PATTERN = re.compile(
-        r'(?:^|\s)(\d+(?:\.\d+)?)\s*([a-z]+)(?:\s|_|$)',
+        r'(?:^|\s|_)(\d+(?:\.\d+)?)\s*([a-z]+)(?:\s|_|$)',
         re.IGNORECASE
     )
     
     # Pattern for time prefixes (e.g., "2 hour_", "30 min_")
     TIME_PREFIX_PATTERN = re.compile(
         r'^(\d+(?:\.\d+)?)\s*([a-z]+)(?:\s|_)',
+        re.IGNORECASE
+    )
+    
+    # Pattern for timecourse data with "Day X" format
+    TIMECOURSE_PATTERN = re.compile(
+        r'(?:^|\s|_)(day|d)\s*(\d+(?:\.\d+)?)(?:\s|_|$)',
+        re.IGNORECASE
+    )
+    
+    # Pattern for time embedded in filenames (e.g., "AT25-AS278_Day 3.csv")
+    FILENAME_TIME_PATTERN = re.compile(
+        r'(?:^|\s|_)(?:(\d+(?:\.\d+)?)\s*(day|d|hour|hr|h|minute|min|m)|(day|d|hour|hr|h|minute|min|m)\s*(\d+(?:\.\d+)?))(?:\s|_|\.|$)',
         re.IGNORECASE
     )
     
@@ -55,11 +67,41 @@ class TimeParser:
         if not text:
             return None
             
-        # Try time prefix pattern first (e.g., "2 hour_SP_...")
+        logger.debug(f"Parsing time from text: '{text}'")
+        
+        # Try timecourse pattern first (e.g., "Day 3", "d3")
+        match = self.TIMECOURSE_PATTERN.search(text)
+        if match:
+            unit, value_str = match.groups()
+            result = self._convert_to_hours(value_str, unit)
+            logger.debug(f"TIMECOURSE_PATTERN match: unit='{unit}', value='{value_str}', result={result}")
+            return result
+        
+        # Try filename time pattern (e.g., "AT25-AS278_Day 3.csv")
+        match = self.FILENAME_TIME_PATTERN.search(text)
+        if match:
+            groups = match.groups()
+            # Handle both "3 Day" and "Day 3" patterns
+            if groups[0] and groups[1]:  # "3 Day" pattern
+                value_str, unit = groups[0], groups[1]
+            elif groups[2] and groups[3]:  # "Day 3" pattern
+                unit, value_str = groups[2], groups[3]
+            else:
+                logger.debug(f"FILENAME_TIME_PATTERN matched but groups are invalid: {groups}")
+                value_str, unit = None, None
+                
+            if value_str and unit:
+                result = self._convert_to_hours(value_str, unit)
+                logger.debug(f"FILENAME_TIME_PATTERN match: value='{value_str}', unit='{unit}', result={result}")
+                return result
+        
+        # Try time prefix pattern (e.g., "2 hour_SP_...")
         match = self.TIME_PREFIX_PATTERN.search(text)
         if match:
             value_str, unit = match.groups()
-            return self._convert_to_hours(value_str, unit)
+            result = self._convert_to_hours(value_str, unit)
+            logger.debug(f"TIME_PREFIX_PATTERN match: value='{value_str}', unit='{unit}', result={result}")
+            return result
         
         # Try general time pattern with required units
         match = self.TIME_PATTERN.search(text)
@@ -67,8 +109,11 @@ class TimeParser:
             value_str, unit = match.groups()
             # Unit is required for general pattern
             if unit:
-                return self._convert_to_hours(value_str, unit)
+                result = self._convert_to_hours(value_str, unit)
+                logger.debug(f"TIME_PATTERN match: value='{value_str}', unit='{unit}', result={result}")
+                return result
             
+        logger.debug(f"No time pattern matched for text: '{text}'")
         return None
         
     def _convert_to_hours(self, value_str: str, unit: str) -> Optional[float]:
