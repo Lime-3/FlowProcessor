@@ -39,6 +39,7 @@ benchmark_results.*
 test_results.*
 output_*.png
 result_*.png
+test_*.html
 
 # Environment-specific files
 .python-version
@@ -61,6 +62,7 @@ MANIFEST
 .pytest_cache/
 .tox/
 htmlcov/
+.hypothesis/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -95,3 +97,13 @@ celerybeat.pid
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
