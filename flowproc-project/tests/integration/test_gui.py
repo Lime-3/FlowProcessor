@@ -32,7 +32,7 @@ def test_visualize_selected_permission_denied(qapp, temp_csv, mock_home, monkeyp
     def create_file(csv_path, output_html, **kwargs):
         raise PermissionError("Permission denied")
     mock_visualize.side_effect = create_file
-    monkeypatch.setattr("flowproc.presentation.gui.main.visualize_data", mock_visualize)
+    monkeypatch.setattr("flowproc.domain.visualization.visualize.visualize_data", mock_visualize)
 
     mock_window = MagicMock()
     mock_msgbox = MagicMock()

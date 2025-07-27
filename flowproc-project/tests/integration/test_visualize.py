@@ -73,7 +73,7 @@ class TestDataProcessor:
     
     def test_process_success(self, sample_df, config):
         """Test successful data processing."""
-        with patch('flowproc.visualize.map_replicates') as mock_map:
+        with patch('flowproc.domain.visualization.visualize.map_replicates') as mock_map:
             mock_map.return_value = (sample_df, 2)
             
             processor = DataProcessor(sample_df, 'SampleID', config)
@@ -94,7 +94,7 @@ class TestDataProcessor:
     
     def test_process_no_replicates(self, sample_df, config):
         """Test processing with no replicates raises error."""
-        with patch('flowproc.visualize.map_replicates') as mock_map:
+        with patch('flowproc.domain.visualization.visualize.map_replicates') as mock_map:
             mock_map.return_value = (sample_df, 0)
             
             processor = DataProcessor(sample_df, 'SampleID', config)
@@ -105,18 +105,32 @@ class TestDataProcessor:
     @given(n_groups=st.integers(min_value=1, max_value=10))
     def test_group_map_creation(self, n_groups):
         """Property-based test for group map creation."""
-        groups = tuple(range(1, n_groups + 1))
         config = VisualizationConfig(metric=None)
         
-        df = pd.DataFrame({'SampleID': ['test']})
+        # Create test data with the specified number of groups
+        data = []
+        for group in range(1, n_groups + 1):
+            data.append({
+                'SampleID': f'test_{group}',
+                'Group': group,
+                'Animal': 1,
+                'Replicate': 1,
+                'Test_Value': 10.0
+            })
+        
+        df = pd.DataFrame(data)
         processor = DataProcessor(df, 'SampleID', config)
         
-        # Mock the global USER_GROUP_LABELS to ensure default behavior
-        with patch('flowproc.visualize.USER_GROUP_LABELS', []):
-            group_map = processor._create_group_map(groups)
+        # Mock the map_replicates function to return the test data
+        with patch('flowproc.domain.visualization.visualize.map_replicates') as mock_map:
+            mock_map.return_value = (df, 1)
+            
+            # Process the data to get the group map
+            result = processor.process()
+            group_map = result.group_map
         
         assert len(group_map) == n_groups
-        assert all(f"Group {i}" == group_map[i] for i in groups)
+        assert all(f"Group {i}" == group_map[i] for i in range(1, n_groups + 1))
     
     def test_user_group_labels_application(self, sample_df):
         """Test that user-provided group labels are applied correctly."""
@@ -174,7 +188,7 @@ class TestVisualizer:
         })
         
         return ProcessedData(
-            dataframes=[[df]],
+            dataframes=[df],
             metrics=['Freq. of Parent'],
             groups=[1, 2],
             times=[0.0, 24.0],
@@ -245,7 +259,7 @@ class TestIntegration:
         """Test complete visualization pipeline."""
         output_html = tmp_path / "output.html"
         
-        with patch('flowproc.visualize.load_and_parse_df') as mock_load:
+        with patch('flowproc.domain.parsing.load_and_parse_df') as mock_load:
             mock_df = pd.DataFrame({
                 'SampleID': ['SP_1.1', 'SP_1.2'],
                 'Group': [1, 1],
@@ -276,11 +290,21 @@ class TestIntegration:
         """Test visualization with processing error."""
         output_html = tmp_path / "output.html"
         
-        with patch('flowproc.visualize.load_and_parse_df') as mock_load:
-            mock_load.return_value = (pd.DataFrame(), 'SampleID')
+        with patch('flowproc.domain.parsing.load_and_parse_df') as mock_load:
+            # Create a DataFrame that will cause a processing error
+            mock_df = pd.DataFrame({
+                'SampleID': ['test'],
+                'Group': [1],
+                'Animal': [1]
+            })
+            mock_load.return_value = (mock_df, 'SampleID')
             
-            with pytest.raises(VisualizationError, match="Failed to process data"):
-                visualize_data(test_csv, output_html)
+            # Mock map_replicates to return 0 replicates, which will cause DataProcessingError
+            with patch('flowproc.domain.visualization.visualize.map_replicates') as mock_map:
+                mock_map.return_value = (mock_df, 0)
+                
+                with pytest.raises(VisualizationError, match="Failed to process data"):
+                    visualize_data(test_csv, output_html)
     
     @given(
         width=st.integers(min_value=100, max_value=2000),
@@ -291,7 +315,7 @@ class TestIntegration:
         """Property-based test for different plot dimensions."""
         output_html = tmp_path / "output.html"
         
-        with patch('flowproc.visualize.load_and_parse_df') as mock_load:
+        with patch('flowproc.domain.parsing.load_and_parse_df') as mock_load:
             mock_df = pd.DataFrame({
                 'SampleID': ['SP_1.1'],
                 'Group': [1],

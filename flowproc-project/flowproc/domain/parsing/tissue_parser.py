@@ -62,7 +62,13 @@ class TissueParser:
             
         Returns:
             Tissue code
+            
+        Raises:
+            ValueError: If text is not a string
         """
+        if not isinstance(text, str):
+            raise ValueError("Sample ID must be a string")
+            
         if not text:
             return self.unknown_code
             
@@ -83,6 +89,9 @@ class TissueParser:
         
     def _extract_code(self, text: str) -> str:
         """Extract tissue code from text."""
+        if not text:
+            return self.unknown_code
+            
         # Check if text starts with a known code
         text_upper = text.upper()
         
@@ -143,11 +152,13 @@ class TissueParser:
         self.REVERSE_MAP[full_name.lower()] = code.upper()
         self._cache.clear()  # Clear cache when mappings change
 
+
 def extract_tissue(text: str) -> str:
     """Convenience function to parse tissue code from text."""
     if not isinstance(text, str):
         raise ValueError("Sample ID must be a string")
     return TissueParser().parse(text)
+
 
 def get_tissue_full_name(code: str) -> str:
     """Convenience function to get full tissue name from code."""
