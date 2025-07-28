@@ -202,7 +202,7 @@ class VisualizationService:
                 fig.write_html(
                     filepath, 
                     full_html=True, 
-                    include_plotlyjs='cdn',
+                    include_plotlyjs=True,  # Changed from 'cdn' to True for offline compatibility
                     config=dict(
                         editable=True,
                         edits=dict(

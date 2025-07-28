@@ -757,9 +757,10 @@ def visualize_data(
         fig = visualizer.create_figure(processed_data)
         
         # Save HTML with embedded Plotly for offline viewing
+        # Use embedded Plotly.js instead of CDN for packaged apps
         fig.write_html(
             str(output_html), 
-            include_plotlyjs='cdn', 
+            include_plotlyjs=True,  # Changed from 'cdn' to True for offline compatibility
             full_html=True,
             config=dict(
                 editable=True,

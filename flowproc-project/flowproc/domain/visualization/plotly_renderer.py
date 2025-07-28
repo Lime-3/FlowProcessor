@@ -209,10 +209,10 @@ class PlotlyRenderer:
     
     def export_to_html(self, fig: go.Figure, filepath: str, 
                       include_plotlyjs: bool = True, full_html: bool = True) -> None:
-        """Export figure to HTML file with offline CDN support."""
+        """Export figure to HTML file with embedded Plotly.js support."""
         fig.write_html(
             filepath,
-            include_plotlyjs='cdn' if include_plotlyjs else False,
+            include_plotlyjs=True if include_plotlyjs else False,  # Changed from 'cdn' to True for offline compatibility
             full_html=full_html,
             config=dict(
                 editable=True,

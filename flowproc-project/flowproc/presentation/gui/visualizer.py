@@ -465,20 +465,27 @@ class VisualizationDialog(QDialog):
             # Use the available width, but ensure it's reasonable
             plot_width = max(600, min(available_width - 100, 1200))  # Between 600 and 1200 pixels
             
-            self.current_fig = visualize_data(
-                csv_path=self.csv_path,
-                output_html=self.temp_html,
-                metric=self.metric_name,  # Use the renamed attribute
-                width=plot_width,  # Dynamic width based on available space
-                height=300,  # Consistent height for all plot types
-                theme=theme_name,
-                time_course_mode=self.time_course_mode,
-                user_replicates=USER_REPLICATES if USER_REPLICATES else None,
-                auto_parse_groups=AUTO_PARSE_GROUPS,
-                user_group_labels=group_labels_to_use,
-                tissue_filter=tissue_filter, # Pass the selected tissue filter
-                subpopulation_filter=subpopulation_filter # Pass the selected subpopulation filter
-            )
+            logger.info(f"Generating plot with parameters: csv_path={self.csv_path}, metric={self.metric_name}, theme={theme_name}, width={plot_width}")
+            
+            try:
+                self.current_fig = visualize_data(
+                    csv_path=self.csv_path,
+                    output_html=self.temp_html,
+                    metric=self.metric_name,  # Use the renamed attribute
+                    width=plot_width,  # Dynamic width based on available space
+                    height=300,  # Consistent height for all plot types
+                    theme=theme_name,
+                    time_course_mode=self.time_course_mode,
+                    user_replicates=USER_REPLICATES if USER_REPLICATES else None,
+                    auto_parse_groups=AUTO_PARSE_GROUPS,
+                    user_group_labels=group_labels_to_use,
+                    tissue_filter=tissue_filter, # Pass the selected tissue filter
+                    subpopulation_filter=subpopulation_filter # Pass the selected subpopulation filter
+                )
+                logger.info("Plot generation completed successfully")
+            except Exception as viz_error:
+                logger.error(f"Visualization failed: {viz_error}")
+                raise
             
             # Note: visualize_data already writes the HTML file, so we don't need to write it again
             
@@ -513,9 +520,19 @@ class VisualizationDialog(QDialog):
             return
             
         file_url = QUrl.fromLocalFile(str(self.temp_html.resolve()))
-        logger.debug(f"Loading URL: {file_url.toString()}")
-        logger.debug(f"HTML file exists: {self.temp_html.exists()}")
-        logger.debug(f"HTML file size: {self.temp_html.stat().st_size} bytes")
+        logger.info(f"Loading URL: {file_url.toString()}")
+        logger.info(f"HTML file exists: {self.temp_html.exists()}")
+        logger.info(f"HTML file size: {self.temp_html.stat().st_size} bytes")
+        
+        # Debug: Check file content
+        try:
+            with open(self.temp_html, 'r', encoding='utf-8') as f:
+                content = f.read()
+                logger.info(f"HTML content preview: {content[:200]}...")
+                if 'plotly' not in content.lower():
+                    logger.warning("Plotly not found in HTML content")
+        except Exception as e:
+            logger.error(f"Failed to read HTML content: {e}")
         
         # Add a small delay to ensure the file is fully written
         import time
@@ -525,6 +542,7 @@ class VisualizationDialog(QDialog):
         try:
             # First, try loading the file directly
             self.view.load(file_url)
+            logger.info("Attempting to load file via URL")
         except Exception as e:
             logger.error(f"Failed to load file URL: {e}")
             # Fallback: read the HTML content and set it directly
