@@ -58,6 +58,9 @@ check_requirements() {
     if [ ${#missing_tools[@]} -gt 0 ]; then
         log_warning "Missing tools: ${missing_tools[*]} (will be installed)"
     fi
+    
+    # Check for Qt WebEngine support (will be done after venv setup)
+    log_info "Qt WebEngine support will be checked after virtual environment setup"
 }
 
 # Setup virtual environment
@@ -87,6 +90,18 @@ setup_venv() {
         log_info "Installing PyInstaller..."
         pip install pyinstaller
     fi
+    
+    # Check for Qt WebEngine support
+    log_info "Checking Qt WebEngine support..."
+    python3 -c "
+try:
+    from PySide6.QtWebEngineWidgets import QWebEngineView
+    from PySide6.QtWebEngineCore import QWebEngineSettings
+    print('✅ Qt WebEngine is available')
+except ImportError as e:
+    print(f'⚠️  Qt WebEngine not available: {e}')
+    print('This may affect the visualizer functionality in the packaged app')
+" 2>/dev/null || log_warning "Could not check Qt WebEngine availability"
 }
 
 # Create default icon if missing
@@ -177,9 +192,15 @@ a = Analysis(
         'flowproc.presentation.gui.views.dialogs',
         'flowproc.presentation.gui.controllers',
         'flowproc.presentation.gui.workers',
+        'flowproc.presentation.gui.visualizer',
         'flowproc.domain.parsing',
         'flowproc.domain.processing',
         'flowproc.domain.visualization',
+        'flowproc.domain.visualization.plotly_renderer',
+        'flowproc.domain.visualization.service',
+        'flowproc.domain.visualization.visualize',
+        'flowproc.domain.visualization.plotting',
+        'flowproc.domain.visualization.themes',
         'flowproc.domain.export',
         'flowproc.application',
         'flowproc.core',
@@ -188,9 +209,14 @@ a = Analysis(
         'PySide6.QtWidgets',
         'PySide6.QtGui',
         'PySide6.QtNetwork',
+        'PySide6.QtWebEngineWidgets',
+        'PySide6.QtWebEngineCore',
+        'PySide6.QtWebEngine',
         'plotly',
         'plotly.graph_objs',
         'plotly.subplots',
+        'plotly.io',
+        'plotly.express',
         'pandas',
         'numpy',
         'openpyxl',
@@ -203,9 +229,17 @@ a = Analysis(
         'pydantic',
         'pydantic_core',
         'kaleido',
+        'kaleido.scopes.plotly',
         'joblib',
         'python_dateutil',
         'pytz',
+        'tempfile',
+        'pathlib',
+        'hashlib',
+        'logging',
+        'traceback',
+        'shutil',
+        'os',
     ],
     hookspath=[],
     hooksconfig={},
@@ -267,6 +301,11 @@ app = BUNDLE(
         'NSRequiresAquaSystemAppearance': False,
         'LSApplicationCategoryType': 'public.app-category.science-research',
         'NSHumanReadableCopyright': 'MIT License',
+        'NSAppTransportSecurity': {
+            'NSAllowsArbitraryLoads': True,
+            'NSAllowsLocalNetworking': True,
+        },
+        'NSPrincipalClass': 'NSApplication',
     },
 )
 EOF
@@ -341,6 +380,29 @@ test_app() {
             log_warning "⚠ $file missing"
         fi
     done
+    
+    # Check for visualizer-specific components
+    log_info "Checking visualizer components..."
+    local visualizer_components=(
+        "Contents/Resources/flowproc/domain/visualization"
+        "Contents/Resources/flowproc/presentation/gui/visualizer.py"
+    )
+    
+    for component in "${visualizer_components[@]}"; do
+        if [ -e "$app_path/$component" ]; then
+            log_success "✓ $component exists"
+        else
+            log_warning "⚠ $component missing"
+        fi
+    done
+    
+    # Check for Qt WebEngine components
+    log_info "Checking Qt WebEngine components..."
+    if find "$app_path" -name "*WebEngine*" -type f | head -1 | grep -q .; then
+        log_success "✓ Qt WebEngine components found"
+    else
+        log_warning "⚠ Qt WebEngine components not found - visualizer may not work"
+    fi
 }
 
 # Main execution
