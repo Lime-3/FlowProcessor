@@ -43,12 +43,12 @@ def save_plot_as_image(fig: go.Figure, parent_widget: Optional[QWidget], metric:
     # Create a clean default filename without hash
     default_filename = f"flowproc_{metric.replace(' ', '_').replace('|', '_')}.png"
     
-    # Use last output directory from config, fallback to home directory
+    # Use last output directory from config, fallback to Desktop
     try:
         default_dir = load_last_output_dir()
     except Exception as e:
         logger.warning(f"Failed to load last output directory: {e}")
-        default_dir = str(Path.home())
+        default_dir = str(Path.home() / "Desktop")
     
     default_path = Path(default_dir) / default_filename
     file_path, _ = QFileDialog.getSaveFileName(
@@ -567,7 +567,7 @@ class VisualizationDialog(QDialog):
             default_dir = load_last_output_dir()
         except Exception as e:
             logger.warning(f"Failed to load last output directory: {e}")
-            default_dir = str(Path.home())
+            default_dir = str(Path.home() / "Desktop")
         
         default_filename = f"flowproc_{self.metric_name.replace(' ', '_').replace('|', '_')}.pdf"
         default_path = Path(default_dir) / default_filename
