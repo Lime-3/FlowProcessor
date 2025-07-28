@@ -1,7 +1,7 @@
 [project]
 name = "flowproc"
-version = "1.0.41"
-description = "A tool for processing flow cytometry CSV data"
+version = "2.0.0"
+description = "A high-performance tool for processing flow cytometry CSV data with async GUI support and vectorized data aggregation"
 requires-python = ">=3.13"
 dependencies = [
     "numpy>=1.26.4",
@@ -20,18 +20,51 @@ dynamic = [
     "authors",
     "keywords",
     "classifiers",
-    "urls",
-    "optional-dependencies"
+    "urls"
 ]
 
 [project.scripts]
 flowproc = "flowproc.presentation.gui.main:main"  # Entry point for PySide6-based GUI
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-qt>=4.3.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.13.0",
+    "pytest-qt-plugins>=3.3.0",
+    "pytest-qt-plugins-pyside6>=3.3.0",
+    "pytest-qt-plugins-pyside6-essentials>=3.3.0",
+    "pytest-qt-plugins-pyside6-addons>=3.3.0",
+    "hypothesis>=6.0.0",
+    "black>=24.0.0",
+    "flake8>=7.0.0",
+    "mypy>=1.8.0",
+    "isort>=5.13.0",
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",
+    "types-PyYAML>=6.0.0",
+    "types-python-dateutil>=2.8.0",
+    "memory-profiler>=0.61.0",
+    "line-profiler>=4.1.0",
+]
+test = [
+    "pytest>=8.0.0",
+    "pytest-qt>=4.3.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.13.0",
+    "pytest-qt-plugins>=3.3.0",
+    "pytest-qt-plugins-pyside6>=3.3.0",
+    "pytest-qt-plugins-pyside6-essentials>=3.3.0",
+    "pytest-qt-plugins-pyside6-addons>=3.3.0",
+    "hypothesis>=6.0.0",
+]
+
 [tool.briefcase]
 project_name = "FlowProcessor"
 bundle = "com.example"
-version = "1.0.41"
-description = "A tool for processing flow cytometry data"
+version = "2.0.0"
+description = "A high-performance GUI application for processing flow cytometry data with async support and vectorized aggregation"
 license = "MIT"
 sources = [
     "flowproc",
@@ -39,7 +72,7 @@ sources = [
 
 [tool.briefcase.app.flowproc]
 formal_name = "FlowProcessor"
-description = "A GUI application for processing flow cytometry data"
+description = "A high-performance GUI application for processing flow cytometry data with async support and vectorized aggregation"
 requires = [
     "numpy>=1.26.4",
     "pandas>=2.3.1",
@@ -52,7 +85,7 @@ requires = [
     "pydantic>=2.0.0",  # Added for data validation and settings
 ]
 test_requires = [
-    "pytest>=8.0",
+    "pytest>=8.0.0",
     "pytest-qt>=4.3.0",  # Added for GUI testing
 ]
 
@@ -73,12 +106,72 @@ packages = [
 
 [build-system]
 requires = [
-    "setuptools>=61.0",
-    "wheel",
+    "setuptools>=68.0",
+    "wheel>=0.40",
 ]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 markers = [
     "integration: mark tests as integration tests (deselect with '-m \"not integration\"')",
+    "gui: mark tests as GUI tests",
+    "slow: mark tests as slow running",
 ]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=flowproc",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["flowproc"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "PySide6.*",
+    "plotly.*",
+    "kaleido.*",
+]
+ignore_missing_imports = true

@@ -132,9 +132,9 @@ class TestProcessingWorker:
         assert worker.wait(3000)  # 3 second timeout
         
         # Check result
-        # The signal might not be received in test environment, so check state instead
+        # When cancelled, visualize_data should not be called since processing is interrupted
         assert worker.state == ProcessingState.IDLE
-        assert mock_visualize_data.called
+        assert not mock_visualize_data.called  # Cancelled before visualization
         
     def test_worker_pause_resume(self, qapp):
         """Test pause and resume functionality."""

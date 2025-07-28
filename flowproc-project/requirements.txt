@@ -1,32 +1,39 @@
-et_xmlfile==2.0.0
-flowproc @ file:///Users/franklin.lime/Documents/GitHub/FlowProcessor/flowproc-project
-numpy==1.26.4
-openpyxl==3.1.5
-pandas==2.3.1
-PySide6==6.9.1
-PySide6_Addons==6.9.1
-PySide6_Essentials==6.9.1
-python-dateutil==2.9.0.post0
-pytest==8.0.0
-pytz==2025.2
-shiboken6==6.9.1
-six==1.17.0
-tzdata==2025.2
-plotly==5.23.0
+# Core dependencies for FlowProcessor
+# Install with: pip install -r requirements.txt
+
+# Data processing and analysis
+numpy>=1.26.4
+pandas>=2.3.1
+scikit-learn>=1.7.0
+scipy>=1.16.0
+
+# Excel and file handling
+openpyxl>=3.1.5
+et_xmlfile>=2.0.0
+
+# GUI framework
+PySide6>=6.7.0
+PySide6_Addons>=6.7.0
+PySide6_Essentials>=6.7.0
+shiboken6>=6.7.0
+
+# Visualization
+plotly>=5.18.0
 kaleido>=1.0.0  # For static image export in plotly (PNG, PDF, SVG)
-pytest-cov==6.0.0
-pytest-mock==3.13.0
-pytest-qt==4.3.1
-pytest-qt-plugins==3.3.0
-pytest-qt-plugins-pyside6==3.3.0
-pytest-qt-plugins-pyside6-essentials==3.3.0
-pytest-qt-plugins-pyside6-addons==3.3.0
-scikit-learn==1.7.1
-scipy==1.16.0
-joblib==1.5.1
-threadpoolctl==3.6.0
-PyYAML==6.0.2
-pydantic==2.11.7
-pydantic-core==2.33.2
-annotated-types==0.7.0
-typing-inspection==0.4.1
+
+# Configuration and validation
+PyYAML>=6.0.0
+pydantic>=2.0.0
+pydantic-core>=2.0.0
+annotated-types>=0.7.0
+typing-inspection>=0.4.1
+
+# Date and time handling
+python-dateutil>=2.9.0
+pytz>=2025.2
+tzdata>=2025.2
+
+# Utilities
+six>=1.17.0
+joblib>=1.5.1
+threadpoolctl>=3.6.0

@@ -358,11 +358,23 @@ def create_line_plot(
     """Create a line plot for time-course data, faceted by subpopulation with consistent group colors."""
     unique_subpops: list[str] = sorted(agg_df['Subpopulation'].unique())
     num_subpops: int = len(unique_subpops)
+    # Calculate dynamic vertical spacing based on number of subplots
+    if num_subpops > 1:
+        max_allowed_spacing = 1 / (num_subpops - 1)
+        if num_subpops <= 4:
+            # For fewer graphs, use more generous spacing to prevent title overlap
+            vertical_spacing = min(0.08, max_allowed_spacing * 0.8)  # Use 80% of max allowed, capped at 0.08
+        else:
+            # Use tighter spacing for better visual density while respecting constraints
+            vertical_spacing = min(0.015, max_allowed_spacing * 0.3)  # Use 30% of max allowed, capped at 0.015
+    else:
+        vertical_spacing = 0.015
+    
     fig = make_subplots(
         rows=num_subpops,
         cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.02,  # Reduced spacing to prevent vertical compression
+        vertical_spacing=vertical_spacing,
         subplot_titles=[f"{metric_name} - {subpop}" for subpop in unique_subpops]
     )
 
@@ -437,7 +449,17 @@ def create_line_plot(
                 col=1
             )
 
-    updated_height: int = height * num_subpops  # Larger height for each graph
+    # Calculate dynamic height based on number of subplots
+    if num_subpops <= 4:
+        # For fewer graphs, use more space per subplot to prevent title overlap
+        base_height_per_subplot = 250  # Increased from 200 for better title spacing
+        spacing_height = 30 * num_subpops  # Additional spacing for fewer graphs
+    else:
+        # For more graphs, use tighter spacing for better visual density
+        base_height_per_subplot = 200  # Reduced from height to 200 for better proportions
+        spacing_height = 0  # No additional spacing needed for many graphs
+    
+    updated_height: int = base_height_per_subplot * num_subpops + spacing_height  # Dynamic height calculation
     fig.update_layout(
         title=metric_name,
         template=theme,
@@ -453,6 +475,17 @@ def create_line_plot(
             bgcolor='rgba(255,255,255,0.8)',  # Semi-transparent white background
         )
     )
+    
+    # Apply dynamic margins based on number of subplots
+    # When there are fewer subplots, we need more space for titles
+    if num_subpops <= 4:
+        # For 4 or fewer graphs, use more generous margins to prevent title overlap
+        dynamic_margin = dict(l=50, r=50, t=80, b=60)  # Increased top and bottom margins
+    else:
+        # For more graphs, use tighter spacing for better visual density
+        dynamic_margin = dict(l=50, r=50, t=50, b=50)
+    
+    fig.update_layout(margin=dynamic_margin)
     
     # Set title and ticks for each subplot to ensure visibility
     for row in range(1, num_subpops + 1):

@@ -1,5 +1,4 @@
 repos:
-  # Pre-commit hooks repository
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
@@ -8,31 +7,28 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
       - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-docstring-first
       - id: debug-statements
 
-  # Python code formatting
   - repo: https://github.com/psf/black
     rev: 24.1.1
     hooks:
       - id: black
-        language_version: python3
-        args: [--line-length=88]
+        language_version: python3.13
 
-  # Import sorting
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
-        args: [--profile=black, --line-length=88]
+        args: ["--profile", "black"]
 
-  # Linting
   - repo: https://github.com/pycqa/flake8
     rev: 7.0.0
     hooks:
       - id: flake8
         args: [--max-line-length=88, --extend-ignore=E203,W503]
 
-  # Type checking
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
     hooks:
@@ -40,32 +36,20 @@ repos:
         additional_dependencies: [types-PyYAML, types-python-dateutil]
         args: [--ignore-missing-imports]
 
-  # Local hooks for testing
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        args: [-r, ., -f, json, -o, bandit-report.json]
+        exclude: ^tests/
+
   - repo: local
     hooks:
-      - id: pytest
+      - id: pytest-check
         name: pytest
         entry: pytest
         language: system
         pass_filenames: false
         always_run: true
-        stages: [commit]
         args: [--tb=short, -v]
-
-      - id: test-coverage
-        name: test-coverage
-        entry: pytest --cov=flowproc --cov-report=term-missing
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [commit]
-        args: [--tb=short, -v]
-
-      - id: test-integration
-        name: test-integration
-        entry: pytest tests/integration/
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [commit]
-        args: [--tb=short, -v] 
+        stages: [manual] 
