@@ -4,7 +4,7 @@
 # Core dependencies (from requirements.txt)
 -r requirements.txt
 
-# Development tools
+# Testing framework
 pytest>=8.0.0
 pytest-qt>=4.3.0
 pytest-cov>=6.0.0
@@ -15,7 +15,7 @@ pytest-qt-plugins-pyside6-essentials>=3.3.0
 pytest-qt-plugins-pyside6-addons>=3.3.0
 hypothesis>=6.0.0
 
-# Code quality tools
+# Code quality and formatting
 black>=24.0.0
 flake8>=7.0.0
 mypy>=1.8.0
@@ -25,10 +25,17 @@ isort>=5.13.0
 sphinx>=7.0.0
 sphinx-rtd-theme>=2.0.0
 
-# Type checking
+# Type checking stubs
 types-PyYAML>=6.0.0
 types-python-dateutil>=2.8.0
 
-# Performance profiling
+# Performance profiling and debugging
 memory-profiler>=0.61.0
-line-profiler>=4.1.0 
+line-profiler>=4.1.0
+
+# Pre-commit hooks
+pre-commit>=3.0.0
+
+# Build tools
+build>=1.0.0
+twine>=4.0.0 

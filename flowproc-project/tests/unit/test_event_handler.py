@@ -42,14 +42,20 @@ class TestEventHandler:
         # Mock UI builder and widgets
         mock_ui_builder = Mock()
         mock_widgets = {
-            'browse_button': Mock(),
+            'manual_groups_checkbox': Mock(),
+            'save_button': Mock(),
+            'browse_input_button': Mock(),
             'clear_button': Mock(),
             'preview_button': Mock(),
-            'output_browse_button': Mock(),
+            'out_dir_button': Mock(),
             'process_button': Mock(),
             'visualize_button': Mock(),
             'cancel_button': Mock(),
-            'group_combo': Mock()
+            'pause_button': Mock(),
+            'group_labels_button': Mock(),
+            'path_entry': Mock(),
+            'groups_entry': Mock(),
+            'replicates_entry': Mock()
         }
         
         mock_ui_builder.get_widget.side_effect = lambda name: mock_widgets[name]
@@ -59,14 +65,18 @@ class TestEventHandler:
         event_handler.connect_all_signals()
         
         # Check that all buttons are connected
-        mock_widgets['browse_button'].clicked.connect.assert_called_once()
+        mock_widgets['manual_groups_checkbox'].stateChanged.connect.assert_called_once()
+        mock_widgets['save_button'].clicked.connect.assert_called_once()
+        mock_widgets['browse_input_button'].clicked.connect.assert_called_once()
         mock_widgets['clear_button'].clicked.connect.assert_called_once()
         mock_widgets['preview_button'].clicked.connect.assert_called_once()
-        mock_widgets['output_browse_button'].clicked.connect.assert_called_once()
+        mock_widgets['out_dir_button'].clicked.connect.assert_called_once()
         mock_widgets['process_button'].clicked.connect.assert_called_once()
         mock_widgets['visualize_button'].clicked.connect.assert_called_once()
         mock_widgets['cancel_button'].clicked.connect.assert_called_once()
-        mock_widgets['group_combo'].currentTextChanged.connect.assert_called_once()
+        mock_widgets['pause_button'].clicked.connect.assert_called_once()
+        mock_widgets['group_labels_button'].clicked.connect.assert_called_once()
+        mock_widgets['path_entry'].textChanged.connect.assert_called_once()
 
     def test_browse_input_success(self, event_handler):
         """Test successful file browsing."""

@@ -1,11 +1,11 @@
 # FlowProcessor Makefile
 # Common commands for development and installation
 
-.PHONY: help install install-dev install-test clean test run setup venv pre-commit-setup pre-commit-run pre-commit-clean quick-test
+.PHONY: help install install-dev install-test clean test run setup venv pre-commit-setup pre-commit-run pre-commit-clean quick-test build build-wheel build-sdist check dist-clean format lint type-check
 
 # Default target
 help:
-	@echo "FlowProcessor - Available commands:"
+	@echo "FlowProcessor v2.0.0 - Available commands:"
 	@echo ""
 	@echo "Installation:"
 	@echo "  install      - Install the package"
@@ -22,6 +22,18 @@ help:
 	@echo "  clean        - Clean build artifacts"
 	@echo "  run          - Run the application"
 	@echo ""
+	@echo "Code Quality:"
+	@echo "  format       - Format code with black and isort"
+	@echo "  lint         - Run flake8 linting"
+	@echo "  type-check   - Run mypy type checking"
+	@echo "  check        - Run all code quality checks"
+	@echo ""
+	@echo "Building:"
+	@echo "  build        - Build the package"
+	@echo "  build-wheel  - Build wheel distribution"
+	@echo "  build-sdist  - Build source distribution"
+	@echo "  dist-clean   - Clean distribution files"
+	@echo ""
 	@echo "Pre-commit:"
 	@echo "  pre-commit-setup - Setup pre-commit hooks"
 	@echo "  pre-commit-run   - Run pre-commit hooks"
@@ -32,7 +44,8 @@ help:
 	@echo "  make setup        # Full setup"
 	@echo "  make test         # Run tests"
 	@echo "  make quick-test   # Quick test before committing"
-	@echo "  make pre-commit-setup  # Setup testing hooks"
+	@echo "  make format       # Format code"
+	@echo "  make build        # Build package"
 
 # Installation targets
 install:
@@ -49,7 +62,7 @@ install-all:
 
 # Setup targets
 setup: venv
-	@echo "Setting up FlowProcessor..."
+	@echo "Setting up FlowProcessor v2.0.0..."
 	@source venv/bin/activate && pip install --upgrade pip
 	@source venv/bin/activate && pip install -e ".[dev]"
 	@echo "Setup complete! Activate with: source venv/bin/activate"
@@ -64,7 +77,7 @@ test:
 	pytest
 
 test-cov:
-	pytest --cov=flowproc --cov-report=html
+	pytest --cov=flowproc --cov-report=html --cov-report=term-missing
 
 test-kaleido:
 	@echo "Testing Kaleido image export functionality..."
@@ -74,12 +87,54 @@ quick-test:
 	@echo "Running quick test suite..."
 	@./scripts/quick-test.sh
 
-clean:
-	rm -rf build/
+# Code quality targets
+format:
+	@echo "Formatting code with black..."
+	black .
+	@echo "Sorting imports with isort..."
+	isort .
+
+lint:
+	@echo "Running flake8 linting..."
+	flake8 flowproc tests
+
+type-check:
+	@echo "Running mypy type checking..."
+	mypy flowproc
+
+check: format lint type-check test
+	@echo "✅ All code quality checks passed!"
+
+# Build targets
+build:
+	@echo "Building FlowProcessor package..."
+	python -m build
+
+build-wheel:
+	@echo "Building wheel distribution..."
+	python -m build --wheel
+
+build-sdist:
+	@echo "Building source distribution..."
+	python -m build --sdist
+
+dist-clean:
+	@echo "Cleaning distribution files..."
 	rm -rf dist/
+	rm -rf build/
 	rm -rf *.egg-info/
+
+clean: dist-clean
+	@echo "Cleaning build artifacts..."
 	find . -type d -name __pycache__ -delete
 	find . -type f -name "*.pyc" -delete
+	find . -type f -name "*.pyo" -delete
+	find . -type f -name "*.pyd" -delete
+	find . -type d -name "*.egg-info" -exec rm -rf {} +
+	find . -type d -name ".pytest_cache" -exec rm -rf {} +
+	find . -type d -name ".mypy_cache" -exec rm -rf {} +
+	find . -type f -name ".coverage" -delete
+	find . -type d -name "htmlcov" -exec rm -rf {} +
 
 run:
 	python -m flowproc

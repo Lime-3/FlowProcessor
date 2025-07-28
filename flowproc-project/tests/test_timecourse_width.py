@@ -71,7 +71,7 @@ def test_timecourse_width():
         # Write the figure directly to HTML
         fig.write_html(
             html_path,
-            include_plotlyjs='cdn',
+            include_plotlyjs=True,  # Use embedded Plotly.js for offline compatibility
             full_html=True
         )
         

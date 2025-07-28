@@ -93,8 +93,17 @@ class VisualizationDialog(QDialog):
         
         self.setWindowTitle(f"Visualization Preview - {metric_name}")
         self.setModal(True)
-        self.resize(1400, 500)  # Increased width to accommodate metric selector
-        self.setMinimumSize(1200, 400)  # Increased minimum width
+        
+        # For timecourse mode, use a larger initial height to accommodate multiple subplots
+        if time_course_mode:
+            initial_height = 800  # Larger height for timecourse plots
+            min_height = 600
+        else:
+            initial_height = 500  # Standard height for other plots
+            min_height = 400
+            
+        self.resize(1400, initial_height)
+        self.setMinimumSize(1200, min_height)
         
         # Center the dialog on the screen
         self.setGeometry(
@@ -275,6 +284,9 @@ class VisualizationDialog(QDialog):
         settings.setAttribute(QWebEngineSettings.WebAttribute.AllowGeolocationOnInsecureOrigins, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.DnsPrefetchEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.FocusOnNavigationEnabled, True)
+        
+        # Set minimum size for web view to ensure plots display properly
+        self.view.setMinimumSize(800, 600)
         
         # Add all components to main layout
         layout.addWidget(controls_group)
@@ -468,12 +480,16 @@ class VisualizationDialog(QDialog):
             logger.info(f"Generating plot with parameters: csv_path={self.csv_path}, metric={self.metric_name}, theme={theme_name}, width={plot_width}")
             
             try:
+                # For timecourse mode, let the visualization calculate height dynamically
+                # For other modes, use a reasonable default height
+                plot_height = None if self.time_course_mode else 300
+                
                 self.current_fig = visualize_data(
                     csv_path=self.csv_path,
                     output_html=self.temp_html,
                     metric=self.metric_name,  # Use the renamed attribute
                     width=plot_width,  # Dynamic width based on available space
-                    height=300,  # Consistent height for all plot types
+                    height=plot_height,  # Dynamic height for timecourse, fixed for others
                     theme=theme_name,
                     time_course_mode=self.time_course_mode,
                     user_replicates=USER_REPLICATES if USER_REPLICATES else None,
@@ -504,6 +520,10 @@ class VisualizationDialog(QDialog):
             # Load the plot in the web view
             self._load_plot()
             
+            # For timecourse mode, adjust dialog height based on plot height
+            if self.time_course_mode and self.current_fig and self.current_fig.layout.height:
+                self._adjust_dialog_height(self.current_fig.layout.height)
+            
             # Enable buttons after successful plot generation
             self.refresh_button.setEnabled(True)
             self.save_button.setEnabled(True)
@@ -512,6 +532,38 @@ class VisualizationDialog(QDialog):
         except Exception as e:
             logger.error(f"Failed to generate plot: {str(e)}")
             QMessageBox.critical(self, "Plot Generation Error", f"Failed to generate plot: {str(e)}")
+    
+    def _adjust_dialog_height(self, plot_height: int):
+        """Adjust dialog height to accommodate the plot height."""
+        # Calculate the required dialog height
+        # Add space for controls, margins, and some padding
+        controls_height = 100  # Increased from 80 to 100 for controls
+        margins = 40  # Increased from 32 to 40 for margins
+        padding = 80  # Increased from 50 to 80 for extra comfort and web view rendering
+        
+        required_height = plot_height + controls_height + margins + padding
+        
+        # Get screen size to ensure we don't exceed screen bounds
+        screen = self.screen()
+        screen_height = screen.size().height()
+        max_height = int(screen_height * 0.9)  # Use 90% of screen height max
+        
+        # Limit the height to screen bounds
+        final_height = min(required_height, max_height)
+        
+        # Resize the dialog
+        current_width = self.width()
+        self.resize(current_width, final_height)
+        
+        # Re-center the dialog
+        self.setGeometry(
+            (screen.size().width() - current_width) // 2,
+            (screen.size().height() - final_height) // 2,
+            current_width,
+            final_height
+        )
+        
+        logger.info(f"Adjusted dialog height to {final_height}px for plot height {plot_height}px")
             
     def _load_plot(self):
         """Load the plot in the web view."""

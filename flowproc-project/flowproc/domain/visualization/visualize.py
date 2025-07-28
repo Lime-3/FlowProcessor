@@ -45,7 +45,7 @@ class VisualizationConfig:
     """Configuration for visualization generation."""
     metric: Optional[str]
     width: int = 600  # Wide width for better timecourse aspect ratio
-    height: int = 300  # Short height for better timecourse visualization
+    height: Optional[int] = 300  # Short height for better timecourse visualization, None for dynamic
     theme: str = "default"  # Changed from "dark" to "default"
     time_course_mode: bool = False
     user_replicates: Optional[List[int]] = None
@@ -56,8 +56,10 @@ class VisualizationConfig:
     
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
-        if self.width <= 0 or self.height <= 0:
-            raise ValueError("Width and height must be positive integers")
+        if self.width <= 0:
+            raise ValueError("Width must be a positive integer")
+        if self.height is not None and self.height <= 0:
+            raise ValueError("Height must be a positive integer or None for dynamic sizing")
         if self.metric and self.metric not in KEYWORDS:
             raise ValueError(f"Invalid metric '{self.metric}'. Valid options: {', '.join(KEYWORDS.keys())}")
 
@@ -277,7 +279,9 @@ class Visualizer:
         )
         # Apply custom theme instead of using apply_plot_style
         self.themes.apply_theme(fig, self.config.theme)
-        fig.update_layout(width=self.config.width, height=self.config.height)
+        # Use default height if config height is None
+        height_to_use = self.config.height if self.config.height is not None else 300
+        fig.update_layout(width=self.config.width, height=height_to_use)
         return fig
     
     def _create_time_course_figure(self, processed_data: ProcessedData) -> Figure:
@@ -311,9 +315,18 @@ class Visualizer:
         else:
             num_rows = len(unique_subpops) * len(unique_tissues)
         
-        # Create subplots with balanced spacing - not too tight, not too loose
-        # Use moderate vertical spacing for good readability
-        vertical_spacing = 0.08 if num_rows > 1 else 0.03
+        # Create subplots with dynamic spacing based on number of subplots
+        # Plotly constraint: vertical_spacing <= 1 / (rows - 1)
+        if num_rows > 1:
+            max_allowed_spacing = 1 / (num_rows - 1)
+            if num_rows <= 4:
+                # For fewer graphs, use more generous spacing to prevent title overlap
+                vertical_spacing = min(0.08, max_allowed_spacing * 0.8)  # Use 80% of max allowed, capped at 0.08
+            else:
+                # Use tighter spacing for better visual density while respecting constraints
+                vertical_spacing = min(0.03, max_allowed_spacing * 0.4)  # Use 40% of max allowed, capped at 0.03
+        else:
+            vertical_spacing = 0.02
         
         fig = make_subplots(
             rows=num_rows, cols=1,
@@ -327,12 +340,23 @@ class Visualizer:
         # Add traces
         self._add_time_course_traces(fig, all_data, unique_tissues, unique_subpops)
         
-        # Update layout with balanced height calculation
-        # Use a moderate minimum height per subplot for good spacing
-        min_height_per_subplot = 300  # Balanced minimum height for each subplot
-        title_height = 60  # Extra height for title and spacing
-        spacing_height = 30 * num_rows  # Moderate spacing between subplots
-        updated_height = max(min_height_per_subplot * num_rows + title_height + spacing_height, self.config.height)
+        # Update layout with optimized height calculation for better proportions
+        # Use more reasonable heights for better visual balance
+        min_height_per_subplot = 250  # Reduced from 400 for better proportions
+        
+        # Adjust title height and spacing based on number of subplots
+        if num_rows <= 4:
+            # For fewer graphs, use more space for titles to prevent overlap
+            title_height = 80  # Increased from 60 for better title spacing
+            spacing_height = 30 * num_rows  # Increased spacing for fewer graphs
+        else:
+            # For more graphs, use tighter spacing for better visual density
+            title_height = 60  # Reduced from 80 for tighter layout
+            spacing_height = 20 * num_rows  # Reduced from 50 to 20 for less spacing between subplots
+        
+        calculated_height = min_height_per_subplot * num_rows + title_height + spacing_height
+        # Use calculated height if config height is None, otherwise use the maximum
+        updated_height = calculated_height if self.config.height is None else max(calculated_height, self.config.height)
         title = self.config.metric if self.config.metric else 'Metrics Visualization'
         y_axis_title = self.config.metric if self.config.metric else 'Metrics'
         fig.update_layout(
@@ -354,14 +378,15 @@ class Visualizer:
                 nticks=8,  # Limit number of ticks for cleaner appearance
                 row=row, col=1
             )
-            # Update y-axis title for each subplot
+            # Update y-axis title for each subplot with better label spacing
             fig.update_yaxes(
                 title_text=self.config.metric if self.config.metric else 'Metrics',
-                title_standoff=10,
+                title_standoff=15,  # Increased from 10 to 15
                 showticklabels=True,
                 autorange=True,
                 tickmode='auto',
-                nticks=6,  # Limit number of ticks for cleaner appearance
+                nticks=4,  # Reduced from 6 to 4 to prevent label overlap
+                tickangle=0,  # Ensure labels are horizontal
                 row=row, col=1
             )
         
@@ -371,10 +396,20 @@ class Visualizer:
         # Ensure proper subplot sizing for timecourse visualization
         # This fixes the issue where width was not applying to plots when multiple graphs are displayed
         # The width is set both before and after theme application to ensure it's not overridden
+        
+        # Calculate dynamic margins based on number of subplots
+        # When there are fewer subplots, we need more space for titles
+        if num_rows <= 4:
+            # For 4 or fewer graphs, use more generous margins to prevent title overlap
+            dynamic_margin = dict(l=60, r=50, t=90, b=60)  # Increased top and bottom margins
+        else:
+            # For more graphs, use tighter spacing for better visual density
+            dynamic_margin = dict(l=60, r=50, t=70, b=50)
+        
         fig.update_layout(
             width=self.config.width,  # Re-apply width after theme to ensure it's not overridden
-            # Ensure proper margins for subplots with balanced spacing
-            margin=dict(l=65, r=65, t=85, b=70)
+            # Dynamic margins based on number of subplots
+            margin=dynamic_margin
         )
         
         return fig
@@ -496,11 +531,13 @@ class Visualizer:
         
         # Import the layout calculation function
         from .plotting import calculate_layout_for_long_labels
-        layout_adjustments = calculate_layout_for_long_labels(labels, legend_items, "Metrics Visualization", legend_labels, self.config.width, self.config.height)
+        # Use default height if config height is None
+        height_for_calculation = self.config.height if self.config.height is not None else 300
+        layout_adjustments = calculate_layout_for_long_labels(labels, legend_items, "Metrics Visualization", legend_labels, self.config.width, height_for_calculation)
         
         # Apply styling with dynamic width and height
         dynamic_width = layout_adjustments.get("width", self.config.width)
-        dynamic_height = layout_adjustments.get("height", self.config.height)
+        dynamic_height = layout_adjustments.get("height", height_for_calculation)
         
         # Apply custom theme first
         self.themes.apply_theme(fig, self.config.theme)
@@ -666,7 +703,7 @@ def visualize_data(
     output_html: PathLike,
     metric: Optional[str] = None,
     width: int = 600,  # Wide width for better timecourse aspect ratio
-    height: int = 300,  # Short height for better timecourse visualization
+    height: Optional[int] = 300,  # Short height for better timecourse visualization, None for dynamic
     theme: str = "default",  # Changed from "dark" to "default"
     time_course_mode: bool = False,
     user_replicates: Optional[List[int]] = None,
