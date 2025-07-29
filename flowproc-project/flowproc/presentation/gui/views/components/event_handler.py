@@ -269,15 +269,27 @@ class EventHandler(QObject):
     @Slot()
     def visualize_results(self) -> None:
         """Handle visualize results button click."""
-        # Use the first available metric as default
-        default_metric = list(KEYWORDS.keys())[0] if KEYWORDS else "Freq. of Parent"
+        if not self.state_manager.last_csv:
+            QMessageBox.warning(
+                self.main_window,
+                "No Data",
+                "Please select a CSV file before creating visualizations."
+            )
+            return
         
-        self.processing_coordinator.visualize_data(
-            csv_path=self.state_manager.last_csv,
-            metric=default_metric,
-            time_course=self.main_window.ui_builder.get_widget('time_course_checkbox').isChecked(),
-            user_group_labels=self.state_manager.current_group_labels if self.state_manager.current_group_labels else None
-        )
+        # Open the visualization dialog
+        from ..dialogs import VisualizationDialog
+        dialog = VisualizationDialog(self.main_window, self.state_manager.last_csv)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Get the selected options from the dialog
+            options = dialog.get_visualization_options()
+            if options:
+                # Create visualization with the selected options
+                self.processing_coordinator.visualize_data_with_options(
+                    csv_path=self.state_manager.last_csv,
+                    options=options
+                )
 
     @Slot()
     def cancel_processing(self) -> None:

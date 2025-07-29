@@ -11,7 +11,7 @@ class VisualizationThemes:
     def __init__(self):
         """Initialize themes with Apple design influences: clean sans-serif typography, subtle color palettes, generous spacing, and adaptive light/dark modes."""
         self.font_family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
-        self.themes = {
+        self.theme_dict = {
             'default': self._get_default_theme(),
             'scientific': self._get_scientific_theme(),
             'dark': self._get_dark_theme(),
@@ -19,25 +19,60 @@ class VisualizationThemes:
             'colorful': self._get_colorful_theme(),
             'publication': self._get_publication_theme()
         }
+        
+        # Define color palettes for different themes
+        self.color_palettes = {
+            'default': ['#007AFF', '#34C759', '#FF9500', '#FF3B30', '#AF52DE', '#5856D6', '#FF2D92', '#5AC8FA'],
+            'scientific': ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'],
+            'dark': ['#0A84FF', '#30D158', '#FF9F0A', '#FF453A', '#BF5AF2', '#5E5CE6', '#FF375F', '#64D2FF'],
+            'minimal': ['#8E8E93', '#AEAEB2', '#C7C7CC', '#D1D1D6', '#E5E5EA', '#F2F2F7', '#FFFFFF', '#000000'],
+            'colorful': ['#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#007AFF', '#5856D6', '#AF52DE', '#FF2D92'],
+            'publication': ['#000000', '#666666', '#999999', '#CCCCCC', '#333333', '#555555', '#777777', '#AAAAAA']
+        }
+    
+    def get_group_color(self, group_label: str, all_groups: List[str], theme: str = 'default') -> str:
+        """
+        Get a color for a specific group label.
+        
+        Args:
+            group_label: The label of the group
+            all_groups: List of all group labels
+            theme: Theme name to use for color palette
+            
+        Returns:
+            Color string (hex code)
+        """
+        if theme not in self.color_palettes:
+            theme = 'default'
+            
+        palette = self.color_palettes[theme]
+        
+        # Find the index of the group in the sorted list of all groups
+        try:
+            group_index = sorted(all_groups).index(group_label)
+            return palette[group_index % len(palette)]
+        except (ValueError, IndexError):
+            # Fallback to first color if group not found
+            return palette[0]
     
     def apply_theme(self, fig: go.Figure, theme_name: str) -> go.Figure:
         """Apply a theme to a figure."""
-        if theme_name not in self.themes:
+        if theme_name not in self.theme_dict:
             logger.warning(f"Unknown theme: {theme_name}. Using default.")
             theme_name = 'default'
         
-        theme = self.themes[theme_name]
+        theme = self.theme_dict[theme_name]
         fig.update_layout(**theme)
         
         return fig
     
     def get_available_themes(self) -> List[str]:
         """Get list of available themes."""
-        return list(self.themes.keys())
+        return list(self.theme_dict.keys())
     
     def get_theme(self, theme_name: str) -> Dict[str, Any]:
         """Get a specific theme."""
-        return self.themes.get(theme_name, self.themes['default'])
+        return self.theme_dict.get(theme_name, self.theme_dict['default'])
     
     def _get_default_theme(self) -> Dict[str, Any]:
         """Get default theme with Apple light mode inspiration: clean, readable, subtle grays."""

@@ -66,6 +66,26 @@ class UIBuilder:
         checkbox_layout.addWidget(self.widgets['time_course_checkbox'])
         options_layout.addLayout(checkbox_layout)
 
+        # Metric selection row
+        metric_layout = QHBoxLayout()
+        metric_label = QLabel("Visualization Metric:")
+        metric_label.setStyleSheet("font-weight: 500; color: #F0F0F0;")
+        metric_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        self.widgets['visualize_combo'] = QComboBox()
+        self.widgets['visualize_combo'].addItems([
+            "Freq. of Parent", "Freq. of Total", "Freq. of Live",
+            "Count", "Median", "Mean", "Geometric Mean"
+        ])
+        self.widgets['visualize_combo'].setCurrentText("Freq. of Parent")
+        self.widgets['visualize_combo'].setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.widgets['visualize_combo'].setMinimumHeight(35)
+        
+        metric_layout.addWidget(metric_label)
+        metric_layout.addWidget(self.widgets['visualize_combo'])
+        metric_layout.addStretch()
+        options_layout.addLayout(metric_layout)
+
         # Manual definition widget
         self.widgets['manual_widget'] = QWidget()
         manual_layout = QVBoxLayout(self.widgets['manual_widget'])
@@ -82,7 +102,7 @@ class UIBuilder:
         group_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         group_label.setStyleSheet("font-weight: 500; color: #F0F0F0;")
         
-        self.widgets['groups_entry'] = QLineEdit("1-10")
+        self.widgets['groups_entry'] = QLineEdit("1-13")
         self.widgets['groups_entry'].setEnabled(False)
         self.widgets['groups_entry'].setObjectName("groupEntry")
         self.widgets['groups_entry'].setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)

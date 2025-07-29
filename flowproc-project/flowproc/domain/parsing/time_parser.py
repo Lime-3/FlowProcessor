@@ -34,14 +34,16 @@ class TimeParser:
     )
     
     # Pattern for timecourse data with "Day X" format
+    # More specific to avoid matching group identifiers like "D1"
     TIMECOURSE_PATTERN = re.compile(
-        r'(?:^|\s|_)(day|d)\s*(\d+(?:\.\d+)?)(?:\s|_|$)',
+        r'(?:^|\s|_)(day)\s*(\d+(?:\.\d+)?)(?:\s|_|$)',
         re.IGNORECASE
     )
     
     # Pattern for time embedded in filenames (e.g., "AT25-AS278_Day 3.csv")
+    # More specific pattern to avoid matching group identifiers like "D1", "A1", etc.
     FILENAME_TIME_PATTERN = re.compile(
-        r'(?:^|\s|_)(?:(\d+(?:\.\d+)?)\s*(day|d|hour|hr|h|minute|min|m)|(day|d|hour|hr|h|minute|min|m)\s*(\d+(?:\.\d+)?))(?:\s|_|\.|$)',
+        r'(?:^|\s|_)(?:(\d+(?:\.\d+)?)\s*(day|hour|hr|h|minute|min|m)|(day|hour|hr|h|minute|min|m)\s*(\d+(?:\.\d+)?))(?:\s|_|\.|$)',
         re.IGNORECASE
     )
     

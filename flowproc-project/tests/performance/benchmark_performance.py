@@ -13,7 +13,7 @@ from typing import Dict, List, Tuple
 import logging
 
 from flowproc.domain.processing.vectorized_aggregator import VectorizedAggregator, AggregationConfig
-from flowproc.domain.visualization.visualize import visualize_data as process_data_vectorized
+from flowproc.domain.visualization.facade import visualize_data as process_data_vectorized
 from flowproc.domain.parsing import load_and_parse_df
 from flowproc.domain.processing.transform import map_replicates
 from flowproc.core.constants import KEYWORDS

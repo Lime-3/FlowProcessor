@@ -104,7 +104,44 @@ class VectorizedAggregator:
         
         for sep in separators:
             if sep in col_name:
-                return col_name.split(sep)[0].strip()
+                cleaned = col_name.split(sep)[0].strip()
+                # Further clean by removing the full path and keeping only the meaningful parts
+                if '/' in cleaned:
+                    # Split by '/' and take meaningful parts
+                    parts = [part.strip() for part in cleaned.split('/') if part.strip()]
+                    if parts:
+                        # Look for cell type identifiers in the path
+                        cell_types = []
+                        for part in parts:
+                            if any(keyword in part for keyword in ['CD4', 'CD8', 'T Cells', 'Non-T Cells', 'B Cells', 'NK Cells']):
+                                cell_types.append(part)
+                        
+                        # If we found cell types, combine with the last marker
+                        if cell_types:
+                            last_part = parts[-1]
+                            if '+' in last_part or '-' in last_part or 'GFP' in last_part or 'CD' in last_part:
+                                # Combine cell type with marker
+                                cell_type = cell_types[-1]  # Use the last cell type found
+                                return f"{cell_type} {last_part}"
+                        
+                        # If no cell types found, try to find meaningful parts from the end
+                        for part in reversed(parts):
+                            if any(keyword in part for keyword in ['GFP', 'CD', '+', '-', 'Live', 'Dead', 'Cells']):
+                                return part
+                        # Fallback to last part
+                        return parts[-1]
+                return cleaned
+        
+        # If no separator found, try to extract meaningful part from the original name
+        if '/' in col_name:
+            parts = [part.strip() for part in col_name.split('/') if part.strip()]
+            if parts:
+                # Look for meaningful parts from the end
+                for part in reversed(parts):
+                    if any(keyword in part for keyword in ['GFP', 'CD', '+', '-', 'Live', 'Dead', 'Cells']):
+                        return part
+                # Fallback to last part
+                return parts[-1]
         
         # If no separator found, return the original name
         return col_name
@@ -207,17 +244,21 @@ class VectorizedAggregator:
         agg_result['Group_Label'] = agg_result['Group'].map(config.group_map)
         agg_result['Metric'] = metric_name
         
-        # Split by tissue if multiple detected and no tissue filter applied
-        if 'Tissue' in agg_result.columns and config.tissues_detected:
-            tissues = sorted(agg_result['Tissue'].unique())
-            result_dfs = []
-            
-            for tissue in tissues:
-                tissue_df = agg_result[agg_result['Tissue'] == tissue].copy()
-                if not tissue_df.empty:
-                    result_dfs.append(tissue_df)
+        # Split by tissue if multiple tissues are detected
+        if config.tissues_detected and 'Tissue' in agg_result.columns:
+            unique_tissues = agg_result['Tissue'].unique()
+            if len(unique_tissues) > 1:
+                # Create separate dataframes for each tissue
+                result_dfs = []
+                for tissue in unique_tissues:
+                    tissue_df = agg_result[agg_result['Tissue'] == tissue].copy()
+                    if not tissue_df.empty:
+                        result_dfs.append(tissue_df)
+                logger.debug(f"Split data into {len(result_dfs)} tissue-specific dataframes")
+            else:
+                result_dfs = [agg_result]
         else:
-            # No tissue column or tissue filter applied, return single dataframe
+            # Keep all tissues together in a single dataframe
             result_dfs = [agg_result]
                 
         logger.debug(

@@ -12,7 +12,6 @@ from .views.dialogs.preview_dialog import PreviewDialog
 from .controllers.main_controller import MainController
 from .controllers.processing_controller import ProcessingController
 from .workers.validation_worker import ValidationWorker, ValidationResult
-from .visualizer import visualize_metric
 from .config_handler import load_last_output_dir, save_last_output_dir
 
 create_gui = main
@@ -32,7 +31,6 @@ __all__ = [
     'ProcessingController',
     'ValidationWorker',
     'ValidationResult',
-    'visualize_metric',
     'load_last_output_dir',
     'save_last_output_dir'
 ]

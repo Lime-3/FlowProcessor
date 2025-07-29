@@ -14,7 +14,7 @@ import json
 # Add the project root to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
-from flowproc.domain.visualization.visualize import visualize_data
+from flowproc.domain.visualization.facade import visualize_data
 from flowproc.domain.visualization.plotting import calculate_layout_for_long_labels
 from flowproc.domain.visualization.plotly_renderer import PlotlyRenderer
 
@@ -140,7 +140,7 @@ def test_visualization_config_improvements():
     """Test improvements to visualization configuration."""
     print("\n=== Testing Visualization Config Improvements ===")
     
-    from flowproc.domain.visualization.visualize import VisualizationConfig
+    from flowproc.domain.visualization.config import VisualizationConfig
     
     # Test default values (should be optimized for timecourse)
     config = VisualizationConfig(metric=None)

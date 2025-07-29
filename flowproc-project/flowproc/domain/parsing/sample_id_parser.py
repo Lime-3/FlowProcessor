@@ -161,12 +161,38 @@ class SampleIDParser:
         
     def _remove_tissue_pattern(self, text: str, tissue: str) -> str:
         """Remove tissue pattern from text."""
-        # Remove tissue code at start
+        import re
+        
+        # Get the full tissue name for the code
+        full_name = self.tissue_parser.get_full_name(tissue)
+        
+        # Try to remove full tissue name first (this is the most common case)
+        if text.lower().startswith(full_name.lower() + '_'):
+            return text[len(full_name) + 1:]
+        elif text.lower().startswith(full_name.lower()):
+            return text[len(full_name):]
+            
+        # Try to remove tissue code at start
         if text.upper().startswith(tissue + '_'):
             return text[len(tissue) + 1:]
         elif text.upper().startswith(tissue):
             return text[len(tissue):]
-        return text
+            
+        # Try to remove tissue name with word boundaries
+        pattern = rf'\b{re.escape(full_name)}\b'
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+        
+        # If still not removed, try more aggressive removal for common cases
+        # This handles cases where the tissue name is at the start but not properly delimited
+        if text.lower().startswith(full_name.lower()[:3]):  # If it starts with first 3 chars
+            # Try to find where the tissue name ends by looking for the next delimiter
+            remaining = text[len(full_name):]
+            if remaining and remaining[0] in '_-':
+                return remaining[1:]  # Remove the delimiter too
+            elif remaining:
+                return remaining
+        
+        return text.strip('_- ')
         
     def _remove_well_pattern(self, text: str, well: str) -> str:
         """Remove well pattern from text."""

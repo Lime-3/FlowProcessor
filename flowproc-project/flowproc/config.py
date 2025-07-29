@@ -8,10 +8,10 @@ class Config:
         self.default_csv_path = ""
 
 # Configuration variables
-USER_GROUPS: List[int] = [1, 2]  # Default groups
+USER_GROUPS: List[int] = list(range(1, 14))  # Default groups 1-13
 USER_REPLICATES: List[int] = [1, 2, 3]  # Default replicates
 AUTO_PARSE_GROUPS = True
-USER_GROUP_LABELS: List[str] = ["Group A", "Group B"]  # Default labels
+USER_GROUP_LABELS: List[str] = [f"Group {i}" for i in range(1, 14)]  # Default labels for groups 1-13
 
 def parse_range_or_list(input_str: str) -> List[int]:
     """Parse a string of numbers or ranges (e.g., '1,2,3' or '1-3') into a list of integers."""

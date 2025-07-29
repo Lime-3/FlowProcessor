@@ -3,9 +3,11 @@ import pandas as pd
 from pathlib import Path
 import plotly.graph_objects as go
 from unittest.mock import MagicMock
-from flowproc.domain.visualization.visualize import visualize_data, DataProcessor, VisualizationConfig
+from flowproc.domain.visualization.facade import visualize_data
+from flowproc.domain.visualization.data_processor import DataProcessor
+from flowproc.domain.visualization.config import VisualizationConfig
 from flowproc.domain.visualization.plotting import create_bar_plot, create_line_plot
-from flowproc.presentation.gui.visualizer import visualize_metric, save_plot_as_image
+
 from flowproc.presentation.gui.validators import validate_inputs
 from PySide6.QtWidgets import QApplication, QWidget
 import plotly.io as pio
@@ -224,33 +226,7 @@ def test_invalid_metric(sample_df):
         processor = DataProcessor(sample_df, "SampleID", config)
         processor.process()
 
-def test_visualize_metric(tmp_csv, monkeypatch, app):
-    def mock_load_and_parse_df(path):
-        df = pd.read_csv(path)
-        parsed = df['SampleID'].apply(extract_group_animal)
-        df['Well'] = parsed.apply(lambda p: p[0] if p else "Unknown_well")
-        df['Group'] = parsed.apply(lambda p: p[1] if p else 1)
-        df['Animal'] = parsed.apply(lambda p: p[2] if p else 1)
-        df['Time'] = parsed.apply(lambda p: p[3] if p else None)
-        df['Tissue'] = df['SampleID'].apply(extract_tissue)
-        return df, "SampleID"
-    def mock_map_replicates(df, auto_parse, user_replicates, user_groups=None):
-        return df, 2
-    monkeypatch.setattr("flowproc.domain.parsing.load_and_parse_df", mock_load_and_parse_df)
-    monkeypatch.setattr("flowproc.domain.processing.transform.map_replicates", mock_map_replicates)
-    
-    parent_widget = QWidget()
-    visualize_metric(tmp_csv, "Freq. of Parent", False, parent_widget)
 
-def test_save_plot_as_image(tmp_path, monkeypatch):
-    fig = go.Figure(data=go.Scatter(x=[1, 2], y=[1, 2]))
-    parent_widget = QWidget()
-    mock_file_dialog = MagicMock(return_value=(str(tmp_path / "test.png"), "*.png"))
-    monkeypatch.setattr("PySide6.QtWidgets.QFileDialog.getSaveFileName", mock_file_dialog)
-    with monkeypatch.context() as m:
-        m.setattr(pio, "write_image", lambda fig, path: None)
-        save_plot_as_image(fig, parent_widget)
-    assert mock_file_dialog.called
 
 def test_validate_inputs(tmp_path):
     csv_path = tmp_path / "test.csv"

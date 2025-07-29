@@ -5,7 +5,7 @@ Data transformation functionality for flow cytometry data processing.
 from typing import Dict, List, Any, Optional
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+# Removed sklearn dependency - using numpy for normalization
 import logging
 
 logger = logging.getLogger(__name__)
@@ -59,23 +59,35 @@ class DataTransformer:
         """Normalize numeric data using specified method."""
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         
-        if method == 'standard':
-            scaler = StandardScaler()
-        elif method == 'minmax':
-            scaler = MinMaxScaler()
-        elif method == 'robust':
-            scaler = RobustScaler()
-        else:
-            logger.warning(f"Unknown normalization method: {method}")
+        if len(numeric_cols) == 0:
             return df
+            
+        df_normalized = df.copy()
         
-        # Fit and transform numeric columns
-        if len(numeric_cols) > 0:
-            df_normalized = df.copy()
-            df_normalized[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-            return df_normalized
+        for col in numeric_cols:
+            if method == 'standard':
+                # Standard normalization: (x - mean) / std
+                mean_val = df[col].mean()
+                std_val = df[col].std()
+                if std_val != 0:
+                    df_normalized[col] = (df[col] - mean_val) / std_val
+            elif method == 'minmax':
+                # Min-max normalization: (x - min) / (max - min)
+                min_val = df[col].min()
+                max_val = df[col].max()
+                if max_val != min_val:
+                    df_normalized[col] = (df[col] - min_val) / (max_val - min_val)
+            elif method == 'robust':
+                # Robust normalization using median and MAD
+                median_val = df[col].median()
+                mad_val = np.median(np.abs(df[col] - median_val))
+                if mad_val != 0:
+                    df_normalized[col] = (df[col] - median_val) / mad_val
+            else:
+                logger.warning(f"Unknown normalization method: {method}")
+                return df
         
-        return df
+        return df_normalized
     
     def _log_transform(self, df: pd.DataFrame, columns: List[str] = None) -> pd.DataFrame:
         """Apply log transformation to specified columns."""
@@ -101,26 +113,44 @@ class DataTransformer:
         """Scale data using specified method."""
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         
-        if method == 'standard':
-            scaler = StandardScaler()
-        elif method == 'minmax':
-            scaler = MinMaxScaler()
-        elif method == 'robust':
-            scaler = RobustScaler()
-        else:
-            logger.warning(f"Unknown scaling method: {method}")
+        if len(numeric_cols) == 0:
             return df
+            
+        df_scaled = df.copy()
         
-        # Store scaler for potential inverse transformation
-        self.scalers[method] = scaler
+        # Store scaling parameters for potential inverse transformation
+        scaling_params = {}
         
-        # Fit and transform numeric columns
-        if len(numeric_cols) > 0:
-            df_scaled = df.copy()
-            df_scaled[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-            return df_scaled
+        for col in numeric_cols:
+            if method == 'standard':
+                # Standard scaling: (x - mean) / std
+                mean_val = df[col].mean()
+                std_val = df[col].std()
+                if std_val != 0:
+                    df_scaled[col] = (df[col] - mean_val) / std_val
+                    scaling_params[col] = {'mean': mean_val, 'std': std_val}
+            elif method == 'minmax':
+                # Min-max scaling: (x - min) / (max - min)
+                min_val = df[col].min()
+                max_val = df[col].max()
+                if max_val != min_val:
+                    df_scaled[col] = (df[col] - min_val) / (max_val - min_val)
+                    scaling_params[col] = {'min': min_val, 'max': max_val}
+            elif method == 'robust':
+                # Robust scaling using median and MAD
+                median_val = df[col].median()
+                mad_val = np.median(np.abs(df[col] - median_val))
+                if mad_val != 0:
+                    df_scaled[col] = (df[col] - median_val) / mad_val
+                    scaling_params[col] = {'median': median_val, 'mad': mad_val}
+            else:
+                logger.warning(f"Unknown scaling method: {method}")
+                return df
         
-        return df
+        # Store scaling parameters for inverse transformation
+        self.scalers[method] = scaling_params
+        
+        return df_scaled
     
     def _filter_data(self, df: pd.DataFrame, criteria: Dict[str, Any]) -> pd.DataFrame:
         """Filter data based on specified criteria."""
@@ -153,20 +183,28 @@ class DataTransformer:
             return df
     
     def inverse_transform(self, df: pd.DataFrame, method: str = 'standard') -> pd.DataFrame:
-        """Apply inverse transformation using stored scaler."""
+        """Apply inverse transformation using stored scaling parameters."""
         if method not in self.scalers:
-            logger.warning(f"No scaler found for method: {method}")
+            logger.warning(f"No scaling parameters found for method: {method}")
             return df
         
-        scaler = self.scalers[method]
-        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        scaling_params = self.scalers[method]
+        df_inverse = df.copy()
         
-        if len(numeric_cols) > 0:
-            df_inverse = df.copy()
-            df_inverse[numeric_cols] = scaler.inverse_transform(df[numeric_cols])
-            return df_inverse
+        for col in df.columns:
+            if col in scaling_params:
+                params = scaling_params[col]
+                if method == 'standard' and 'mean' in params and 'std' in params:
+                    # Inverse standard scaling: x * std + mean
+                    df_inverse[col] = df[col] * params['std'] + params['mean']
+                elif method == 'minmax' and 'min' in params and 'max' in params:
+                    # Inverse min-max scaling: x * (max - min) + min
+                    df_inverse[col] = df[col] * (params['max'] - params['min']) + params['min']
+                elif method == 'robust' and 'median' in params and 'mad' in params:
+                    # Inverse robust scaling: x * mad + median
+                    df_inverse[col] = df[col] * params['mad'] + params['median']
         
-        return df
+        return df_inverse
     
     def get_transformation_info(self) -> Dict[str, Any]:
         """Get information about available transformations."""
