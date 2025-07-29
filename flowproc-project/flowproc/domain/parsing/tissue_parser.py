@@ -37,10 +37,21 @@ class TissueParser:
     # Additional patterns for tissue detection
     TISSUE_PATTERNS: Dict[str, List[re.Pattern]] = {
         'SP': [re.compile(r'\bspleen\b', re.I)],
-        'BM': [re.compile(r'\bbone\s*marrow\b', re.I)],
-        'WB': [re.compile(r'\bwhole\s*blood\b', re.I)],
-        'PB': [re.compile(r'\bperipheral\s*blood\b', re.I)],
-        'LN': [re.compile(r'\blymph\s*node\b', re.I)],
+        'BM': [re.compile(r'\bbone\s*marrow\b', re.I), re.compile(r'\bbone\s*_?\s*marrow\b', re.I)],
+        'WB': [re.compile(r'\bwhole\s*blood\b', re.I), re.compile(r'\bwhole\s*_?\s*blood\b', re.I)],
+        'PB': [re.compile(r'\bperipheral\s*blood\b', re.I), re.compile(r'\bperipheral\s*_?\s*blood\b', re.I)],
+        'LN': [re.compile(r'\blymph\s*node\b', re.I), re.compile(r'\blymph\s*_?\s*node\b', re.I)],
+        'TH': [re.compile(r'\bthymus\b', re.I)],
+        'LI': [re.compile(r'\bliver\b', re.I)],
+        'LU': [re.compile(r'\blung\b', re.I)],
+        'KD': [re.compile(r'\bkidney\b', re.I)],
+        'BR': [re.compile(r'\bbrain\b', re.I)],
+        'HE': [re.compile(r'\bheart\b', re.I)],
+        'SK': [re.compile(r'\bskin\b', re.I)],
+        'MU': [re.compile(r'\bmuscle\b', re.I)],
+        'AD': [re.compile(r'\badipose\b', re.I)],
+        'PA': [re.compile(r'\bpancreas\b', re.I)],
+        'IN': [re.compile(r'\bintestine\b', re.I)],
     }
     
     def __init__(self, unknown_code: str = 'UNK'):
@@ -111,6 +122,12 @@ class TissueParser:
         # Check for partial matches in text
         for full_name, code in self.REVERSE_MAP.items():
             if full_name in text_lower:
+                return code
+                
+        # Check for partial matches with underscores normalized to spaces
+        text_normalized = text_lower.replace('_', ' ')
+        for full_name, code in self.REVERSE_MAP.items():
+            if full_name in text_normalized:
                 return code
         
         # Look for tissue codes anywhere in the text (for cases like "2 hours_SP_A1_1.1")

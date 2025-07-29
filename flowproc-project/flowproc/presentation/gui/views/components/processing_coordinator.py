@@ -13,7 +13,6 @@ from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QMessageBox
 
 from ...workers.processing_worker import ProcessingManager, ProcessingResult, ProcessingState
-from ...visualizer import visualize_metric
 
 if TYPE_CHECKING:
     from ..main_window import MainWindow
@@ -132,14 +131,79 @@ class ProcessingCoordinator(QObject):
             user_group_labels: Optional group labels for visualization
         """
         try:
-            visualize_metric(
-                csv_path=csv_path,
+            # Import the new domain visualization API
+            from flowproc.domain.visualization.facade import create_visualization
+            
+            # Create a temporary HTML file for the visualization
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp_file:
+                output_html = Path(tmp_file.name)
+            
+            # Use the new domain API to create visualization
+            fig = create_visualization(
+                data_source=csv_path,
                 metric=metric,
+                output_html=output_html,
                 time_course_mode=time_course,
-                parent_widget=self.main_window,
-                user_group_labels=user_group_labels
+                user_group_labels=user_group_labels,
+                width=1200,
+                height=600
             )
+            
+            # Open the HTML file in the default browser
+            import webbrowser
+            webbrowser.open(f'file://{output_html.resolve()}')
+            
             logger.info(f"Visualization opened for {csv_path} with metric {metric}")
+            
+        except Exception as e:
+            error_msg = f"Failed to visualize data: {str(e)}"
+            QMessageBox.critical(
+                self.main_window,
+                "Visualization Error",
+                error_msg
+            )
+            logger.error("Visualization failed", exc_info=True)
+
+    def visualize_data_with_options(self, csv_path: Path, options) -> None:
+        """
+        Visualize processed data with options from the visualization dialog.
+        
+        Args:
+            csv_path: Path to the CSV file to visualize
+            options: VisualizationOptions object with all selected parameters
+        """
+        try:
+            # Import the new domain visualization API
+            from flowproc.domain.visualization.facade import create_visualization
+            
+            # Create a temporary HTML file for the visualization
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp_file:
+                output_html = Path(tmp_file.name)
+            
+            # Use the new domain API to create visualization with all options
+            fig = create_visualization(
+                data_source=csv_path,
+                metric=options.metric,
+                output_html=output_html,
+                time_course_mode=options.time_course_mode,
+                theme=options.theme,
+                width=options.width,
+                height=options.height,
+                tissue_filter=options.tissue_filter,
+                subpopulation_filter=options.subpopulation_filter,
+                user_group_labels=options.user_group_labels,
+                show_individual_points=options.show_individual_points,
+                error_bars=options.error_bars,
+                interactive=options.interactive
+            )
+            
+            # Open the HTML file in the default browser
+            import webbrowser
+            webbrowser.open(f'file://{output_html.resolve()}')
+            
+            logger.info(f"Visualization opened for {csv_path} with options: {options}")
             
         except Exception as e:
             error_msg = f"Failed to visualize data: {str(e)}"

@@ -13,7 +13,9 @@ from .domain.parsing import load_and_parse_df, extract_tissue, extract_group_ani
 from .domain.export import process_csv, process_directory
 from .domain.processing import map_replicates
 from .domain.processing.vectorized_aggregator import VectorizedAggregator, AggregationConfig
-from .domain.visualization.visualize import DataProcessor, Visualizer, visualize_data
+from .domain.visualization.facade import create_visualization, visualize_data
+from .domain.visualization.core import Visualizer
+from .domain.visualization.data_processor import DataProcessor
 from .core.constants import KEYWORDS
 
 # Reshape pair is not implemented yet
@@ -47,6 +49,7 @@ __all__ = [
     'DataProcessor',
     'Visualizer',
     'visualize_data',
+    'create_visualization',
     'KEYWORDS',
     'get_resource_path',
     'get_data_path',

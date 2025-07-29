@@ -9,7 +9,10 @@ import tempfile
 from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'flowproc-project'))
 
-from flowproc.domain.visualization.visualize import VisualizationConfig, Visualizer, ProcessedData, visualize_data
+from flowproc.domain.visualization.config import VisualizationConfig
+from flowproc.domain.visualization.core import Visualizer
+from flowproc.domain.visualization.models import ProcessedData
+from flowproc.domain.visualization.facade import visualize_data
 import pandas as pd
 
 def test_timecourse_width():

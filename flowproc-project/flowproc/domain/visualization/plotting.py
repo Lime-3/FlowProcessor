@@ -9,6 +9,7 @@ import pandas as pd
 from typing import Literal
 import logging
 import re
+from ..parsing.tissue_parser import get_tissue_full_name
 
 logger = logging.getLogger(__name__)
 
@@ -249,30 +250,37 @@ def create_bar_plot(
             # If it's not a number, use a large number to put it at the end
             return 999999
     
-    # Add a sorting column
+    # Add a sorting column using the extracted group numbers for proper numerical sorting
     plot_df['Sort_Order'] = plot_df['Group_Number'].apply(convert_to_int_for_sorting)
     
     # Sort the dataframe by the numerical order
     plot_df = plot_df.sort_values('Sort_Order')
     
-    # Use Group_Number for x-axis if we have tissue information
+    # Use proper group labels for x-axis
     if 'Tissue' in plot_df.columns and plot_df['Tissue'].nunique() > 1:
-        # Filter out UNK tissues when creating labels
+        # Filter out UNK tissues when creating labels and convert tissue codes to full names
         plot_df['X_Label'] = plot_df.apply(
-            lambda row: f"{row['Group_Number']} ({row['Tissue']})" if row['Tissue'] != 'UNK' else str(row['Group_Number']), 
+            lambda row: f"{row[x_axis]} ({get_tissue_full_name(row['Tissue'])})" if row['Tissue'] != 'UNK' else str(row[x_axis]), 
             axis=1
         )
         x_axis = 'X_Label'
-    else:
-        x_axis = 'Group_Number'
+    # Keep using Group_Label for x-axis (don't change to Group_Number)
 
+    # Generate title based on tissue or metric
+    title = metric_name
+    if 'Tissue' in plot_df.columns and plot_df['Tissue'].nunique() == 1:
+        # Only show tissue name if there's exactly one tissue
+        tissue = plot_df['Tissue'].iloc[0]
+        if tissue and tissue != 'UNK':
+            title = get_tissue_full_name(tissue)
+    
     fig = px.bar(
         plot_df,
         x=x_axis,
         y='Mean',
         error_y='Std',
         color=color,
-        title=metric_name,
+        title=title,
         barmode='group',
         color_discrete_sequence=px.colors.qualitative.Dark24
     )
@@ -287,12 +295,12 @@ def create_bar_plot(
     labels = plot_df[x_axis].unique().tolist()
     legend_items = len(plot_df[color].unique()) if color in plot_df.columns else 0
     legend_labels = plot_df[color].unique().tolist() if color in plot_df.columns else []
-    layout_adjustments = calculate_layout_for_long_labels(labels, legend_items, metric_name, legend_labels, width, height)
+    layout_adjustments = calculate_layout_for_long_labels(labels, legend_items, title, legend_labels, width, height)
     
     # Apply base styling with dynamic width and height
     dynamic_width = layout_adjustments.get("width", width)
     dynamic_height = layout_adjustments.get("height", height)
-    apply_plot_style(fig, 'Group', metric_name, dynamic_width, dynamic_height)
+    apply_plot_style(fig, 'Group', title, dynamic_width, dynamic_height)
     
     # Apply dynamic layout adjustments
     if layout_adjustments:
@@ -430,10 +438,10 @@ def create_line_plot(
             if group_df.empty:
                 continue
             tissue: str = group_df['Tissue'].iloc[0] if tissues_detected and not group_df.empty else ''
-            # Use integer label for display
-            group_number = group_display_numbers[i]
-            # Don't include UNK tissue in the name
-            name: str = f"{group_number} ({tissue})" if tissue and tissue != 'UNK' else str(group_number)
+            # Use full group label for display
+            group_label = group
+            # Don't include UNK tissue in the name and convert tissue codes to full names
+            name: str = f"{group_label} ({get_tissue_full_name(tissue)})" if tissue and tissue != 'UNK' else str(group_label)
             fig.add_trace(
                 go.Scatter(
                     x=group_df['Time'],

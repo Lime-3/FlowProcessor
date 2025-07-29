@@ -1,11 +1,14 @@
 """
-Dialog Windows Module
-
-This module contains dialog window classes that provide modal
-interfaces for specific user interactions.
+Dialog components for the GUI.
 """
 
-from .preview_dialog import PreviewDialog
 from .group_labels_dialog import GroupLabelsDialog
+from .preview_dialog import PreviewDialog
+from .visualization_dialog import VisualizationDialog, VisualizationOptions
 
-__all__ = ['PreviewDialog', 'GroupLabelsDialog'] 
+__all__ = [
+    'GroupLabelsDialog',
+    'PreviewDialog', 
+    'VisualizationDialog',
+    'VisualizationOptions'
+] 

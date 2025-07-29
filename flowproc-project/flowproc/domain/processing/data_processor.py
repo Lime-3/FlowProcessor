@@ -135,10 +135,16 @@ class ChunkedDataProcessor:
         
         # Optimize numeric columns
         for col in df.select_dtypes(include=['int64']).columns:
-            df[col] = pd.to_numeric(df[col], downcast='integer', errors='ignore')
-            
+            try:
+                df[col] = pd.to_numeric(df[col], downcast='integer')
+            except (ValueError, TypeError):
+                pass
+                
         for col in df.select_dtypes(include=['float64']).columns:
-            df[col] = pd.to_numeric(df[col], downcast='float', errors='ignore')
+            try:
+                df[col] = pd.to_numeric(df[col], downcast='float')
+            except (ValueError, TypeError):
+                pass
             
         # Convert string columns to category if beneficial
         for col in df.select_dtypes(include=['object']).columns:
