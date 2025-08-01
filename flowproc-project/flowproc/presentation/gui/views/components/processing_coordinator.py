@@ -131,24 +131,26 @@ class ProcessingCoordinator(QObject):
             user_group_labels: Optional group labels for visualization
         """
         try:
-            # Import the new domain visualization API
-            from flowproc.domain.visualization.facade import create_visualization
+            # Import the simple visualizer
+            from flowproc.domain.visualization.simple_visualizer import plot, time_plot
             
             # Create a temporary HTML file for the visualization
             import tempfile
             with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp_file:
                 output_html = Path(tmp_file.name)
             
-            # Use the new domain API to create visualization
-            fig = create_visualization(
-                data_source=csv_path,
-                metric=metric,
-                output_html=output_html,
-                time_course_mode=time_course,
-                user_group_labels=user_group_labels,
-                width=1200,
-                height=600
-            )
+            # Use the simple visualizer
+            if time_course:
+                fig = time_plot(
+                    data=csv_path,
+                    save_html=output_html
+                )
+            else:
+                fig = plot(
+                    data=csv_path,
+                    y=metric,
+                    save_html=output_html
+                )
             
             logger.info(f"Visualization created for {csv_path} with metric {metric}")
             
@@ -170,15 +172,12 @@ class ProcessingCoordinator(QObject):
             options: VisualizationOptions object with all selected parameters
         """
         try:
-            # Import the new domain visualization API
-            from flowproc.domain.visualization.facade import create_visualization
-            
             # Create a temporary HTML file for the visualization
             import tempfile
             with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp_file:
                 output_html = Path(tmp_file.name)
             
-            # Use the simple visualizer instead of the complex facade
+            # Use the simple visualizer
             from flowproc.domain.visualization.simple_visualizer import plot, time_plot
             
             if options.time_course_mode:
