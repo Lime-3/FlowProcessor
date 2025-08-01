@@ -206,6 +206,7 @@ class ProcessingWorker(QThread):
             if input_path.is_file() and input_path.suffix.lower() == '.csv':
                 # Check time data for time course mode
                 if self._task.time_course_mode:
+                    self.status_updated.emit(f"Analyzing time data in {input_path.name}...")
                     df, _ = load_and_parse_df(input_path)
                     try:
                         if 'Time' not in df.columns or df['Time'].isna().all():

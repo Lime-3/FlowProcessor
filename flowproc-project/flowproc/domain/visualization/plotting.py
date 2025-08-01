@@ -34,7 +34,7 @@ PLOT_STYLE = {
         "orientation": "v",
         "yanchor": "middle",
         "xanchor": "left",
-        "x": 1.01,  # Slightly closer to graph
+        "x": 0.85,  # Position legend in the right column (85% of total width)
         "y": 0.5,   # Center vertically
         "borderwidth": 0,
         "itemwidth": 30,
@@ -56,7 +56,103 @@ PLOT_STYLE = {
     "modebar": {"orientation": "h"},
 }
 
-def calculate_layout_for_long_labels(labels: list[str], legend_items: int = 0, title: str = "", legend_labels: list[str] = None, base_width: int = 600, base_height: int = 300) -> dict:
+def calculate_optimal_legend_position(legend_items: int, legend_labels: list[str] = None, 
+                                    plot_width: int = 800, plot_height: int = 500) -> dict:
+    """
+    Calculate optimal legend positioning based on content and plot dimensions.
+    
+    Args:
+        legend_items: Number of legend items
+        legend_labels: List of legend labels (for width calculation)
+        plot_width: Width of the plot area
+        plot_height: Height of the plot area
+        
+    Returns:
+        Dictionary with legend positioning parameters
+    """
+    if legend_items == 0:
+        return {"showlegend": False}
+    
+    # Calculate legend width based on label lengths
+    max_label_length = 0
+    if legend_labels:
+        max_label_length = max(len(str(label)) for label in legend_labels)
+    
+    # Estimate legend width: color box + label + spacing
+    color_box_width = 30  # Width of color box
+    label_width = max_label_length * 8  # ~8px per character
+    item_spacing = 10  # Spacing between items
+    legend_padding = 20  # Padding around legend
+    
+    # Calculate total legend width
+    legend_width = color_box_width + label_width + item_spacing + legend_padding
+    
+    # Calculate legend height
+    item_height = 25  # Height per legend item
+    legend_height = legend_items * item_height + legend_padding
+    
+    # Determine if legend should be positioned outside the plot
+    # If legend is too wide or tall, position it outside
+    plot_aspect_ratio = plot_width / plot_height
+    
+    if legend_width > plot_width * 0.3 or legend_height > plot_height * 0.8:
+        # Position legend outside the plot area
+        total_width = plot_width + legend_width + 50  # 50px spacing
+        
+        # Calculate x position as percentage of total width
+        # Position legend to the right of the plot area
+        legend_x = (plot_width + 25) / total_width  # 25px from plot edge
+        
+        return {
+            "showlegend": True,
+            "width": total_width,
+            "legend": {
+                "x": legend_x,
+                "y": 0.5,
+                "yanchor": "middle",
+                "xanchor": "left",
+                "font_size": 11,
+                "orientation": "v",
+                "borderwidth": 0.5,
+                "bordercolor": "black",
+                "bgcolor": "rgba(255,255,255,0.8)",
+                "itemwidth": 30,
+                "itemsizing": "constant",
+                "tracegroupgap": 6,
+                "entrywidth": 30,
+                "entrywidthmode": "pixels",
+                "itemclick": "toggle",
+                "itemdoubleclick": "toggleothers",
+            },
+            "margin": {"l": 50, "r": 50, "t": 50, "b": 50}
+        }
+    else:
+        # Position legend inside the plot area
+        return {
+            "showlegend": True,
+            "width": plot_width,
+            "legend": {
+                "x": 0.98,  # Position at right edge of plot
+                "y": 0.98,  # Position at top of plot
+                "yanchor": "top",
+                "xanchor": "right",
+                "font_size": 11,
+                "orientation": "v",
+                "borderwidth": 0.5,
+                "bordercolor": "black",
+                "bgcolor": "rgba(255,255,255,0.8)",
+                "itemwidth": 30,
+                "itemsizing": "constant",
+                "tracegroupgap": 6,
+                "entrywidth": 30,
+                "entrywidthmode": "pixels",
+                "itemclick": "toggle",
+                "itemdoubleclick": "toggleothers",
+            },
+            "margin": {"l": 50, "r": 50, "t": 50, "b": 50}
+        }
+
+def calculate_layout_for_long_labels(labels: list[str], legend_items: int = 0, title: str = "", legend_labels: list[str] = None, base_width: int = 800, base_height: int = 500) -> dict:
     """
     Calculate optimal layout settings to prevent label overlap while maintaining aspect ratio.
     
@@ -94,10 +190,10 @@ def calculate_layout_for_long_labels(labels: list[str], legend_items: int = 0, t
     scaling_factor = max(1.0, max_label_length / reference_label_length)
     
     # Apply maximum scaling limits for 15-inch screen comfort
-    # Target: plots should fit comfortably within ~1/4 of a 15-inch screen
-    # 15-inch screen at 96 DPI ≈ 1440x900 pixels, so 1/4 ≈ 1200x800 max
-    max_width = 1200
-    max_height = 800
+    # Target: plots should fit comfortably within ~1/3 of a 15-inch screen
+    # 15-inch screen at 96 DPI ≈ 1440x900 pixels, so 1/3 ≈ 1000x600 max
+    max_width = 1000
+    max_height = 600
     
     # Calculate maximum allowed scaling factor based on screen constraints
     max_width_scaling = max_width / base_width
@@ -152,29 +248,25 @@ def calculate_layout_for_long_labels(labels: list[str], legend_items: int = 0, t
     # Ensure minimum spacing from title
     title_standoff = max(10, title_height + 5)
     
+    # Calculate optimal legend positioning
+    legend_config = calculate_optimal_legend_position(
+        legend_items=legend_items,
+        legend_labels=legend_labels,
+        plot_width=dynamic_width,
+        plot_height=dynamic_height
+    )
+    
     layout_adjustments.update({
-        "width": dynamic_width,
+        "width": legend_config.get("width", dynamic_width),
         "height": dynamic_height,
-        "margin": {"l": 50, "r": right_margin, "t": 50, "b": int(total_bottom_space)},
-        "legend": {
-            "font_size": 11,  # User requirement: label font should be 11pt
-            "orientation": "v",  # Vertical orientation
-            "yanchor": "middle",
-            "xanchor": "left",
-            "x": 1.01,  # Slightly closer to graph (was 1.02)
-            "y": 0.5,   # Center vertically
-            "borderwidth": 0,
-            "itemwidth": item_width,
-            "itemsizing": "constant",
-            "tracegroupgap": 6,  # Reduced spacing for tighter layout
-            "entrywidth": item_width,  # Control entry width
-            "entrywidthmode": "pixels",  # Use pixel mode for precise control
-            "itemclick": "toggle",
-            "itemdoubleclick": "toggleothers",
-        },
+        "margin": {"l": 50, "r": 50, "t": 50, "b": int(total_bottom_space)},
         "xaxis_title_standoff": title_standoff,
         "xaxis_tickangle": tick_angle,
     })
+    
+    # Update legend configuration if provided
+    if "legend" in legend_config:
+        layout_adjustments["legend"] = legend_config["legend"]
     
     return layout_adjustments
 
@@ -313,26 +405,23 @@ def create_bar_plot(
             tickangle=layout_adjustments["xaxis_tickangle"]
         )
     else:
-        # Fallback to improved default settings with right-side legend
+        # Fallback to improved default settings with optimal legend positioning
+        legend_items = len(plot_df[color].unique()) if color in plot_df.columns else 0
+        legend_labels = plot_df[color].unique().tolist() if color in plot_df.columns else []
+        
+        # Calculate optimal legend positioning
+        legend_config = calculate_optimal_legend_position(
+            legend_items=legend_items,
+            legend_labels=legend_labels,
+            plot_width=width,
+            plot_height=height
+        )
+        
+        # Apply optimal legend positioning
         fig.update_layout(
-            legend=dict(
-                font_size=11,  # User requirement: label font should be 11pt
-                orientation="v",
-                yanchor="middle",
-                xanchor="left",
-                x=1.01,  # Slightly closer to graph
-                y=0.5,
-                borderwidth=0,
-                itemwidth=30,
-                itemsizing="constant",
-                tracegroupgap=6,  # Reduced spacing
-                entrywidth=30,
-                entrywidthmode="pixels",
-                itemclick="toggle",
-                itemdoubleclick="toggleothers"
-            ),
-            margin=dict(b=50, r=30),  # Slightly more right margin
-            width=width + 150  # Reduced extra width for legend space
+            width=legend_config.get("width", width),
+            margin=legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
+            **legend_config.get("legend", {})
         )
         fig.update_xaxes(title_standoff=15)
     
@@ -378,12 +467,59 @@ def create_line_plot(
     else:
         vertical_spacing = 0.015
     
+    # Create enhanced subplot titles with time information
+    from flowproc.domain.visualization.simple_visualizer import _create_enhanced_title
+    
+    subplot_titles = []
+    for subpop in unique_subpops:
+        # Filter data for this subpopulation to get time information
+        subpop_data = agg_df[agg_df['Subpopulation'] == subpop]
+        if 'Time' in subpop_data.columns:
+            # Create enhanced title with time information
+            time_values = subpop_data['Time'].dropna().unique()
+            if len(time_values) > 0:
+                time_strs = []
+                for time_val in sorted(time_values):
+                    if isinstance(time_val, (int, float)):
+                        if time_val >= 24:  # Convert to days if >= 24 hours
+                            days = time_val / 24
+                            if days.is_integer():
+                                time_strs.append(f"Day {int(days)}")
+                            else:
+                                time_strs.append(f"Day {days:.1f}")
+                        elif time_val >= 1:  # Show as hours
+                            if time_val.is_integer():
+                                time_strs.append(f"{int(time_val)}h")
+                            else:
+                                time_strs.append(f"{time_val:.1f}h")
+                        else:  # Convert to minutes
+                            minutes = time_val * 60
+                            if minutes.is_integer():
+                                time_strs.append(f"{int(minutes)}min")
+                            else:
+                                time_strs.append(f"{minutes:.1f}min")
+                    else:
+                        time_strs.append(str(time_val))
+                
+                if len(time_strs) == 1:
+                    time_info = f" ({time_strs[0]})"
+                elif len(time_strs) <= 3:
+                    time_info = f" ({', '.join(time_strs)})"
+                else:
+                    time_info = f" ({time_strs[0]}-{time_strs[-1]})"
+                
+                subplot_titles.append(f"{subpop}{time_info}")
+            else:
+                subplot_titles.append(f"{subpop}")
+        else:
+            subplot_titles.append(f"{subpop}")
+    
     fig = make_subplots(
         rows=num_subpops,
         cols=1,
         shared_xaxes=True,
         vertical_spacing=vertical_spacing,
-        subplot_titles=[f"{metric_name} - {subpop}" for subpop in unique_subpops]
+        subplot_titles=subplot_titles
     )
 
     tissues_detected: bool = 'Tissue' in agg_df.columns and agg_df['Tissue'].nunique() > 1
@@ -475,12 +611,22 @@ def create_line_plot(
     )
     apply_plot_style(fig, 'Time', metric_name, width, updated_height)
     
-    # Add legend improvements for line plots
+    # Add legend improvements for line plots with 2-column layout
+    # Calculate legend width for proper spacing
+    legend_items = len(unique_groups)
+    legend_width = legend_items * 25 + 50  # Estimate 25px per legend item + padding
+    total_width = width + legend_width + 50  # 50px spacing between plot and legend
+    
     fig.update_layout(
+        width=total_width,  # Use calculated total width for 2-column layout
         legend=dict(
             bordercolor='black',
             borderwidth=0.5,  # Match the line border width
             bgcolor='rgba(255,255,255,0.8)',  # Semi-transparent white background
+            x=0.85,  # Position legend in the right column (85% of total width)
+            y=0.5,   # Center vertically
+            yanchor="middle",
+            xanchor="left",
         )
     )
     

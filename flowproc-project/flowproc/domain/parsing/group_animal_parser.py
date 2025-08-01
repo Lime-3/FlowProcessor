@@ -83,13 +83,11 @@ class GroupAnimalParser:
             group = int(match.group(1))
             animal = int(match.group(2))
             
-            # Validate ranges
-            if not (self.min_group <= group <= self.max_group):
-                logger.warning(f"Group {group} out of range")
-                return None
-                
-            if not (self.min_animal <= animal <= self.max_animal):
-                logger.warning(f"Animal {animal} out of range")
+            # Validate ranges using consolidated validation
+            from .validation_utils import validate_group_animal_values
+            if not validate_group_animal_values(group, animal, 
+                                               self.min_group, self.max_group,
+                                               self.min_animal, self.max_animal):
                 return None
                 
             return GroupAnimal(group, animal)
@@ -131,27 +129,21 @@ class GroupAnimalParser:
         Returns:
             True if valid
         """
-        return (
-            self.min_group <= group <= self.max_group and
-            self.min_animal <= animal <= self.max_animal
-        )
+        from .validation_utils import validate_group_animal_values
+        return validate_group_animal_values(group, animal, 
+                                           self.min_group, self.max_group,
+                                           self.min_animal, self.max_animal)
 
 def extract_group_animal(text: str):
     """Convenience function to parse group and animal from text."""
     from .parsing_utils import ParsedID
     from .well_parser import WellParser
-    from .time_parser import TimeParser
+    from .time_service import TimeService
     from ...core.constants import Constants
+    from .validation_utils import validate_sample_id_for_negative_values
     
-    if not isinstance(text, str):
-        raise ValueError("Sample ID must be a string")
-    
-    # Check for negative values in the text before parsing
-    import re
-    # Check for negative group (e.g., SP_-1.2) or negative animal (e.g., SP_1.-2)
-    neg_pattern = re.search(r'(_-\d+\.|\.-\d+)', text)
-    if neg_pattern:
-        raise ValueError("Invalid group/animal")
+    # Validate for negative values
+    validate_sample_id_for_negative_values(text, strict=True)
     
     # Parse group/animal
     group_animal = GroupAnimalParser().parse(text)
@@ -160,7 +152,7 @@ def extract_group_animal(text: str):
     
     # Parse additional components
     well_parser = WellParser()
-    time_parser = TimeParser()
+    time_parser = TimeService()
     
     well = well_parser.parse(text) or Constants.UNKNOWN_WELL.value
     time_hours = time_parser.parse(text)

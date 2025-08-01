@@ -40,7 +40,7 @@ class VisualizationOptions(BaseModel):
     """Options for data visualization."""
     model_config = ConfigDict(extra='forbid')
     
-    plot_type: VisualizationType = VisualizationType.BAR_PLOT
+    plot_type: VisualizationType = VisualizationType.LINE_PLOT
     theme: str = 'plotly'
     width: int = Field(default=600, ge=300)  # Wide default width for better timecourse aspect ratio
     height: int = Field(default=300, ge=300)  # Short height for better timecourse visualization
@@ -99,7 +99,7 @@ class VisualizationConfig(BaseModel):
         }
     )
     
-    plot_type: str = Field(default='bar', pattern='^(bar|line|scatter|box|violin)$')
+    plot_type: str = Field(default='line', pattern='^(bar|line|scatter|box|violin)$')
     width: int = Field(default=600, ge=300, le=3000)  # Wide default width for better timecourse aspect ratio
     height: int = Field(default=300, ge=300, le=1500)  # Short height for better timecourse visualization
     title: Optional[str] = None

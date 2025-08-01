@@ -1,5 +1,9 @@
 """
-DataProcessingService - Coordinates data processing operations.
+DataProcessingService - Generic data processing operations.
+
+This service handles generic data processing operations using the unified
+processing architecture. It delegates to the UnifiedProcessingService
+for actual processing logic.
 """
 
 from typing import Dict, List, Any, Optional
@@ -7,35 +11,33 @@ import pandas as pd
 from pathlib import Path
 
 from ...core.exceptions import ProcessingError
-from .aggregators import VectorizedAggregator
-from .transformers import DataTransformer
+from .core import UnifiedProcessingService, ProcessingConfig, ProcessingMode
 
 
 class DataProcessingService:
-    """Service for coordinating data processing operations."""
+    """
+    Service for generic data processing operations.
+    
+    This service focuses on generic data transformations and aggregations,
+    delegating to the unified processing architecture for actual processing.
+    """
     
     def __init__(self):
-        self.aggregator = VectorizedAggregator()
-        self.transformer = DataTransformer()
+        self.unified_service = UnifiedProcessingService()
         
     def process_data(self, df: pd.DataFrame, config: Dict[str, Any]) -> pd.DataFrame:
         """Process data according to the provided configuration."""
         try:
-            result_df = df.copy()
+            # Convert legacy config to unified config
+            unified_config = ProcessingConfig(
+                mode=ProcessingMode.GENERIC,
+                group_by=config.get('group_by', []),
+                aggregation_methods=config.get('aggregation_methods', ['mean']),
+                transform_options=config.get('transform_options', {}),
+                filter_options=config.get('filter_options', {})
+            )
             
-            # Apply transformations if specified
-            if config.get('transform', False):
-                result_df = self.transformer.transform(result_df, config.get('transform_options', {}))
-            
-            # Apply aggregation if specified
-            if config.get('aggregate', False):
-                result_df = self.aggregator.aggregate(
-                    result_df, 
-                    config.get('group_by', []),
-                    config.get('aggregation_methods', ['mean'])
-                )
-            
-            return result_df
+            return self.unified_service.process_data(df, unified_config)
             
         except Exception as e:
             raise ProcessingError(f"Failed to process data: {str(e)}") from e
@@ -44,14 +46,23 @@ class DataProcessingService:
                       methods: List[str] = ['mean']) -> pd.DataFrame:
         """Aggregate data using specified grouping and methods."""
         try:
-            return self.aggregator.aggregate(df, group_by, methods)
+            config = ProcessingConfig(
+                mode=ProcessingMode.GENERIC,
+                group_by=group_by,
+                aggregation_methods=methods
+            )
+            return self.unified_service.process_data(df, config)
         except Exception as e:
             raise ProcessingError(f"Failed to aggregate data: {str(e)}") from e
     
     def transform_data(self, df: pd.DataFrame, options: Dict[str, Any]) -> pd.DataFrame:
         """Transform data using specified options."""
         try:
-            return self.transformer.transform(df, options)
+            config = ProcessingConfig(
+                mode=ProcessingMode.GENERIC,
+                transform_options=options
+            )
+            return self.unified_service.process_data(df, config)
         except Exception as e:
             raise ProcessingError(f"Failed to transform data: {str(e)}") from e
     
@@ -78,26 +89,14 @@ class DataProcessingService:
     
     def validate_processing_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Validate processing configuration."""
-        validation = {
-            'valid': True,
-            'errors': [],
-            'warnings': []
-        }
+        from ...core.validation import validate_config
         
-        # Check for required fields
-        if 'group_by' in config and not isinstance(config['group_by'], list):
-            validation['errors'].append("group_by must be a list")
-            validation['valid'] = False
-        
-        if 'aggregation_methods' in config and not isinstance(config['aggregation_methods'], list):
-            validation['errors'].append("aggregation_methods must be a list")
-            validation['valid'] = False
-        
-        # Check for valid aggregation methods
-        valid_methods = ['mean', 'median', 'sum', 'count', 'std', 'min', 'max']
-        if 'aggregation_methods' in config:
-            for method in config['aggregation_methods']:
-                if method not in valid_methods:
-                    validation['warnings'].append(f"Unknown aggregation method: {method}")
-        
-        return validation 
+        try:
+            result = validate_config(config, 'processing')
+            return result.to_dict()
+        except Exception as e:
+            return {
+                'valid': False,
+                'errors': [f"Configuration validation failed: {str(e)}"],
+                'warnings': []
+            } 

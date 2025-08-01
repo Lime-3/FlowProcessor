@@ -15,9 +15,13 @@ help:
 	@echo "  venv         - Create virtual environment"
 	@echo ""
 	@echo "Development:"
-	@echo "  test         - Run tests"
+	@echo "  test         - Run tests with safety checks"
+	@echo "  test-safe    - Run tests with comprehensive safety checks"
+	@echo "  test-integration - Run integration tests with safety checks"
+	@echo "  test-unit    - Run unit tests with safety checks"
 	@echo "  test-cov     - Run tests with coverage"
 	@echo "  test-kaleido - Test Kaleido image export"
+	@echo "  health-check - Run system health check"
 	@echo "  quick-test   - Quick test suite (tests + linting + type checking)"
 	@echo "  clean        - Clean build artifacts"
 	@echo "  run          - Run the application"
@@ -74,14 +78,36 @@ venv:
 
 # Development targets
 test:
-	pytest
+	@echo "Running tests with safety checks..."
+	@python scripts/safe_test_runner_v2.py all
 
 test-cov:
-	pytest --cov=flowproc --cov-report=html --cov-report=term-missing
+	@echo "Running tests with coverage and safety checks..."
+	@pytest --cov=flowproc --cov-report=html --cov-report=term-missing
 
 test-kaleido:
 	@echo "Testing Kaleido image export functionality..."
 	@python -c "import plotly.graph_objects as go; import plotly.io as pio; fig = go.Figure(data=go.Scatter(x=[1,2,3], y=[1,2,3])); fig.write_image('test_kaleido.png'); import os; os.remove('test_kaleido.png'); print('✅ Kaleido export test passed')"
+
+test-safe:
+	@echo "Running tests with comprehensive safety checks..."
+	@python scripts/safe_test_runner_v2.py all
+
+test-safe-only:
+	@echo "Running only safe tests..."
+	@python scripts/safe_test_runner_v2.py safe
+
+test-integration:
+	@echo "Running integration tests with safety checks..."
+	@python scripts/safe_test_runner.py integration
+
+test-unit:
+	@echo "Running unit tests with safety checks..."
+	@python scripts/safe_test_runner.py unit
+
+health-check:
+	@echo "Running system health check..."
+	@python scripts/system_health_check.py
 
 quick-test:
 	@echo "Running quick test suite..."

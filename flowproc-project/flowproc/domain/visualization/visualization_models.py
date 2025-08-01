@@ -271,7 +271,7 @@ class VisualizationResult:
             raise ValueError("Cannot save unsuccessful visualization")
         
         default_config = {
-            'include_plotlyjs': True,
+            'include_plotlyjs': 'cdn',  # Use CDN instead of embedding full library
             'full_html': True,
             'config': {
                 'editable': True,

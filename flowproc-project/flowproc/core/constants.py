@@ -177,7 +177,66 @@ TISSUE_MAPPINGS = {
     'SP': 'Spleen',
     'BM': 'Bone Marrow',
     'LN': 'Lymph Node',
-    'WB': 'Whole Blood',
+    'PB': 'Peripheral Blood',
     'TH': 'Thymus',
-    'PB': 'Peripheral Blood'
-} 
+    'LI': 'Liver',
+    'KI': 'Kidney',
+    'LU': 'Lung',
+    'BR': 'Brain',
+    'HE': 'Heart',
+    'ST': 'Stomach',
+    'IN': 'Intestine',
+    'SK': 'Skin',
+    'MU': 'Muscle',
+    'FA': 'Fat',
+    'UNK': 'Unknown'
+}
+
+def is_pure_metric_column(col_name: str, metric_keyword: str) -> bool:
+    """
+    Determine if a column is a pure metric (not a subpopulation).
+    
+    Args:
+        col_name: Column name to check
+        metric_keyword: The metric keyword found in the column
+        
+    Returns:
+        True if this is a pure metric column, False if it's a subpopulation
+    """
+    col_lower = col_name.lower()
+    
+    # Pure metric columns typically:
+    # 1. Start with the metric keyword
+    # 2. Don't contain subpopulation indicators like "CD4+", "CD8+", "B Cells", etc.
+    # 3. Don't contain separators like " | " that indicate subpopulations
+    
+    # Check if column starts with the metric keyword (pure metric)
+    if col_lower.startswith(metric_keyword.lower()):
+        return True
+    
+    # Check if column contains separators that indicate subpopulations
+    subpopulation_separators = [' | ', ' |', '| ', ' - ', ' -', '- ']
+    for separator in subpopulation_separators:
+        if separator in col_name:
+            return False
+    
+    # Check if column contains path separators (like "Live/CD4+/GFP+")
+    if '/' in col_name:
+        return False
+    
+    # Check if column contains subpopulation indicators that are NOT part of a valid metric
+    # Only filter out if the subpopulation indicator is NOT preceded by a metric keyword
+    subpopulation_indicators = [
+        'cd4+', 'cd8+', 'cd3+', 'cd19+', 'cd11b+', 'cd11c+', 'f4/80+', 'ly6g+', 'ly6c+',
+        'b cells', 't cells', 'nk cells', 'monocytes', 'neutrophils', 'macrophages',
+        'dendritic cells', 'regulatory t cells', 'th1', 'th2', 'th17', 'treg',
+        'memory', 'naive', 'effector', 'central', 'peripheral'
+    ]
+    
+    # Only filter out if the column contains a subpopulation indicator AND doesn't start with a metric keyword
+    for indicator in subpopulation_indicators:
+        if indicator in col_lower and not col_lower.startswith(metric_keyword.lower()):
+            return False
+    
+    # If none of the above conditions are met, it's likely a pure metric
+    return True 

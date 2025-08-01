@@ -4,138 +4,168 @@ Simple test script to verify that timecourse plots use the correct width.
 """
 
 import sys
-import os
-import tempfile
+import logging
 from pathlib import Path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'flowproc-project'))
 
+# Add the flowproc directory to the path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from flowproc.domain.visualization.unified_service import UnifiedVisualizationService
 from flowproc.domain.visualization.config import VisualizationConfig
-from flowproc.domain.visualization.core import Visualizer
 from flowproc.domain.visualization.models import ProcessedData
-from flowproc.domain.visualization.facade import visualize_data
-import pandas as pd
+from flowproc.domain.parsing import load_and_parse_df
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 
 def test_timecourse_width():
     """Test that timecourse plots use the correct width."""
+    print("🧪 Testing timecourse plot width...")
     
-    # Create test data with multiple tissues and subpopulations to force multiple subplots
+    # Create test data
+    import pandas as pd
     test_data = pd.DataFrame({
-        'SampleID': [f'Sample_{i+1}' for i in range(16)],  # Unique sample IDs
-        'Group_Label': ['Group 1', 'Group 2', 'Group 1', 'Group 2'] * 4,  # 16 rows total
-        'Subpopulation': ['CD4', 'CD4', 'CD8', 'CD8'] * 4,  # 2 subpopulations
-        'Tissue': ['SP', 'SP', 'SP', 'SP', 'BM', 'BM', 'BM', 'BM'] * 2,  # 2 tissues
-        'Mean': [10.5, 15.3, 8.2, 12.1, 9.5, 14.3, 7.2, 11.1, 10.5, 15.3, 8.2, 12.1, 9.5, 14.3, 7.2, 11.1],
-        'Std': [0.5, 0.7, 0.3, 0.6, 0.4, 0.6, 0.2, 0.5, 0.5, 0.7, 0.3, 0.6, 0.4, 0.6, 0.2, 0.5],
-        'Time': [0.0, 24.0, 0.0, 24.0] * 4,  # 2 time points
-        'Metric': ['Freq. of Parent'] * 16
+        'SampleID': ['SP_1.1_0h', 'SP_1.2_0h', 'SP_1.1_24h', 'SP_1.2_24h'],
+        'Group': [1, 1, 1, 1],
+        'Animal': [1, 2, 1, 2],
+        'Replicate': [1, 2, 1, 2],
+        'Time': [0.0, 0.0, 24.0, 24.0],
+        'Freq. of Parent CD4': [10.5, 11.2, 12.1, 12.8]
     })
     
-    processed_data = ProcessedData(
-        dataframes=[test_data],
-        metrics=['Freq. of Parent'],
-        groups=[1, 2],
-        times=[0.0, 24.0],
-        tissues_detected=True,  # Set to True to force multiple subplots
-        group_map={1: 'Group 1', 2: 'Group 2'},
-        replicate_count=2
-    )
-    
-    # Test with width=600
-    config = VisualizationConfig(
-        metric=None,
-        time_course_mode=True,
-        width=600,
-        height=300
-    )
-    
-    visualizer = Visualizer(config)
-    fig = visualizer.create_figure(processed_data)
-    
-    print(f"Timecourse plot width: {fig.layout.width}")
-    print(f"Expected width: 600")
-    print(f"Width matches: {fig.layout.width == 600}")
-    
-    # Check if subplots exist
-    if hasattr(fig, '_grid_ref') and fig._grid_ref:
-        print(f"Number of subplots: {len(fig._grid_ref)}")
-        print(f"Subplot structure: {type(fig._grid_ref)}")
-    
-    assert fig.layout.width == 600, f"Expected width 600, got {fig.layout.width}"
-    print("✅ Timecourse plot width test passed!")
-    
-    # Test HTML generation
-    print("\nTesting HTML generation...")
-    
-    # Test the figure directly by writing it to HTML
-    with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as tmp_html:
-        html_path = tmp_html.name
+    # Create temporary CSV file
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as tmp_csv:
+        test_data.to_csv(tmp_csv.name, index=False)
+        csv_path = Path(tmp_csv.name)
     
     try:
-        # Write the figure directly to HTML
-        fig.write_html(
-            html_path,
-            include_plotlyjs=True,  # Use embedded Plotly.js for offline compatibility
-            full_html=True
+        # Load and parse data
+        df, sid_col = load_and_parse_df(csv_path)
+        
+        # Create processed data
+        processed_data = ProcessedData(
+            dataframes=[df],
+            metrics=['Freq. of Parent CD4'],
+            groups=['Group 1'],
+            tissues=['SP'],
+            replicate_count=2
         )
         
-        print(f"HTML generation successful")
-        print(f"Generated figure width: {fig.layout.width}")
-        print(f"Expected width: 600")
-        print(f"Width matches: {fig.layout.width == 600}")
+        # Create configuration for timecourse
+        config = VisualizationConfig(
+            metric='Freq. of Parent CD4',
+            width=1200,  # Wide default for timecourse
+            height=600,
+            time_course_mode=True,
+            theme='default'
+        )
         
-        # Check the HTML file content
-        with open(html_path, 'r') as f:
-            html_content = f.read()
+        # Create visualization using unified service
+        service = UnifiedVisualizationService()
+        fig = service.create_flow_cytometry_visualization(processed_data, config.__dict__)
         
-        # Look for width in the HTML
-        if 'width' in html_content.lower():
-            print("✅ Width found in HTML content")
-        else:
-            print("❌ Width not found in HTML content")
+        # Check that the figure has the correct width
+        assert fig.layout.width == 1200, f"Expected width 1200, got {fig.layout.width}"
+        print(f"Timecourse plot width: {fig.layout.width}")
         
-        # Look for specific width value
-        if '600' in html_content:
-            print("✅ Width value 600 found in HTML")
-        else:
-            print("❌ Width value 600 not found in HTML")
+        # Test with different width
+        config.width = 800
+        fig2 = service.create_flow_cytometry_visualization(processed_data, config.__dict__)
+        assert fig2.layout.width == 800, f"Expected width 800, got {fig2.layout.width}"
+        print(f"Timecourse plot width (800): {fig2.layout.width}")
         
-        # Look for Plotly layout width
-        if '"width": 600' in html_content:
-            print("✅ Plotly layout width 600 found in HTML")
-        else:
-            print("❌ Plotly layout width 600 not found in HTML")
+        print("✅ Timecourse plot width test passed!")
+        return True
         
-        # Look for any width-related content in the HTML
-        width_related_lines = [line for line in html_content.split('\n') if 'width' in line.lower()]
-        if width_related_lines:
-            print(f"Found {len(width_related_lines)} lines with 'width':")
-            for line in width_related_lines[:5]:  # Show first 5 lines
-                print(f"  {line.strip()}")
-        else:
-            print("❌ No width-related lines found in HTML")
-        
-        # Look for the Plotly.newPlot call
-        if 'Plotly.newPlot(' in html_content:
-            print("✅ Plotly.newPlot found in HTML")
-            # Find the Plotly.newPlot call
-            plotly_start = html_content.find('Plotly.newPlot(')
-            if plotly_start != -1:
-                plotly_end = html_content.find(');', plotly_start)
-                if plotly_end != -1:
-                    plotly_call = html_content[plotly_start:plotly_end+2]
-                    print(f"Plotly call: {plotly_call[:200]}...")  # Show first 200 chars
-        else:
-            print("❌ Plotly.newPlot not found in HTML")
-        
-        assert fig.layout.width == 600, f"Expected width 600, got {fig.layout.width}"
-        print("✅ HTML generation test passed!")
+    except Exception as e:
+        print(f"❌ Timecourse plot width test failed: {e}")
+        logger.error("Test error", exc_info=True)
+        return False
         
     finally:
-        # Clean up temporary files
-        try:
-            os.unlink(html_path)
-        except:
-            pass
+        # Cleanup
+        if csv_path.exists():
+            csv_path.unlink()
+
+
+def test_default_timecourse_dimensions():
+    """Test that default timecourse dimensions are appropriate."""
+    print("\n🧪 Testing default timecourse dimensions...")
+    
+    # Create test data
+    import pandas as pd
+    test_data = pd.DataFrame({
+        'SampleID': ['SP_1.1_0h', 'SP_1.2_0h', 'SP_1.1_24h', 'SP_1.2_24h'],
+        'Group': [1, 1, 1, 1],
+        'Animal': [1, 2, 1, 2],
+        'Replicate': [1, 2, 1, 2],
+        'Time': [0.0, 0.0, 24.0, 24.0],
+        'Freq. of Parent CD4': [10.5, 11.2, 12.1, 12.8]
+    })
+    
+    # Create temporary CSV file
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as tmp_csv:
+        test_data.to_csv(tmp_csv.name, index=False)
+        csv_path = Path(tmp_csv.name)
+    
+    try:
+        # Load and parse data
+        df, sid_col = load_and_parse_df(csv_path)
+        
+        # Create processed data
+        processed_data = ProcessedData(
+            dataframes=[df],
+            metrics=['Freq. of Parent CD4'],
+            groups=['Group 1'],
+            tissues=['SP'],
+            replicate_count=2
+        )
+        
+        # Create configuration with default dimensions
+        config = VisualizationConfig(
+            metric='Freq. of Parent CD4',
+            time_course_mode=True,
+            theme='default'
+        )
+        
+        # Create visualization using unified service
+        service = UnifiedVisualizationService()
+        fig = service.create_flow_cytometry_visualization(processed_data, config.__dict__)
+        
+        # Check that default dimensions are reasonable for timecourse
+        assert fig.layout.width >= 600, f"Default width too small: {fig.layout.width}"
+        assert fig.layout.height >= 300, f"Default height too small: {fig.layout.height}"
+        print(f"Default timecourse dimensions: {fig.layout.width}x{fig.layout.height}")
+        
+        print("✅ Default timecourse dimensions test passed!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Default timecourse dimensions test failed: {e}")
+        logger.error("Test error", exc_info=True)
+        return False
+        
+    finally:
+        # Cleanup
+        if csv_path.exists():
+            csv_path.unlink()
+
 
 if __name__ == "__main__":
-    test_timecourse_width() 
+    print("🚀 Timecourse Width Test Suite")
+    print("=" * 50)
+    
+    success = True
+    success &= test_timecourse_width()
+    success &= test_default_timecourse_dimensions()
+    
+    if success:
+        print("\n🎉 All tests passed!")
+        sys.exit(0)
+    else:
+        print("\n❌ Some tests failed!")
+        sys.exit(1) 

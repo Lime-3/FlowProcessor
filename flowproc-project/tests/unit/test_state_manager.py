@@ -14,7 +14,7 @@ class TestStateManager:
 
     @pytest.fixture
     def state_manager(self):
-        """Create a StateManager instance for testing."""
+        """Create a fresh StateManager instance for each test."""
         return StateManager()
 
     def test_initialization(self, state_manager):
@@ -101,45 +101,34 @@ class TestStateManager:
         assert state_manager.preview_paths == []
         assert state_manager.last_csv is None
 
-    def test_observer_notifications(self, state_manager):
+    def test_observer_notifications(self, state_manager, mock_observer):
         """Test that observers are notified of state changes."""
-        # Create mock observers
-        observer1 = Mock()
-        observer2 = Mock()
-        
-        # Add observers
-        state_manager.add_observer(observer1)
-        state_manager.add_observer(observer2)
+        # Add observer
+        state_manager.add_observer(mock_observer)
         
         # Make a state change
         state_manager.preview_paths = ["/path/to/file.csv"]
         
-        # Check that observers were notified
-        observer1.assert_called_once()
-        observer2.assert_called_once()
+        # Check that observer was notified
+        mock_observer.assert_called_once()
         # Check that the first argument is the change type
-        assert observer1.call_args[0][0] == 'preview_paths'
-        assert observer2.call_args[0][0] == 'preview_paths'
+        assert mock_observer.call_args[0][0] == 'preview_paths'
 
-    def test_observer_removal(self, state_manager):
+    def test_observer_removal(self, state_manager, mock_observer):
         """Test removing observers."""
-        # Create mock observer
-        observer = Mock()
-        
         # Add and then remove observer
-        state_manager.add_observer(observer)
-        state_manager.remove_observer(observer)
+        state_manager.add_observer(mock_observer)
+        state_manager.remove_observer(mock_observer)
         
         # Make a state change
         state_manager.preview_paths = ["/path/to/file.csv"]
         
         # Check that observer was not notified
-        observer.assert_not_called()
+        mock_observer.assert_not_called()
 
-    def test_multiple_state_changes(self, state_manager):
+    def test_multiple_state_changes(self, state_manager, mock_observer):
         """Test multiple state changes trigger appropriate notifications."""
-        observer = Mock()
-        state_manager.add_observer(observer)
+        state_manager.add_observer(mock_observer)
         
         # Make multiple state changes
         state_manager.preview_paths = ["/path/to/file1.csv"]
@@ -147,24 +136,24 @@ class TestStateManager:
         state_manager.current_group_labels = ["Group A"]
         
         # Check that observer was called for each change
-        expected_calls = [
-            Mock().call('preview_paths'),
-            Mock().call('is_processing'),
-            Mock().call('current_group_labels')
-        ]
-        assert observer.call_count == 3
+        assert mock_observer.call_count == 3
+        
+        # Check the specific calls
+        calls = mock_observer.call_args_list
+        assert calls[0][0][0] == 'preview_paths'
+        assert calls[1][0][0] == 'is_processing'
+        assert calls[2][0][0] == 'current_group_labels'
 
-    def test_clear_preview_data_notification(self, state_manager):
+    def test_clear_preview_data_notification(self, state_manager, mock_observer):
         """Test that clear_preview_data triggers notification."""
-        observer = Mock()
-        state_manager.add_observer(observer)
+        state_manager.add_observer(mock_observer)
         
         # Clear preview data
         state_manager.clear_preview_data()
         
         # Check that observer was notified
-        observer.assert_called_once()
-        assert observer.call_args[0][0] == 'preview_data_cleared'
+        mock_observer.assert_called_once()
+        assert mock_observer.call_args[0][0] == 'preview_data_cleared'
 
     def test_empty_list_handling(self, state_manager):
         """Test handling of empty lists."""
@@ -224,6 +213,37 @@ class TestStateManager:
         
         # State should remain unchanged
         assert state_manager.preview_paths == ["/path/to/file1.csv", "/path/to/file2.csv"]
+
+    def test_multiple_observers(self, state_manager):
+        """Test that multiple observers are notified correctly."""
+        observer1 = Mock()
+        observer2 = Mock()
+        observer3 = Mock()
+        
+        # Add multiple observers
+        state_manager.add_observer(observer1)
+        state_manager.add_observer(observer2)
+        state_manager.add_observer(observer3)
+        
+        # Make a state change
+        state_manager.preview_paths = ["/path/to/file.csv"]
+        
+        # Check that all observers were notified
+        observer1.assert_called_once()
+        observer2.assert_called_once()
+        observer3.assert_called_once()
+
+    def test_observer_duplicate_removal(self, state_manager, mock_observer):
+        """Test that removing a non-existent observer doesn't cause issues."""
+        # Try to remove observer that was never added
+        state_manager.remove_observer(mock_observer)
+        
+        # Add observer and make change
+        state_manager.add_observer(mock_observer)
+        state_manager.preview_paths = ["/path/to/file.csv"]
+        
+        # Should still be notified
+        mock_observer.assert_called_once()
 
     def test_window_state_dataclass(self):
         """Test the WindowState dataclass."""

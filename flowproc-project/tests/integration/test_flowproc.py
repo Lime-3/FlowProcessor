@@ -3,12 +3,12 @@ import pandas as pd
 from pathlib import Path
 import plotly.graph_objects as go
 from unittest.mock import MagicMock
-from flowproc.domain.visualization.facade import visualize_data
+from flowproc.domain.visualization.facade import create_visualization
 from flowproc.domain.visualization.data_processor import DataProcessor
 from flowproc.domain.visualization.config import VisualizationConfig
 from flowproc.domain.visualization.plotting import create_bar_plot, create_line_plot
 
-from flowproc.presentation.gui.validators import validate_inputs
+from flowproc.presentation.gui.views.components import validate_inputs
 from PySide6.QtWidgets import QApplication, QWidget
 import plotly.io as pio
 import os
@@ -122,11 +122,10 @@ def test_visualize_data_bar(tmp_csv, tmp_path, monkeypatch):
     monkeypatch.setattr("flowproc.domain.processing.transform.map_replicates", mock_map_replicates)
     
     output_html = tmp_path / "output.html"
-    fig = visualize_data(
-        csv_path=str(tmp_csv),
+    fig = create_visualization(
+        data_source=str(tmp_csv),
         output_html=output_html,
-        metric="Freq. of Parent",
-        time_course_mode=False
+        metric="Freq. of Parent"
     )
     assert output_html.exists()
     assert output_html.stat().st_size > 0
@@ -153,8 +152,8 @@ def test_visualize_data_time_course(tmp_csv, tmp_path, monkeypatch):
     monkeypatch.setattr("flowproc.domain.processing.transform.map_replicates", mock_map_replicates)
     
     output_html = tmp_path / "output.html"
-    fig = visualize_data(
-        csv_path=str(tmp_csv),
+    fig = create_visualization(
+        data_source=str(tmp_csv),
         output_html=output_html,
         metric="Freq. of Parent",
         time_course_mode=True
@@ -207,8 +206,8 @@ def test_multi_tissue_bar_separate_plots(tmp_csv_multi_tissue, tmp_path, monkeyp
     monkeypatch.setattr("flowproc.domain.processing.transform.map_replicates", mock_map_replicates)
     
     output_html = tmp_path / "output.html"
-    fig = visualize_data(
-        csv_path=str(tmp_csv_multi_tissue),
+    fig = create_visualization(
+        data_source=str(tmp_csv_multi_tissue),
         output_html=output_html,
         metric="Freq. of Parent",
         time_course_mode=False

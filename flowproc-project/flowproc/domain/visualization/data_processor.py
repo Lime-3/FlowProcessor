@@ -1,8 +1,9 @@
 """
 Data processing logic for the visualization system.
 
-This module handles all data transformation, aggregation, and preparation
-needed for creating visualizations, using vectorized operations for performance.
+This module handles visualization-specific data processing using the unified
+processing architecture to eliminate duplication while maintaining specialized
+visualization capabilities.
 """
 from __future__ import annotations
 
@@ -14,8 +15,9 @@ from functools import lru_cache
 
 from .models import ProcessedData
 from .config import VisualizationConfig
-from ...core.constants import KEYWORDS, METRIC_KEYWORDS
+from ...core.constants import KEYWORDS, METRIC_KEYWORDS, is_pure_metric_column
 from ...core.exceptions import DataError as DataProcessingError
+from ..processing.core import UnifiedProcessingService, ProcessingConfig, ProcessingMode
 from ..processing.vectorized_aggregator import VectorizedAggregator, AggregationConfig
 from ..processing.transform import map_replicates
 from ..parsing import extract_tissue
@@ -55,6 +57,7 @@ class DataProcessor:
         self.sid_col = sid_col
         self.config = config
         self.aggregator = VectorizedAggregator(self.df, sid_col)
+        self.unified_service = UnifiedProcessingService()
         
         # Validate inputs
         self._validate_inputs()
@@ -72,10 +75,10 @@ class DataProcessor:
     
     def process(self) -> ProcessedData:
         """
-        Process DataFrame for plotting using vectorized operations.
+        Process DataFrame for plotting using unified architecture.
         
-        This is the main entry point for data processing. It orchestrates
-        all the necessary transformations and returns a ProcessedData container.
+        This method uses the unified processing architecture for basic operations
+        while maintaining visualization-specific processing logic.
         
         Returns:
             ProcessedData container with aggregated results
@@ -86,23 +89,26 @@ class DataProcessor:
         try:
             logger.info(f"Starting data processing for {len(self.df)} rows")
             
-            # Step 1: Map replicates
+            # Step 1: Apply unified processing for basic operations
+            df_processed = self._apply_unified_processing()
+            
+            # Step 2: Map replicates (visualization-specific)
             df_mapped, replicate_count = self._map_replicates()
             if replicate_count == 0:
                 raise DataProcessingError("No replicates found")
             
             logger.debug(f"Mapped replicates: {replicate_count} replicates found")
             
-            # Step 2: Apply filters
-            df_filtered = self._apply_filters(df_mapped)
+            # Step 3: Apply visualization-specific filters
+            df_filtered = self._apply_visualization_filters(df_mapped)
             
-            # Step 3: Update aggregator with processed data
+            # Step 4: Update aggregator with processed data
             self.aggregator.df = df_filtered
             
-            # Step 4: Extract metadata
+            # Step 5: Extract metadata
             groups, times, tissues_detected, group_map = self._extract_metadata(df_filtered)
             
-            # Step 5: Create aggregation configuration
+            # Step 6: Create aggregation configuration
             agg_config = AggregationConfig(
                 groups=groups,
                 times=times,
@@ -112,10 +118,10 @@ class DataProcessor:
                 time_course_mode=self.config.time_course_mode
             )
             
-            # Step 6: Determine metrics to process
+            # Step 7: Determine metrics to process
             metrics = self._get_metrics_to_process()
             
-            # Step 7: Aggregate data using vectorized operations
+            # Step 8: Aggregate data using vectorized operations
             aggregated_lists = self._aggregate_metrics(metrics, agg_config)
             
             logger.info(f"Processing completed: {len(aggregated_lists)} dataframes, {len(metrics)} metrics")
@@ -135,6 +141,34 @@ class DataProcessor:
         except Exception as e:
             logger.error(f"Unexpected error during data processing: {e}", exc_info=True)
             raise DataProcessingError(f"Data processing failed: {str(e)}") from e
+    
+    def _apply_unified_processing(self) -> DataFrame:
+        """
+        Apply unified processing for basic operations.
+        
+        Returns:
+            Processed DataFrame
+        """
+        try:
+            # Convert visualization config to unified config
+            unified_config = ProcessingConfig(
+                mode=ProcessingMode.VISUALIZATION,
+                filter_options={
+                    'tissue_filter': self.config.tissue_filter,
+                    'subpopulation_filter': self.config.subpopulation_filter
+                },
+                visualization_options={
+                    'time_course_mode': self.config.time_course_mode,
+                    'metric': self.config.metric,
+                    'user_group_labels': self.config.user_group_labels,
+                    'user_replicates': self.config.user_replicates
+                }
+            )
+            
+            return self.unified_service.process_data(self.df, unified_config)
+            
+        except Exception as e:
+            raise DataProcessingError(f"Failed to apply unified processing: {str(e)}") from e
     
     def _map_replicates(self) -> Tuple[DataFrame, int]:
         """
@@ -157,9 +191,9 @@ class DataProcessor:
         except Exception as e:
             raise DataProcessingError(f"Failed to map replicates: {str(e)}") from e
     
-    def _apply_filters(self, df: DataFrame) -> DataFrame:
+    def _apply_visualization_filters(self, df: DataFrame) -> DataFrame:
         """
-        Apply tissue and subpopulation filters to the data.
+        Apply visualization-specific filters to the data.
         
         Args:
             df: DataFrame to filter
@@ -267,7 +301,11 @@ class DataProcessor:
                                   'Time', 'Replicate', 'Tissue'}
                     and not self.df[col].isna().all()
                 ]
-                if matching_cols:
+                
+                # Filter to only pure metric columns (not subpopulations)
+                pure_metric_cols = [col for col in matching_cols if is_pure_metric_column(col, key_substring)]
+                
+                if pure_metric_cols:
                     available_metrics.append(metric)
             
             if not available_metrics:
@@ -301,14 +339,17 @@ class DataProcessor:
                     and not self.df[col].isna().all()
                 ]
                 
-                if raw_cols:
-                    logger.debug(f"Processing metric '{metric}' with columns: {raw_cols}")
-                    agg_dfs = self.aggregator.aggregate_metric(metric, raw_cols, agg_config)
+                # Filter to only pure metric columns (not subpopulations)
+                pure_metric_cols = [col for col in raw_cols if is_pure_metric_column(col, key_substring)]
+                
+                if pure_metric_cols:
+                    logger.debug(f"Processing metric '{metric}' with columns: {pure_metric_cols}")
+                    agg_dfs = self.aggregator.aggregate_metric(metric, pure_metric_cols, agg_config)
                     if agg_dfs:
                         aggregated_lists.extend(agg_dfs)
                         logger.debug(f"Added {len(agg_dfs)} aggregated dataframes for metric '{metric}'")
                 else:
-                    logger.warning(f"No matching columns found for metric '{metric}'")
+                    logger.warning(f"No matching pure metric columns found for metric '{metric}'")
             
             return aggregated_lists
             

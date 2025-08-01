@@ -1,9 +1,8 @@
 """
-High-level API facade for the visualization system.
+High-level visualization facade providing simplified API.
 
-This module provides simple, convenient functions for creating visualizations
-without needing to understand the underlying architecture. It serves as the
-main entry point for most users.
+This module provides a simplified interface for creating visualizations
+without needing to understand the underlying architecture.
 """
 from __future__ import annotations
 
@@ -16,8 +15,9 @@ import plotly.graph_objects as go
 from .models import ProcessedData, VisualizationRequest, VisualizationResult
 from .config import VisualizationConfig, ConfigPresets, ConfigurationValidator
 from .data_processor import DataProcessor, DataProcessorFactory, preprocess_flowcytometry_data
-from .core import Visualizer, VisualizationFactory
-from .service import VisualizationService
+from .unified_service import UnifiedVisualizationService, get_unified_visualization_service
+from .simple_visualizer import plot, time_plot, time_plot_faceted
+from .plotly_renderer import PlotlyRenderer
 from ..parsing import load_and_parse_df
 from ...core.exceptions import VisualizationError, DataError
 from ...logging_config import setup_logging
@@ -41,6 +41,7 @@ def create_visualization(
     tissue_filter: Optional[str] = None,
     subpopulation_filter: Optional[str] = None,
     user_group_labels: Optional[List[str]] = None,
+    optimization_level: str = "balanced",  # New parameter for file size optimization
     **kwargs
 ) -> Figure:
     """
@@ -150,27 +151,23 @@ def create_visualization(
         processed_data = processor.process()
         
         # Create visualization
-        visualizer = Visualizer(config)
-        fig = visualizer.create_figure(processed_data)
+        service = get_unified_visualization_service()
+        fig = service.create_flow_cytometry_visualization(processed_data, config.__dict__)
         
         # Save HTML if path provided
         if output_html:
             output_path = Path(output_html)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             
-            fig.write_html(
-                str(output_path),
-                include_plotlyjs=True,
-                full_html=True,
-                config={
-                    'editable': True,
-                    'edits': {
-                        'axisTitleText': True,
-                        'titleText': True,
-                        'legendText': True
-                    }
-                }
-            )
+            # Use optimized export based on optimization level
+            renderer = PlotlyRenderer()
+            
+            if optimization_level in ['minimal', 'balanced', 'full']:
+                # Use optimized export method
+                renderer.export_to_html_optimized(fig, str(output_path), optimization_level)
+            else:
+                # Fallback to default CDN loading
+                renderer.export_to_html(fig, str(output_path), include_plotlyjs=True)
             
             logger.info(f"Saved visualization to {output_path}")
         
@@ -243,7 +240,7 @@ def create_quick_plot(
             raise ValueError(f"Missing columns: {', '.join(missing_cols)}")
         
         # Use service for plot creation
-        service = VisualizationService()
+        service = UnifiedVisualizationService(VisualizationConfig()) # Assuming a default config for quick plot
         
         # Prepare configuration
         plot_config = {

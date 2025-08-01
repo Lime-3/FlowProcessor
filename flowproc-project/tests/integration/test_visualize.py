@@ -10,8 +10,9 @@ import tempfile
 from unittest.mock import Mock, patch
 from hypothesis import given, strategies as st, settings, HealthCheck
 
+from flowproc.domain.visualization.facade import create_visualization
+from flowproc.domain.visualization.facade import visualize_data  # Keep for backward compatibility in tests
 from flowproc.domain.visualization.facade import (
-    visualize_data,
     VisualizationConfig,
     DataProcessor,
     Visualizer,
@@ -93,11 +94,12 @@ class TestDataProcessor:
     
     def test_process_no_replicates(self, sample_df, config):
         """Test processing with no replicates raises error."""
-        with patch('flowproc.domain.processing.transform.map_replicates') as mock_map:
+        with patch('flowproc.domain.visualization.data_processor.map_replicates') as mock_map:
             mock_map.return_value = (sample_df, 0)
             
             processor = DataProcessor(sample_df, 'SampleID', config)
             
+            # The current implementation raises the error during process(), not during initialization
             with pytest.raises(DataProcessingError, match="No replicates found"):
                 processor.process()
     
@@ -106,7 +108,7 @@ class TestDataProcessor:
         """Property-based test for group map creation."""
         config = VisualizationConfig(metric=None)
         
-        # Create test data with the specified number of groups
+        # Create test data with the specified number of groups and valid metrics
         data = []
         for group in range(1, n_groups + 1):
             data.append({
@@ -114,7 +116,8 @@ class TestDataProcessor:
                 'Group': group,
                 'Animal': 1,
                 'Replicate': 1,
-                'Test_Value': 10.0
+                'Freq. of Parent CD4': 10.0,  # Add a valid metric column
+                'Median CD4': 5.0  # Add another valid metric column
             })
         
         df = pd.DataFrame(data)
@@ -270,8 +273,8 @@ class TestIntegration:
             })
             mock_load.return_value = (mock_df, 'SampleID')
             
-            fig = visualize_data(
-                csv_path=test_csv,
+            fig = create_visualization(
+                data_source=test_csv,
                 output_html=output_html,
                 metric="Freq. of Parent"
             )
@@ -285,7 +288,7 @@ class TestIntegration:
         output_html = tmp_path / "output.html"
         
         with pytest.raises(FileNotFoundError):
-            visualize_data(csv_path, output_html)
+            create_visualization(csv_path, output_html)
     
     def test_visualize_data_processing_error(self, test_csv, tmp_path):
         """Test visualization with processing error."""
@@ -301,11 +304,12 @@ class TestIntegration:
             mock_load.return_value = (mock_df, 'SampleID')
             
             # Mock map_replicates to return 0 replicates, which will cause DataProcessingError
-            with patch('flowproc.domain.processing.transform.map_replicates') as mock_map:
+            with patch('flowproc.domain.visualization.data_processor.map_replicates') as mock_map:
                 mock_map.return_value = (mock_df, 0)
                 
-                with pytest.raises(VisualizationError, match="Failed to process data"):
-                    visualize_data(test_csv, output_html)
+                # The current implementation wraps DataProcessingError in VisualizationError
+                with pytest.raises(VisualizationError, match="Visualization creation failed"):
+                    create_visualization(data_source=test_csv, output_html=output_html)
     
     @given(
         width=st.integers(min_value=100, max_value=2000),
@@ -326,8 +330,8 @@ class TestIntegration:
             })
             mock_load.return_value = (mock_df, 'SampleID')
             
-            fig = visualize_data(
-                csv_path=test_csv,
+            fig = create_visualization(
+                data_source=test_csv,
                 output_html=output_html,
                 width=width,
                 height=height

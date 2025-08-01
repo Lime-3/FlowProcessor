@@ -11,7 +11,7 @@ from .sample_id_parser import SampleIDParser
 from .group_animal_parser import GroupAnimalParser
 from .well_parser import WellParser
 from .tissue_parser import TissueParser
-from .time_parser import TimeParser
+from .time_service import TimeService
 
 
 class ParsingStrategy(ABC):
@@ -31,7 +31,7 @@ class DefaultParsingStrategy(ParsingStrategy):
         self.group_parser = GroupAnimalParser()
         self.well_parser = WellParser()
         self.tissue_parser = TissueParser()
-        self.time_parser = TimeParser()
+        self.time_parser = TimeService()
     
     def parse(self, df: pd.DataFrame, columns: Dict[str, Any]) -> pd.DataFrame:
         """Parse using all available parsers."""
@@ -62,7 +62,7 @@ class MinimalParsingStrategy(ParsingStrategy):
     
     def __init__(self):
         self.sample_parser = SampleIDParser()
-        self.time_parser = TimeParser()
+        self.time_parser = TimeService()
     
     def parse(self, df: pd.DataFrame, columns: Dict[str, Any]) -> pd.DataFrame:
         """Parse using only essential parsers."""
