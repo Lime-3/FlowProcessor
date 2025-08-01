@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
-from flowproc.domain.visualization.simple_visualizer import plot, time_plot, time_plot_faceted
+from flowproc.domain.visualization.flow_cytometry_visualizer import plot, time_plot, time_plot_faceted
 from flowproc.domain.parsing import load_and_parse_df
 from flowproc.core.constants import KEYWORDS, is_pure_metric_column
 
