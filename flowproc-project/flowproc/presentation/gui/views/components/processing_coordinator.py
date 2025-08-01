@@ -131,15 +131,15 @@ class ProcessingCoordinator(QObject):
             user_group_labels: Optional group labels for visualization
         """
         try:
-            # Import the simple visualizer
-            from flowproc.domain.visualization.simple_visualizer import plot, time_plot
+            # Import the flow cytometry visualizer
+            from flowproc.domain.visualization.flow_cytometry_visualizer import plot, time_plot
             
             # Create a temporary HTML file for the visualization
             import tempfile
             with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp_file:
                 output_html = Path(tmp_file.name)
             
-            # Use the simple visualizer
+            # Use the flow cytometry visualizer
             if time_course:
                 fig = time_plot(
                     data=csv_path,
@@ -177,8 +177,8 @@ class ProcessingCoordinator(QObject):
             with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp_file:
                 output_html = Path(tmp_file.name)
             
-            # Use the simple visualizer
-            from flowproc.domain.visualization.simple_visualizer import plot, time_plot
+            # Use the flow cytometry visualizer
+            from flowproc.domain.visualization.flow_cytometry_visualizer import plot, time_plot
             
             if options.time_course_mode:
                 # Use time_plot for time course data
