@@ -177,6 +177,27 @@ class PreviewDialog(QDialog):
                 border-top: 5px solid #ffffff;
             }
             
+            QComboBox QAbstractItemView {
+                background-color: #404040;
+                border: 1px solid #606060;
+                border-radius: 3px;
+                color: #ffffff;
+                selection-background-color: #505050;
+                selection-color: #ffffff;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 4px 8px;
+                min-height: 20px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #505050;
+            }
+            QComboBox QAbstractItemView::item:selected {
+                background-color: #505050;
+                color: #ffffff;
+            }
+            
             QPushButton {
                 background-color: #404040;
                 border: 1px solid #606060;
