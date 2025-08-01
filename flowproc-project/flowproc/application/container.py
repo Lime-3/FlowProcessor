@@ -10,7 +10,7 @@ from flowproc.core.protocols import (
 from flowproc.domain.parsing.service import ParseService
 from flowproc.domain.processing.service import DataProcessingService
 from flowproc.domain.export.service import ExportService
-from flowproc.domain.visualization.service import PlotlyRenderer
+from flowproc.domain.visualization.plotly_renderer import PlotlyRenderer
 from flowproc.infrastructure.config.settings import FileConfigManager
 
 T = TypeVar('T')

@@ -150,11 +150,7 @@ class ProcessingCoordinator(QObject):
                 height=600
             )
             
-            # Open the HTML file in the default browser
-            import webbrowser
-            webbrowser.open(f'file://{output_html.resolve()}')
-            
-            logger.info(f"Visualization opened for {csv_path} with metric {metric}")
+            logger.info(f"Visualization created for {csv_path} with metric {metric}")
             
         except Exception as e:
             error_msg = f"Failed to visualize data: {str(e)}"
@@ -182,28 +178,26 @@ class ProcessingCoordinator(QObject):
             with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp_file:
                 output_html = Path(tmp_file.name)
             
-            # Use the new domain API to create visualization with all options
-            fig = create_visualization(
-                data_source=csv_path,
-                metric=options.metric,
-                output_html=output_html,
-                time_course_mode=options.time_course_mode,
-                theme=options.theme,
-                width=options.width,
-                height=options.height,
-                tissue_filter=options.tissue_filter,
-                subpopulation_filter=options.subpopulation_filter,
-                user_group_labels=options.user_group_labels,
-                show_individual_points=options.show_individual_points,
-                error_bars=options.error_bars,
-                interactive=options.interactive
-            )
+            # Use the simple visualizer instead of the complex facade
+            from flowproc.domain.visualization.simple_visualizer import plot, time_plot
             
-            # Open the HTML file in the default browser
-            import webbrowser
-            webbrowser.open(f'file://{output_html.resolve()}')
+            if options.time_course_mode:
+                # Use time_plot for time course data
+                fig = time_plot(
+                    data=csv_path,
+                    save_html=output_html
+                )
+            else:
+                # Use simple plot for regular data
+                fig = plot(
+                    data=csv_path,
+                    x=options.x_axis,
+                    y=options.y_axis,
+                    plot_type=options.plot_type,
+                    save_html=output_html
+                )
             
-            logger.info(f"Visualization opened for {csv_path} with options: {options}")
+            logger.info(f"Visualization created for {csv_path} with options: {options}")
             
         except Exception as e:
             error_msg = f"Failed to visualize data: {str(e)}"

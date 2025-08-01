@@ -166,34 +166,17 @@ class ExportService:
     
     def validate_export_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Validate export configuration."""
-        validation = {
-            'valid': True,
-            'errors': [],
-            'warnings': []
-        }
+        from ...core.validation import validate_config
         
-        # Check for required fields based on format
-        format = config.get('format', 'excel')
-        
-        if format == 'excel':
-            if 'sheet_names' in config and not isinstance(config['sheet_names'], list):
-                validation['errors'].append("sheet_names must be a list")
-                validation['valid'] = False
-        
-        elif format == 'csv':
-            if 'separator' in config and not isinstance(config['separator'], str):
-                validation['errors'].append("separator must be a string")
-                validation['valid'] = False
-        
-        elif format == 'json':
-            if 'orient' in config and config['orient'] not in ['records', 'index', 'columns', 'split', 'table', 'values']:
-                validation['warnings'].append(f"Unknown JSON orient: {config['orient']}")
-        
-        elif format == 'parquet':
-            if 'compression' in config and config['compression'] not in ['snappy', 'gzip', 'brotli', 'lz4']:
-                validation['warnings'].append(f"Unknown compression: {config['compression']}")
-        
-        return validation
+        try:
+            result = validate_config(config, 'export')
+            return result.to_dict()
+        except Exception as e:
+            return {
+                'valid': False,
+                'errors': [f"Configuration validation failed: {str(e)}"],
+                'warnings': []
+            }
     
     def get_export_info(self, data: Union[pd.DataFrame, List[pd.DataFrame]]) -> Dict[str, Any]:
         """Get information about the data to be exported."""

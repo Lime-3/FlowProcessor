@@ -13,7 +13,7 @@ from PySide6.QtCore import QObject, Slot
 from PySide6.QtWidgets import QMessageBox, QFileDialog, QTableWidget, QTableWidgetItem, QHeaderView, QMainWindow, QDialog, QSizePolicy
 
 from ..dialogs import GroupLabelsDialog
-from ...workers.processing_worker import ProcessingResult, ProcessingState
+from ...workers.processing_worker import ProcessingResult
 from ...config_handler import save_last_output_dir
 from flowproc.config import parse_range_or_list, USER_GROUPS, USER_REPLICATES, AUTO_PARSE_GROUPS, USER_GROUP_LABELS
 from flowproc.core.constants import KEYWORDS
@@ -64,8 +64,6 @@ class EventHandler(QObject):
         ui_builder.get_widget('out_dir_button').clicked.connect(self.browse_output)
         ui_builder.get_widget('process_button').clicked.connect(self.process_data)
         ui_builder.get_widget('visualize_button').clicked.connect(self.visualize_results)
-        ui_builder.get_widget('cancel_button').clicked.connect(self.cancel_processing)
-        ui_builder.get_widget('pause_button').clicked.connect(self.toggle_pause)
         ui_builder.get_widget('group_labels_button').clicked.connect(self.open_group_labels_dialog)
         
         # Path entry text change
@@ -277,48 +275,34 @@ class EventHandler(QObject):
             )
             return
         
-        # Open the visualization dialog
-        from ..dialogs import VisualizationDialog
-        dialog = VisualizationDialog(self.main_window, self.state_manager.last_csv)
+        # Directly open the visualization display dialog with placeholder preview
+        from ..dialogs.visualization_display_dialog import VisualizationDisplayDialog
         
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            # Get the selected options from the dialog
-            options = dialog.get_visualization_options()
-            if options:
-                # Create visualization with the selected options
-                self.processing_coordinator.visualize_data_with_options(
-                    csv_path=self.state_manager.last_csv,
-                    options=options
-                )
+        try:
+            self.state_manager.update_status("Opening visualization...")
+            
+            # Create and show the display dialog directly
+            display_dialog = VisualizationDisplayDialog(
+                parent=self.main_window,
+                csv_path=self.state_manager.last_csv
+            )
+            
+            # Show the dialog (non-modal)
+            display_dialog.show()
+            
+            self.state_manager.update_status("Visualization opened")
+            
+        except Exception as e:
+            error_msg = f"Failed to open visualization: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            self.state_manager.update_status(f"Visualization error: {error_msg}")
+            QMessageBox.critical(
+                self.main_window,
+                "Visualization Error",
+                error_msg
+            )
 
-    @Slot()
-    def cancel_processing(self) -> None:
-        """Handle cancel processing button click."""
-        reply = QMessageBox.question(
-            self.main_window,
-            "Cancel Processing",
-            "Are you sure you want to cancel the current processing?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        
-        if reply == QMessageBox.StandardButton.Yes:
-            self.processing_coordinator.cancel_processing()
-            self.state_manager.update_status("Cancelling...")
-            self.main_window.ui_builder.get_widget('cancel_button').setEnabled(False)
 
-    @Slot()
-    def toggle_pause(self) -> None:
-        """Toggle pause/resume for processing."""
-        state = self.processing_coordinator.get_state()
-        
-        if state == ProcessingState.PAUSED:
-            self.processing_coordinator.resume_processing()
-            self.main_window.ui_builder.set_pause_button_text("Pause")
-            self.state_manager.update_status("Resumed processing...")
-        else:
-            self.processing_coordinator.pause_processing()
-            self.main_window.ui_builder.set_pause_button_text("Resume")
-            self.state_manager.update_status("Paused")
 
     @Slot()
     def open_group_labels_dialog(self) -> None:
@@ -330,6 +314,52 @@ class EventHandler(QObject):
         else:
             # User cancelled, restore previous labels
             dialog.set_labels(self.state_manager.current_group_labels)
+
+    def on_group_mode_changed(self, mode_text: str) -> None:
+        """Handle group mode change."""
+        if "custom group labels" in mode_text.lower():
+            dialog = GroupLabelsDialog(self.main_window)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self.state_manager.current_group_labels = dialog.get_labels()
+                self.state_manager.update_status(f"Group labels updated: {len(self.state_manager.current_group_labels)} labels")
+
+    def _validate_inputs(self) -> bool:
+        """Validate user inputs before processing."""
+        ui_builder = self.main_window.ui_builder
+        
+        # Check if preview paths are available
+        if not self.state_manager.preview_paths:
+            QMessageBox.warning(
+                self.main_window,
+                "Validation Error",
+                "No valid CSV files selected for processing."
+            )
+            return False
+        
+        # Check if output directory is specified
+        output_dir = ui_builder.get_widget('output_entry').text().strip()
+        if not output_dir:
+            QMessageBox.warning(
+                self.main_window,
+                "Validation Error",
+                "Please specify an output directory."
+            )
+            return False
+        
+        # Check if output directory exists or can be created
+        output_path = Path(output_dir)
+        if not output_path.exists():
+            try:
+                output_path.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                QMessageBox.warning(
+                    self.main_window,
+                    "Validation Error",
+                    f"Cannot create output directory: {str(e)}"
+                )
+                return False
+        
+        return True
 
     def handle_processing_completion(self, result: ProcessingResult) -> None:
         """Handle processing completion."""

@@ -1,5 +1,8 @@
 """
 Data processing workflow for flow cytometry data.
+
+This workflow orchestrates the complete data processing pipeline using
+the unified processing architecture to eliminate duplication.
 """
 
 import logging
@@ -8,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 from ...domain.parsing.service import ParseService
-from ...domain.processing.service import DataProcessingService
+from ...domain.processing.core import UnifiedProcessingService, ProcessingConfig, ProcessingMode
 from ...domain.visualization.service import VisualizationService
 from ...domain.export.service import ExportService
 from ...infrastructure.monitoring.metrics import metrics_collector
@@ -18,12 +21,17 @@ logger = logging.getLogger(__name__)
 
 
 class DataProcessingWorkflow:
-    """Coordinates the complete data processing workflow."""
+    """
+    Coordinates the complete data processing workflow.
+    
+    This workflow uses the unified processing architecture to eliminate
+    duplication and provide clear separation of concerns.
+    """
     
     def __init__(self):
         """Initialize the workflow."""
         self.parse_service = ParseService()
-        self.processing_service = DataProcessingService()
+        self.unified_processing_service = UnifiedProcessingService()
         self.visualization_service = VisualizationService()
         self.export_service = ExportService()
         
@@ -116,8 +124,18 @@ class DataProcessingWorkflow:
         return self.parse_service.parse_file(input_file, strategy)
     
     def _processing_stage(self, data: pd.DataFrame, config: Dict[str, Any]) -> pd.DataFrame:
-        """Execute processing stage."""
-        return self.processing_service.process_data(data, config)
+        """Execute processing stage using unified architecture."""
+        # Convert workflow config to unified config
+        unified_config = ProcessingConfig(
+            mode=ProcessingMode.WORKFLOW,
+            group_by=config.get('group_by', []),
+            aggregation_methods=config.get('aggregation_methods', ['mean']),
+            transform_options=config.get('transform_options', {}),
+            filter_options=config.get('filter_options', {}),
+            visualization_options=config.get('visualization_options', {})
+        )
+        
+        return self.unified_processing_service.process_data(data, unified_config)
     
     def _visualization_stage(self, data: pd.DataFrame, config: Dict[str, Any]) -> List[str]:
         """Execute visualization stage."""
@@ -225,51 +243,37 @@ class DataProcessingWorkflow:
     
     def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Validate processing configuration."""
-        validation = {
-            'valid': True,
-            'errors': [],
-            'warnings': []
-        }
+        from ...core.validation import validate_config
         
-        # Validate parsing config
-        if 'parsing' in config:
-            parsing_config = config['parsing']
-            if 'strategy' in parsing_config:
-                available_strategies = self.parse_service.get_available_strategies()
-                if parsing_config['strategy'] not in available_strategies:
-                    validation['errors'].append(f"Unknown parsing strategy: {parsing_config['strategy']}")
-                    validation['valid'] = False
-        
-        # Validate processing config
-        if 'processing' in config:
-            processing_validation = self.processing_service.validate_processing_config(config['processing'])
-            if not processing_validation['valid']:
-                validation['errors'].extend(processing_validation['errors'])
-                validation['valid'] = False
-            validation['warnings'].extend(processing_validation['warnings'])
-        
-        # Validate visualization config
-        if 'visualization' in config:
-            viz_config = config['visualization']
-            if 'plots' in viz_config:
-                for i, plot_config in enumerate(viz_config['plots']):
-                    plot_validation = self.visualization_service.validate_plot_config(plot_config)
-                    if not plot_validation['valid']:
-                        validation['errors'].extend([f"Plot {i+1}: {error}" for error in plot_validation['errors']])
-                        validation['valid'] = False
-                    validation['warnings'].extend([f"Plot {i+1}: {warning}" for warning in plot_validation['warnings']])
-        
-        # Validate export config
-        if 'export' in config:
-            export_config = config['export']
-            if 'formats' in export_config:
-                available_formats = self.export_service.get_export_formats()
-                for format_type in export_config['formats']:
-                    if format_type not in available_formats:
-                        validation['errors'].append(f"Unsupported export format: {format_type}")
-                        validation['valid'] = False
-        
-        return validation
+        try:
+            result = validate_config(config, 'workflow')
+            
+            # Additional workflow-specific validation
+            if 'parsing' in config:
+                parsing_config = config['parsing']
+                if 'strategy' in parsing_config:
+                    available_strategies = self.parse_service.get_available_strategies()
+                    if parsing_config['strategy'] not in available_strategies:
+                        result.add_issue('parsing.strategy', 
+                                       f"Unknown parsing strategy: {parsing_config['strategy']}")
+            
+            if 'export' in config:
+                export_config = config['export']
+                if 'formats' in export_config:
+                    available_formats = self.export_service.get_export_formats()
+                    for format_type in export_config['formats']:
+                        if format_type not in available_formats:
+                            result.add_issue('export.formats', 
+                                           f"Unsupported export format: {format_type}")
+            
+            return result.to_dict()
+            
+        except Exception as e:
+            return {
+                'valid': False,
+                'errors': [f"Configuration validation failed: {str(e)}"],
+                'warnings': []
+            }
     
     def get_workflow_info(self) -> Dict[str, Any]:
         """Get information about the workflow capabilities."""
@@ -278,5 +282,29 @@ class DataProcessingWorkflow:
             'available_plot_types': self.visualization_service.get_available_plot_types(),
             'available_themes': self.visualization_service.get_available_themes(),
             'available_export_formats': self.export_service.get_export_formats(),
-            'processing_stats': self.processing_service.get_processing_stats(pd.DataFrame())
-        } 
+            'processing_stats': self._get_processing_stats()
+        }
+    
+    def _get_processing_stats(self) -> Dict[str, Any]:
+        """Get processing statistics using unified architecture."""
+        # Create a minimal DataFrame for stats calculation
+        df = pd.DataFrame({'sample': [1, 2, 3], 'value': [1.0, 2.0, 3.0]})
+        
+        stats = {
+            'total_rows': len(df),
+            'total_columns': len(df.columns),
+            'memory_usage_mb': df.memory_usage(deep=True).sum() / (1024 * 1024),
+            'numeric_columns': [],
+            'categorical_columns': [],
+            'datetime_columns': []
+        }
+        
+        for col in df.columns:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                stats['numeric_columns'].append(col)
+            elif pd.api.types.is_datetime64_any_dtype(df[col]):
+                stats['datetime_columns'].append(col)
+            else:
+                stats['categorical_columns'].append(col)
+        
+        return stats

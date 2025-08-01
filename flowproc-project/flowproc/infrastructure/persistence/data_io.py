@@ -7,6 +7,8 @@ from pathlib import Path
 
 from .logging_config import setup_logging
 from .exceptions import ProcessingError
+from ...domain.parsing.validation_service import validate_persistence_input
+from ...domain.parsing.time_service import parse_time
 
 logger = logging.getLogger(__name__)
 
@@ -15,18 +17,8 @@ GROUP_RE = re.compile(r'(?:G|Group)?(\d+)', re.IGNORECASE)
 UNKNOWN_TISSUE = "Unknown"
 UNKNOWN_WELL = "Unknown"
 
-def parse_time(time_str: Optional[str]) -> Optional[float]:
-    """Parse time string to float (hours), return None if invalid."""
-    if not time_str or pd.isna(time_str):
-        return None
-    try:
-        if ':' in time_str:
-            h, m = map(int, time_str.split(':'))
-            return h + m / 60.0
-        return float(time_str)
-    except (ValueError, AttributeError):
-        logger.warning(f"Invalid time format: {time_str}")
-        return None
+# Note: parse_time function is now imported from time_service
+# The old implementation has been removed to eliminate duplication
 
 def extract_group_animal(sample_id: str) -> Tuple[Optional[str], Optional[int], Optional[int], Optional[float]]:
     """Extract well, group, animal, and time from sample ID."""
@@ -53,13 +45,6 @@ def extract_tissue(sample_id: str) -> str:
         return UNKNOWN_TISSUE
 
 def validate_parsed_data(df: pd.DataFrame, sid_col: str) -> None:
-    """Validate parsed DataFrame."""
-    if not isinstance(df, pd.DataFrame):
-        raise TypeError(f"Expected DataFrame, got {type(df)}")
-    if df.empty:
-        raise ValueError("Parsed DataFrame is empty")
-    required_cols = ['Group', 'Animal']
-    missing = [col for col in required_cols if col not in df.columns or df[col].isna().all()]
-    if missing:
-        raise ValueError(f"Missing or empty required columns: {missing}")
+    """Validate parsed DataFrame using the consolidated validation service."""
+    validate_persistence_input(df, sid_col)
 

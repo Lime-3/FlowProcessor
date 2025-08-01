@@ -1,22 +1,34 @@
 # File: flowproc/presentation/gui/views/mixins/validation_mixin.py
 """
 Validation mixin for input validation.
+
+This mixin now uses the unified input validation service to eliminate code duplication
+and provide consistent validation behavior across the application.
 """
 
-from pathlib import Path
-from typing import List
+from typing import List, Tuple
+from flowproc.domain.validation import validate_input_paths, validate_output_directory, InputValidationConfig
 
 
 class ValidationMixin:
     """
     Mixin for input validation functionality.
     
-    Provides reusable validation methods.
+    Provides reusable validation methods using the unified validation service.
     """
 
-    def validate_inputs(self, input_paths: List[str], output_dir: str) -> tuple[bool, List[str]]:
+    def __init__(self, config: InputValidationConfig = None):
         """
-        Validate input paths and output directory.
+        Initialize the validation mixin.
+        
+        Args:
+            config: Validation configuration. If None, uses default configuration.
+        """
+        self.validation_config = config
+
+    def validate_inputs(self, input_paths: List[str], output_dir: str) -> Tuple[bool, List[str]]:
+        """
+        Validate input paths and output directory using the unified validation service.
         
         Args:
             input_paths: List of input file paths
@@ -25,25 +37,21 @@ class ValidationMixin:
         Returns:
             Tuple of (is_valid, error_messages)
         """
-        errors = []
-        
         # Validate input paths
-        if not input_paths:
-            errors.append("No input files selected")
-        else:
-            valid_paths = self.validate_file_paths(input_paths)
-            if not valid_paths:
-                errors.append("No valid CSV files found in selected paths")
+        paths_result = validate_input_paths(input_paths, self.validation_config)
         
         # Validate output directory
-        if not self.validate_output_directory(output_dir):
-            errors.append("Invalid output directory")
+        output_result = validate_output_directory(output_dir, self.validation_config)
         
-        return len(errors) == 0, errors
+        # Combine results
+        errors = paths_result.errors + output_result.errors
+        is_valid = len(errors) == 0
+        
+        return is_valid, errors
 
     def validate_file_paths(self, paths: List[str]) -> List[str]:
         """
-        Validate and filter file paths.
+        Validate and filter file paths using the unified validation service.
         
         Args:
             paths: List of file paths to validate
@@ -51,22 +59,12 @@ class ValidationMixin:
         Returns:
             List of valid file paths
         """
-        valid_paths = []
-        for path_str in paths:
-            path = Path(path_str)
-            if path.exists():
-                if path.is_file() and path.suffix.lower() == '.csv':
-                    valid_paths.append(path_str)
-                elif path.is_dir():
-                    # Find CSV files in directory
-                    csv_files = list(path.glob("*.csv"))
-                    valid_paths.extend(str(f) for f in csv_files)
-                    
-        return valid_paths
+        result = validate_input_paths(paths, self.validation_config)
+        return result.valid_paths
 
     def validate_output_directory(self, output_dir: str) -> bool:
         """
-        Validate output directory.
+        Validate output directory using the unified validation service.
         
         Args:
             output_dir: Output directory path
@@ -74,13 +72,5 @@ class ValidationMixin:
         Returns:
             True if valid, False otherwise
         """
-        if not output_dir.strip():
-            return False
-            
-        path = Path(output_dir)
-        try:
-            # Try to create directory if it doesn't exist
-            path.mkdir(parents=True, exist_ok=True)
-            return path.is_dir()
-        except (OSError, PermissionError):
-            return False
+        result = validate_output_directory(output_dir, self.validation_config)
+        return result.is_valid

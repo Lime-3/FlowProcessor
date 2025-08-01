@@ -1,8 +1,8 @@
 """
 Validation Worker for background input validation.
 
-This worker handles validation of user inputs in a background thread
-to keep the GUI responsive during validation operations.
+This worker now uses the unified input validation service to eliminate code duplication
+and provide consistent validation behavior across the application.
 """
 
 import logging
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QThread, Signal, QObject
 
-from ....domain.parsing.validators import validate_csv_file, validate_directory
+from flowproc.domain.validation import validate_gui_inputs, InputValidationConfig, InputValidationResult
 from ....core.models import ProcessingOptions
 
 logger = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ class ValidationWorker(QThread):
         options: ProcessingOptions
     ) -> ValidationResult:
         """
-        Perform the actual validation.
+        Perform the actual validation using the unified validation service.
         
         Args:
             input_paths: List of input paths to validate
@@ -121,229 +121,43 @@ class ValidationWorker(QThread):
         Returns:
             ValidationResult containing validation results
         """
-        errors = []
-        warnings = []
-        file_count = 0
-        total_size = 0
-        supported_formats = ['.csv']
+        # Convert Path objects to strings for the unified validator
+        input_path_strings = [str(path) for path in input_paths]
+        output_dir_string = str(output_dir)
         
-        # Validate input paths
-        self.validation_progress.emit(10, "Validating input paths...")
+        # Validate using the unified service
+        self.validation_progress.emit(10, "Validating inputs...")
         if self._should_cancel:
             return ValidationResult(False, ["Validation cancelled"], [])
-            
-        for i, path in enumerate(input_paths):
-            if self._should_cancel:
-                return ValidationResult(False, ["Validation cancelled"], [])
-                
-            progress = 10 + (i * 30) // len(input_paths)
-            self.validation_progress.emit(progress, f"Validating {path.name}...")
-            
-            # Check if path exists
-            if not path.exists():
-                errors.append(f"Path does not exist: {path}")
-                continue
-                
-            # Validate based on path type
-            if path.is_file():
-                file_result = self._validate_file(path)
-                if file_result.is_valid:
-                    file_count += 1
-                    total_size += path.stat().st_size
-                else:
-                    errors.extend(file_result.errors)
-                warnings.extend(file_result.warnings)
-                
-            elif path.is_dir():
-                dir_result = self._validate_directory(path)
-                if dir_result.is_valid:
-                    file_count += dir_result.file_count
-                    total_size += dir_result.total_size
-                else:
-                    errors.extend(dir_result.errors)
-                warnings.extend(dir_result.warnings)
-                
-            else:
-                errors.append(f"Path is neither file nor directory: {path}")
-                
-        # Validate output directory
-        self.validation_progress.emit(50, "Validating output directory...")
-        if self._should_cancel:
-            return ValidationResult(False, ["Validation cancelled"], [])
-            
-        output_result = self._validate_output_directory(output_dir)
-        if not output_result.is_valid:
-            errors.extend(output_result.errors)
-        warnings.extend(output_result.warnings)
         
-        # Validate processing options
-        self.validation_progress.emit(70, "Validating processing options...")
-        if self._should_cancel:
-            return ValidationResult(False, ["Validation cancelled"], [])
-            
-        options_result = self._validate_processing_options(options)
-        if not options_result.is_valid:
-            errors.extend(options_result.errors)
-        warnings.extend(options_result.warnings)
+        # Extract processing options for validation
+        groups = getattr(options, 'user_groups', None)
+        replicates = getattr(options, 'user_replicates', None)
+        time_course_mode = getattr(options, 'time_course_mode', False)
         
-        # Final validation checks
-        self.validation_progress.emit(90, "Performing final checks...")
+        # Use the unified validation service
+        result = validate_gui_inputs(
+            input_paths=input_path_strings,
+            output_dir=output_dir_string,
+            groups=groups,
+            replicates=replicates,
+            time_course_mode=time_course_mode
+        )
+        
         if self._should_cancel:
             return ValidationResult(False, ["Validation cancelled"], [])
-            
-        if file_count == 0:
-            errors.append("No valid input files found")
-            
-        # Check for potential issues
-        if total_size > 100 * 1024 * 1024:  # 100MB
-            warnings.append(f"Large dataset detected ({total_size / 1024 / 1024:.1f} MB). Processing may take a while.")
-            
-        if len(input_paths) > 50:
-            warnings.append(f"Many input files detected ({len(input_paths)}). Consider processing in batches.")
-            
+        
         self.validation_progress.emit(100, "Validation complete")
         
+        # Convert to ValidationResult format
         return ValidationResult(
-            is_valid=len(errors) == 0,
-            errors=errors,
-            warnings=warnings,
-            file_count=file_count,
-            total_size=total_size,
-            supported_formats=supported_formats
+            is_valid=result.is_valid,
+            errors=result.errors,
+            warnings=result.warnings,
+            file_count=result.file_count,
+            total_size=result.total_size,
+            supported_formats=['.csv']
         )
         
-    def _validate_file(self, file_path: Path) -> ValidationResult:
-        """Validate a single file."""
-        errors = []
-        warnings = []
-        
-        # Check file extension
-        if file_path.suffix.lower() not in ['.csv']:
-            errors.append(f"Unsupported file format: {file_path.suffix}")
-            return ValidationResult(False, errors, warnings)
-            
-        # Check file size
-        try:
-            file_size = file_path.stat().st_size
-            if file_size == 0:
-                errors.append(f"File is empty: {file_path}")
-            elif file_size > 500 * 1024 * 1024:  # 500MB
-                warnings.append(f"Large file detected ({file_size / 1024 / 1024:.1f} MB): {file_path}")
-        except OSError as e:
-            errors.append(f"Cannot access file {file_path}: {e}")
-            
-        # Validate CSV format
-        try:
-            csv_result = validate_csv_file(file_path)
-            if not csv_result.is_valid:
-                errors.extend(csv_result.errors)
-            warnings.extend(csv_result.warnings)
-        except Exception as e:
-            errors.append(f"Failed to validate CSV file {file_path}: {e}")
-            
-        return ValidationResult(len(errors) == 0, errors, warnings)
-        
-    def _validate_directory(self, dir_path: Path) -> ValidationResult:
-        """Validate a directory and its contents."""
-        errors = []
-        warnings = []
-        file_count = 0
-        total_size = 0
-        
-        try:
-            # Check if directory is accessible
-            if not dir_path.is_dir():
-                errors.append(f"Path is not a directory: {dir_path}")
-                return ValidationResult(False, errors, warnings)
-                
-            # Find CSV files in directory
-            csv_files = list(dir_path.glob("*.csv"))
-            if not csv_files:
-                errors.append(f"No CSV files found in directory: {dir_path}")
-                return ValidationResult(False, errors, warnings)
-                
-            # Validate each CSV file
-            for csv_file in csv_files:
-                file_result = self._validate_file(csv_file)
-                if file_result.is_valid:
-                    file_count += 1
-                    total_size += csv_file.stat().st_size
-                else:
-                    errors.extend(file_result.errors)
-                warnings.extend(file_result.warnings)
-                
-        except PermissionError:
-            errors.append(f"Permission denied accessing directory: {dir_path}")
-        except Exception as e:
-            errors.append(f"Error validating directory {dir_path}: {e}")
-            
-        return ValidationResult(
-            len(errors) == 0,
-            errors,
-            warnings,
-            file_count,
-            total_size
-        )
-        
-    def _validate_output_directory(self, output_dir: Path) -> ValidationResult:
-        """Validate the output directory."""
-        errors = []
-        warnings = []
-        
-        try:
-            if output_dir.exists():
-                if not output_dir.is_dir():
-                    errors.append(f"Output path exists but is not a directory: {output_dir}")
-                else:
-                    # Check if directory is writable
-                    test_file = output_dir / ".test_write"
-                    try:
-                        test_file.touch()
-                        test_file.unlink()
-                    except OSError:
-                        errors.append(f"Output directory is not writable: {output_dir}")
-                        
-                    # Check available space
-                    import shutil
-                    try:
-                        total, used, free = shutil.disk_usage(output_dir)
-                        if free < 100 * 1024 * 1024:  # 100MB
-                            warnings.append(f"Low disk space available ({free / 1024 / 1024:.1f} MB)")
-                    except OSError:
-                        warnings.append("Cannot determine available disk space")
-            else:
-                # Try to create directory
-                try:
-                    output_dir.mkdir(parents=True, exist_ok=True)
-                except OSError as e:
-                    errors.append(f"Cannot create output directory {output_dir}: {e}")
-                    
-        except Exception as e:
-            errors.append(f"Error validating output directory {output_dir}: {e}")
-            
-        return ValidationResult(len(errors) == 0, errors, warnings)
-        
-    def _validate_processing_options(self, options: ProcessingOptions) -> ValidationResult:
-        """Validate processing options."""
-        errors = []
-        warnings = []
-        
-        # Validate time course mode options
-        if options.time_course_mode:
-            if not options.user_replicates:
-                errors.append("Time course mode requires user replicates to be specified")
-            if not options.user_groups:
-                errors.append("Time course mode requires user groups to be specified")
-                
-        # Validate group options
-        if options.user_groups and options.auto_parse_groups:
-            warnings.append("Both manual groups and auto-parse groups are enabled. Manual groups will take precedence.")
-            
-        # Validate replicate options
-        if options.user_replicates:
-            if len(options.user_replicates) == 0:
-                errors.append("User replicates list cannot be empty")
-            elif len(options.user_replicates) > 100:
-                warnings.append(f"Large number of replicates specified ({len(options.user_replicates)})")
-                
-        return ValidationResult(len(errors) == 0, errors, warnings) 
+    # Note: All validation logic has been moved to the unified validation service
+    # The following methods are no longer needed as they are handled by the unified service 

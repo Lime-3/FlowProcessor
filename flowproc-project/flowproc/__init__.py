@@ -14,8 +14,8 @@ from .domain.export import process_csv, process_directory
 from .domain.processing import map_replicates
 from .domain.processing.vectorized_aggregator import VectorizedAggregator, AggregationConfig
 from .domain.visualization.facade import create_visualization, visualize_data
-from .domain.visualization.core import Visualizer
 from .domain.visualization.data_processor import DataProcessor
+from .domain.visualization.unified_service import UnifiedVisualizationService
 from .core.constants import KEYWORDS
 
 # Reshape pair is not implemented yet
@@ -47,7 +47,7 @@ __all__ = [
     'VectorizedAggregator',
     'AggregationConfig',
     'DataProcessor',
-    'Visualizer',
+    'UnifiedVisualizationService',
     'visualize_data',
     'create_visualization',
     'KEYWORDS',

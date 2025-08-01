@@ -1,14 +1,18 @@
 """
 Visualization workflow for flow cytometry data.
+
+This module coordinates visualization operations using the new unified
+PlotFactory architecture to eliminate code duplication.
 """
 
 import logging
+import warnings
 from typing import Dict, Any, List, Optional, Union
 from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 
-from ...domain.visualization.service import VisualizationService
+from ...domain.visualization.unified_service import UnifiedVisualizationService, get_unified_visualization_service
 from ...infrastructure.monitoring.metrics import metrics_collector
 from ...core.exceptions import FlowProcError
 
@@ -16,11 +20,16 @@ logger = logging.getLogger(__name__)
 
 
 class VisualizationWorkflow:
-    """Coordinates visualization operations for flow cytometry data."""
+    """
+    Coordinates visualization operations for flow cytometry data.
+    
+    This workflow now uses the unified PlotFactory architecture to eliminate
+    code duplication and provide consistent visualization interfaces.
+    """
     
     def __init__(self):
         """Initialize the visualization workflow."""
-        self.visualization_service = VisualizationService()
+        self.unified_service = get_unified_visualization_service()
     
     def create_dashboard(self, data: Union[pd.DataFrame, List[pd.DataFrame]], 
                         config: Dict[str, Any]) -> Dict[str, Any]:
@@ -53,9 +62,9 @@ class VisualizationWorkflow:
             else:
                 dataframes = data
             
-            # Create dashboard
+            # Create dashboard using unified service
             dashboard_config = config.get('dashboard', {})
-            dashboard_fig = self.visualization_service.create_dashboard(
+            dashboard_fig = self.unified_service.create_dashboard(
                 dataframes, 
                 dashboard_config.get('plots', [])
             )
@@ -64,7 +73,7 @@ class VisualizationWorkflow:
             output_dir = Path(config.get('output_dir', '.'))
             dashboard_path = output_dir / dashboard_config.get('filename', 'dashboard.html')
             
-            self.visualization_service.save_plot(
+            self.unified_service.save_plot(
                 dashboard_fig, 
                 str(dashboard_path), 
                 format='html'
@@ -103,8 +112,8 @@ class VisualizationWorkflow:
         try:
             results = {
                 'success': True,
-                'plots_created': 0,
                 'plot_paths': [],
+                'plots_created': 0,
                 'errors': []
             }
             
@@ -113,18 +122,15 @@ class VisualizationWorkflow:
             
             for i, plot_config in enumerate(plots_config):
                 try:
-                    # Create plot
-                    fig = self.visualization_service.create_plot(
-                        data,
-                        plot_config.get('type', 'scatter'),
-                        plot_config
-                    )
+                    # Create plot using unified service
+                    plot_type = plot_config.get('type', 'scatter')
+                    fig = self.unified_service.create_plot(data, plot_type, plot_config)
                     
                     # Save plot
                     plot_filename = plot_config.get('filename', f'plot_{i+1}.html')
                     plot_path = output_dir / plot_filename
                     
-                    self.visualization_service.save_plot(
+                    self.unified_service.save_plot(
                         fig, 
                         str(plot_path), 
                         format=plot_config.get('format', 'html')
@@ -154,7 +160,7 @@ class VisualizationWorkflow:
     def create_comparison_plots(self, data_dict: Dict[str, pd.DataFrame], 
                               config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Create comparison plots between different datasets.
+        Create comparison plots between multiple datasets.
         
         Args:
             data_dict: Dictionary mapping dataset names to DataFrames
@@ -171,41 +177,33 @@ class VisualizationWorkflow:
         try:
             results = {
                 'success': True,
+                'comparison_paths': [],
                 'comparison_plots_created': 0,
-                'plot_paths': [],
                 'errors': []
             }
             
-            comparison_configs = config.get('comparisons', [])
+            comparisons_config = config.get('comparisons', [])
             output_dir = Path(config.get('output_dir', '.'))
             
-            for i, comp_config in enumerate(comparison_configs):
+            for i, comp_config in enumerate(comparisons_config):
                 try:
-                    # Get datasets for comparison
-                    dataset_names = comp_config.get('datasets', [])
-                    datasets = {name: data_dict[name] for name in dataset_names if name in data_dict}
-                    
-                    if not datasets:
-                        logger.warning(f"No valid datasets found for comparison {i+1}")
-                        continue
-                    
-                    # Create comparison plot
-                    fig = self._create_comparison_plot(datasets, comp_config)
+                    # Create comparison plot using unified service
+                    fig = self.unified_service.create_comparison_plot(data_dict, comp_config)
                     
                     # Save plot
-                    plot_filename = comp_config.get('filename', f'comparison_{i+1}.html')
-                    plot_path = output_dir / plot_filename
+                    comparison_filename = comp_config.get('filename', f'comparison_{i+1}.html')
+                    comparison_path = output_dir / comparison_filename
                     
-                    self.visualization_service.save_plot(
+                    self.unified_service.save_plot(
                         fig, 
-                        str(plot_path), 
+                        str(comparison_path), 
                         format=comp_config.get('format', 'html')
                     )
                     
-                    results['plot_paths'].append(str(plot_path))
+                    results['comparison_paths'].append(str(comparison_path))
                     results['comparison_plots_created'] += 1
                     
-                    logger.debug(f"Created comparison plot {i+1}: {plot_path}")
+                    logger.debug(f"Created comparison plot {i+1}: {comparison_path}")
                     
                 except Exception as e:
                     error_msg = f"Failed to create comparison plot {i+1}: {e}"
@@ -223,70 +221,12 @@ class VisualizationWorkflow:
             results['errors'].append(str(e))
             return results
     
-    def _create_comparison_plot(self, datasets: Dict[str, pd.DataFrame], 
-                              config: Dict[str, Any]) -> go.Figure:
-        """Create a comparison plot from multiple datasets."""
-        plot_type = config.get('type', 'scatter')
-        x_col = config.get('x')
-        y_col = config.get('y')
-        color_col = config.get('color')
-        
-        # Create subplots
-        from plotly.subplots import make_subplots
-        
-        n_datasets = len(datasets)
-        rows = int(n_datasets ** 0.5)
-        cols = (n_datasets + rows - 1) // rows
-        
-        fig = make_subplots(
-            rows=rows, cols=cols,
-            subplot_titles=list(datasets.keys())
-        )
-        
-        # Add traces for each dataset
-        for i, (name, df) in enumerate(datasets.items()):
-            row = i // cols + 1
-            col = i % cols + 1
-            
-            if plot_type == 'scatter':
-                trace = go.Scatter(
-                    x=df[x_col] if x_col else df.iloc[:, 0],
-                    y=df[y_col] if y_col else df.iloc[:, 1],
-                    mode='markers',
-                    name=name,
-                    showlegend=False
-                )
-            elif plot_type == 'bar':
-                trace = go.Bar(
-                    x=df[x_col] if x_col else df.iloc[:, 0],
-                    y=df[y_col] if y_col else df.iloc[:, 1],
-                    name=name,
-                    showlegend=False
-                )
-            else:
-                # Default to scatter
-                trace = go.Scatter(
-                    x=df[x_col] if x_col else df.iloc[:, 0],
-                    y=df[y_col] if y_col else df.iloc[:, 1],
-                    mode='markers',
-                    name=name,
-                    showlegend=False
-                )
-            
-            fig.add_trace(trace, row=row, col=col)
-        
-        # Apply theme
-        theme = config.get('theme', 'default')
-        self.visualization_service.themes.apply_theme(fig, theme)
-        
-        return fig
-    
     def create_time_series_plots(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """
         Create time series plots from data.
         
         Args:
-            data: Input DataFrame with time column
+            data: Input DataFrame with time series data
             config: Visualization configuration
             
         Returns:
@@ -300,33 +240,33 @@ class VisualizationWorkflow:
         try:
             results = {
                 'success': True,
+                'time_series_paths': [],
                 'time_series_plots_created': 0,
-                'plot_paths': [],
                 'errors': []
             }
             
-            time_configs = config.get('time_series', [])
+            time_series_config = config.get('time_series', [])
             output_dir = Path(config.get('output_dir', '.'))
             
-            for i, time_config in enumerate(time_configs):
+            for i, time_config in enumerate(time_series_config):
                 try:
-                    # Create time series plot
-                    fig = self._create_time_series_plot(data, time_config)
+                    # Create time series plot using unified service
+                    fig = self.unified_service.create_time_series_plot(data, time_config)
                     
                     # Save plot
-                    plot_filename = time_config.get('filename', f'time_series_{i+1}.html')
-                    plot_path = output_dir / plot_filename
+                    time_series_filename = time_config.get('filename', f'time_series_{i+1}.html')
+                    time_series_path = output_dir / time_series_filename
                     
-                    self.visualization_service.save_plot(
+                    self.unified_service.save_plot(
                         fig, 
-                        str(plot_path), 
+                        str(time_series_path), 
                         format=time_config.get('format', 'html')
                     )
                     
-                    results['plot_paths'].append(str(plot_path))
+                    results['time_series_paths'].append(str(time_series_path))
                     results['time_series_plots_created'] += 1
                     
-                    logger.debug(f"Created time series plot {i+1}: {plot_path}")
+                    logger.debug(f"Created time series plot {i+1}: {time_series_path}")
                     
                 except Exception as e:
                     error_msg = f"Failed to create time series plot {i+1}: {e}"
@@ -344,35 +284,16 @@ class VisualizationWorkflow:
             results['errors'].append(str(e))
             return results
     
-    def _create_time_series_plot(self, data: pd.DataFrame, config: Dict[str, Any]) -> go.Figure:
-        """Create a time series plot."""
-        time_col = config.get('time_column', 'Time')
-        value_col = config.get('value_column')
-        group_col = config.get('group_column')
-        
-        if time_col not in data.columns:
-            raise ValueError(f"Time column '{time_col}' not found in data")
-        
-        if value_col and value_col not in data.columns:
-            raise ValueError(f"Value column '{value_col}' not found in data")
-        
-        # Create line plot
-        fig = self.visualization_service.create_plot(
-            data,
-            'line',
-            {
-                'x': time_col,
-                'y': value_col,
-                'color': group_col,
-                'title': config.get('title', 'Time Series Plot'),
-                'theme': config.get('theme', 'default')
-            }
-        )
-        
-        return fig
-    
     def validate_visualization_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate visualization configuration."""
+        """
+        Validate visualization configuration.
+        
+        Args:
+            config: Configuration to validate
+            
+        Returns:
+            Validation results
+        """
         validation = {
             'valid': True,
             'errors': [],
@@ -384,20 +305,22 @@ class VisualizationWorkflow:
             dashboard_config = config['dashboard']
             if 'plots' in dashboard_config:
                 for i, plot_config in enumerate(dashboard_config['plots']):
-                    plot_validation = self.visualization_service.validate_plot_config(plot_config)
-                    if not plot_validation['valid']:
-                        validation['errors'].extend([f"Dashboard plot {i+1}: {error}" for error in plot_validation['errors']])
+                    try:
+                        validated_config = self.unified_service.validate_plot_config(plot_config)
+                        dashboard_config['plots'][i] = validated_config
+                    except Exception as e:
+                        validation['errors'].append(f"Dashboard plot {i+1}: {str(e)}")
                         validation['valid'] = False
-                    validation['warnings'].extend([f"Dashboard plot {i+1}: {warning}" for warning in plot_validation['warnings']])
         
         # Validate individual plots config
         if 'plots' in config:
             for i, plot_config in enumerate(config['plots']):
-                plot_validation = self.visualization_service.validate_plot_config(plot_config)
-                if not plot_validation['valid']:
-                    validation['errors'].extend([f"Plot {i+1}: {error}" for error in plot_validation['errors']])
+                try:
+                    validated_config = self.unified_service.validate_plot_config(plot_config)
+                    config['plots'][i] = validated_config
+                except Exception as e:
+                    validation['errors'].append(f"Plot {i+1}: {str(e)}")
                     validation['valid'] = False
-                validation['warnings'].extend([f"Plot {i+1}: {warning}" for warning in plot_validation['warnings']])
         
         # Validate comparison config
         if 'comparisons' in config:
@@ -415,10 +338,15 @@ class VisualizationWorkflow:
         return validation
     
     def get_visualization_capabilities(self) -> Dict[str, Any]:
-        """Get information about visualization capabilities."""
+        """
+        Get information about visualization capabilities.
+        
+        Returns:
+            Dictionary with visualization capabilities
+        """
         return {
-            'available_plot_types': self.visualization_service.get_available_plot_types(),
-            'available_themes': self.visualization_service.get_available_themes(),
+            'available_plot_types': self.unified_service.get_available_plot_types(),
+            'available_themes': self.unified_service.get_available_themes(),
             'supported_formats': ['html', 'png', 'pdf', 'svg'],
             'workflow_types': ['dashboard', 'individual_plots', 'comparison_plots', 'time_series_plots']
         } 

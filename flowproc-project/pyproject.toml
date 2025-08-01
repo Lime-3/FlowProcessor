@@ -14,14 +14,20 @@ dependencies = [
     "PyYAML>=6.0.0",  # Added for configuration management
     "pydantic>=2.0.0",  # Added for data validation and settings
 ]
-license = "MIT"
-dynamic = [
-    "readme",
-    "authors",
-    "keywords",
-    "classifiers",
-    "urls"
+license = {text = "MIT"}
+authors = [
+    {name = "FlowProc Development Team", email = "dev@flowproc.example.com"}
 ]
+keywords = ["flow cytometry", "data processing", "GUI", "visualization", "CSV", "Excel"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+urls = {Homepage = "https://github.com/yourusername/FlowProcessor"}
 
 [project.scripts]
 flowproc = "flowproc.presentation.gui.main:main"  # Entry point for PySide6-based GUI

@@ -5,6 +5,7 @@ import logging
 from .csv_reader import CSVReader
 from .column_detector import ColumnDetector
 from .data_transformer import DataTransformer
+from .validation_service import validate_parsing_output
 
 logger = logging.getLogger(__name__)
 
@@ -18,44 +19,8 @@ class ParsedID(NamedTuple):
 
 
 def validate_parsed_data(df: pd.DataFrame, sid_col: str) -> None:
-    """Validate parsed DataFrame."""
-    if not isinstance(df, pd.DataFrame):
-        raise TypeError(f"Expected DataFrame, got {type(df)}")
-    
-    required_cols = ['Well', 'Group', 'Animal']
-    missing_cols = [col for col in required_cols if col not in df.columns]
-    if missing_cols:
-        raise ValueError(f"Missing columns: {missing_cols}")
-    
-    # Check for invalid values
-    if (df['Group'] < 0).any() or (df['Animal'] < 0).any():
-        raise ValueError("Invalid group/animal values (negative)")
-    
-    # Check for non-numeric values
-    if not pd.to_numeric(df['Group'], errors='coerce').notna().all():
-        raise ValueError("Non-numeric Group values found")
-    if not pd.to_numeric(df['Animal'], errors='coerce').notna().all():
-        raise ValueError("Non-numeric Animal values found")
-    
-    # Check time values if present
-    if 'Time' in df.columns and (df['Time'].dropna() < 0).any():
-        raise ValueError("Negative time values found")
-    
-    # Check for duplicate sample IDs (but allow if they have different replicates)
-    if df[sid_col].duplicated().any():
-        duplicates = df[sid_col][df[sid_col].duplicated()].unique()
-        # Check if duplicates have different replicates
-        for dup_id in duplicates:
-            dup_rows = df[df[sid_col] == dup_id]
-            if 'Replicate' in df.columns:
-                replicate_values = dup_rows['Replicate'].dropna().unique()
-                if len(replicate_values) > 1:
-                    # This is valid - same sample ID with different replicates
-                    continue
-            # If no replicate column or same replicate values, this is an error
-            raise ValueError(f"Duplicate sample IDs found: {duplicates}")
-    
-    logger.debug("Validation passed")
+    """Validate parsed DataFrame using the consolidated validation service."""
+    validate_parsing_output(df, sid_col)
 
 
 def load_and_parse_df(file_path: Path) -> Tuple[pd.DataFrame, str]:

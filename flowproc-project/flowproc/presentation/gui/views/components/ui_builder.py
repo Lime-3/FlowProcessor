@@ -66,25 +66,7 @@ class UIBuilder:
         checkbox_layout.addWidget(self.widgets['time_course_checkbox'])
         options_layout.addLayout(checkbox_layout)
 
-        # Metric selection row
-        metric_layout = QHBoxLayout()
-        metric_label = QLabel("Visualization Metric:")
-        metric_label.setStyleSheet("font-weight: 500; color: #F0F0F0;")
-        metric_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        
-        self.widgets['visualize_combo'] = QComboBox()
-        self.widgets['visualize_combo'].addItems([
-            "Freq. of Parent", "Freq. of Total", "Freq. of Live",
-            "Count", "Median", "Mean", "Geometric Mean"
-        ])
-        self.widgets['visualize_combo'].setCurrentText("Freq. of Parent")
-        self.widgets['visualize_combo'].setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.widgets['visualize_combo'].setMinimumHeight(35)
-        
-        metric_layout.addWidget(metric_label)
-        metric_layout.addWidget(self.widgets['visualize_combo'])
-        metric_layout.addStretch()
-        options_layout.addLayout(metric_layout)
+
 
         # Manual definition widget
         self.widgets['manual_widget'] = QWidget()
@@ -249,7 +231,7 @@ class UIBuilder:
         parent_layout.addWidget(self.widgets['io_group'])
 
     def _build_process_controls(self, parent_layout: QVBoxLayout) -> None:
-        """Build the process control buttons with pause/resume functionality."""
+        """Build the process control buttons."""
         process_controls = QWidget()
         controls_layout = QHBoxLayout(process_controls)
         controls_layout.setContentsMargins(0, 0, 0, 0)
@@ -261,22 +243,6 @@ class UIBuilder:
         self.widgets['process_button'].setStyleSheet(
             "border-radius: 10px; background-color: #007BFF; color: white;"
         )
-        
-        # Cancel button
-        self.widgets['cancel_button'] = QPushButton("Cancel")
-        self.widgets['cancel_button'].setFixedWidth(100)
-        self.widgets['cancel_button'].setFixedHeight(48)
-        self.widgets['cancel_button'].setObjectName("cancelButton")
-        self.widgets['cancel_button'].setEnabled(False)
-        self.widgets['cancel_button'].setStyleSheet("border-radius: 10px;")
-        
-        # Pause/Resume button
-        self.widgets['pause_button'] = QPushButton("Pause")
-        self.widgets['pause_button'].setFixedWidth(100)
-        self.widgets['pause_button'].setFixedHeight(48)
-        self.widgets['pause_button'].setObjectName("pauseButton")
-        self.widgets['pause_button'].setEnabled(False)
-        self.widgets['pause_button'].setStyleSheet("border-radius: 10px;")
         
         # Group Labels button
         self.widgets['group_labels_button'] = QPushButton("Group Labels")
@@ -292,8 +258,6 @@ class UIBuilder:
         
         controls_layout.addStretch()
         controls_layout.addWidget(self.widgets['process_button'])
-        controls_layout.addWidget(self.widgets['cancel_button'])
-        controls_layout.addWidget(self.widgets['pause_button'])
         controls_layout.addWidget(self.widgets['group_labels_button'])
         controls_layout.addWidget(self.widgets['visualize_button'])
         controls_layout.addStretch()
@@ -328,8 +292,6 @@ class UIBuilder:
             'browse_input_button': "Browse for CSV files to process or visualize.",
             'out_dir_entry': "Specify the directory where processed Excel files will be saved.",
             'process_button': "Start processing the selected files or folders.",
-            'cancel_button': "Cancel the current processing operation.",
-            'pause_button': "Pause or resume the current processing operation.",
             'group_labels_button': "Manage group labels for data processing.",
             'time_course_checkbox': "Enable for time-course output; requires 'Time' data in CSV.",
             'visualize_button': "Visualize data from the first CSV file. Metric can be changed in the dialog. Uses current group labels if set.",
@@ -348,8 +310,6 @@ class UIBuilder:
     def set_processing_state(self, is_processing: bool) -> None:
         """Update UI state for processing mode."""
         self.widgets['process_button'].setEnabled(not is_processing)
-        self.widgets['cancel_button'].setEnabled(is_processing)
-        self.widgets['pause_button'].setEnabled(is_processing)
         self.widgets['progress_bar'].setVisible(is_processing)
         
         if not is_processing:
@@ -373,6 +333,27 @@ class UIBuilder:
         self.widgets['replicates_entry'].setEnabled(enabled)
         self.widgets['save_button'].setEnabled(enabled)
 
-    def set_pause_button_text(self, text: str) -> None:
-        """Set the pause button text."""
-        self.widgets['pause_button'].setText(text)
+
+
+    def update_layout_for_size(self, width: int, height: int) -> None:
+        """Update layout based on window size changes."""
+        # Adjust spacing and margins based on window size
+        if width < 800:
+            # Compact layout for small windows
+            spacing = 8
+            margins = 10
+        elif width < 1000:
+            # Medium layout
+            spacing = 12
+            margins = 15
+        else:
+            # Full layout for large windows
+            spacing = 16
+            margins = 20
+        
+        # Update main layout spacing if it exists
+        if hasattr(self.main_window, 'main_layout'):
+            self.main_window.main_layout.setSpacing(spacing)
+            self.main_window.main_layout.setContentsMargins(margins, margins, margins, margins)
+        
+        logger.debug(f"Updated layout for window size: {width}x{height}, spacing: {spacing}, margins: {margins}")

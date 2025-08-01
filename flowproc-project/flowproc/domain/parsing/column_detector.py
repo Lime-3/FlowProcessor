@@ -4,6 +4,9 @@ import pandas as pd
 import re
 import logging
 
+from ...core.exceptions import ParsingError
+from ...core.constants import is_pure_metric_column
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,7 +65,7 @@ class ColumnDetector:
                     candidates.append((col, score))
                     
         if not candidates:
-            raise ParseError("No sample ID column detected")
+            raise ParsingError("No sample ID column detected")
             
         # Return column with highest score
         candidates.sort(key=lambda x: x[1], reverse=True)
@@ -113,7 +116,9 @@ class ColumnDetector:
             # Check for metric keywords
             for keyword, metric_type in self.METRIC_KEYWORDS.items():
                 if keyword in col_lower:
-                    metric_map[keyword].append(col)
+                    # Check if this is a pure metric column (not a subpopulation)
+                    if is_pure_metric_column(col, keyword):
+                        metric_map[keyword].append(col)
                     break
                     
         return {k: v for k, v in metric_map.items() if v}

@@ -57,8 +57,24 @@ class MainWindow(QMainWindow, StylingMixin, ValidationMixin):
     def _setup_window(self) -> None:
         """Configure basic window properties."""
         self.setWindowTitle("Flow Cytometry Processor")
-        self.setMinimumSize(800, 600)
-        self.resize(1000, 700)
+        
+        # Get screen dimensions for dynamic sizing
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_size = screen.size()
+            # Calculate appropriate window size for 15-inch screens
+            # Target: ~60% of screen width and ~70% of screen height
+            target_width = min(int(screen_size.width() * 0.6), 900)  # Max 900px width
+            target_height = min(int(screen_size.height() * 0.7), 650)  # Max 650px height
+            
+            # Set minimum size for usability
+            self.setMinimumSize(700, 500)
+            self.resize(target_width, target_height)
+        else:
+            # Fallback to conservative size
+            self.setMinimumSize(700, 500)
+            self.resize(800, 600)
+        
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
         # Setup styling and icon
@@ -118,6 +134,13 @@ class MainWindow(QMainWindow, StylingMixin, ValidationMixin):
             event.accept()
         else:
             event.ignore()
+
+    def resizeEvent(self, event) -> None:
+        """Handle window resize event to update layout."""
+        super().resizeEvent(event)
+        # Update layout if needed
+        if hasattr(self, 'ui_builder'):
+            self.ui_builder.update_layout_for_size(self.width(), self.height())
 
     # Signal handlers (called by processing coordinator)
     @Slot()

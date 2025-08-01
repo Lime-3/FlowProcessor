@@ -61,7 +61,7 @@ class MainController(QObject):
     def validate_inputs(self, input_paths: List[str], output_dir: str, 
                        time_course_mode: bool, **kwargs) -> bool:
         """
-        Validate user inputs before processing.
+        Validate user inputs before processing using the unified validation service.
         
         Args:
             input_paths: List of input file/directory paths
@@ -73,30 +73,29 @@ class MainController(QObject):
             True if validation passes, False otherwise
         """
         try:
-            # Validate input paths
-            if not input_paths:
-                self.validation_error.emit("No input files or directories specified.")
+            from flowproc.domain.validation import validate_gui_inputs
+            
+            # Extract groups and replicates from kwargs
+            groups = kwargs.get('groups')
+            replicates = kwargs.get('replicates')
+            
+            # Use the unified validation service
+            result = validate_gui_inputs(
+                input_paths=input_paths,
+                output_dir=output_dir,
+                groups=groups,
+                replicates=replicates,
+                time_course_mode=time_course_mode,
+                **kwargs
+            )
+            
+            if not result.is_valid:
+                # Emit the first error message
+                if result.errors:
+                    self.validation_error.emit(result.errors[0])
+                else:
+                    self.validation_error.emit("Validation failed")
                 return False
-                
-            for path_str in input_paths:
-                path = Path(path_str)
-                if not path.exists():
-                    self.validation_error.emit(f"Path does not exist: {path_str}")
-                    return False
-                    
-            # Validate output directory
-            output_path = Path(output_dir)
-            if not output_path.exists():
-                try:
-                    output_path.mkdir(parents=True, exist_ok=True)
-                except Exception as e:
-                    self.validation_error.emit(f"Cannot create output directory: {e}")
-                    return False
-                    
-            # Additional validation based on mode
-            if time_course_mode:
-                if not self._validate_time_course_inputs(input_paths, **kwargs):
-                    return False
                     
             return True
             
@@ -104,11 +103,6 @@ class MainController(QObject):
             logger.error(f"Validation error: {e}")
             self.validation_error.emit(f"Validation error: {e}")
             return False
-            
-    def _validate_time_course_inputs(self, input_paths: List[str], **kwargs) -> bool:
-        """Validate inputs specific to time course mode."""
-        # Add time course specific validation logic here
-        return True
         
     def start_processing(self, input_paths: List[str], output_dir: str,
                         time_course_mode: bool, **kwargs) -> bool:

@@ -2,7 +2,7 @@
 from typing import Optional, NamedTuple, Dict
 import logging
 
-from .time_parser import TimeParser
+from .time_service import TimeService
 from .tissue_parser import TissueParser
 from .well_parser import WellParser
 from .group_animal_parser import GroupAnimalParser
@@ -25,7 +25,7 @@ class SampleIDParser:
     """Combines component parsers to parse complete sample IDs."""
     
     def __init__(self, 
-                 time_parser: Optional[TimeParser] = None,
+                 time_parser: Optional[TimeService] = None,
                  tissue_parser: Optional[TissueParser] = None,
                  well_parser: Optional[WellParser] = None,
                  group_animal_parser: Optional[GroupAnimalParser] = None,
@@ -40,7 +40,7 @@ class SampleIDParser:
             group_animal_parser: Group/animal parser instance
             strict: Whether to raise exceptions on parse failure
         """
-        self.time_parser = time_parser or TimeParser()
+        self.time_parser = time_parser or TimeService()
         self.tissue_parser = tissue_parser or TissueParser()
         self.well_parser = well_parser or WellParser()
         self.group_animal_parser = group_animal_parser or GroupAnimalParser()
@@ -89,12 +89,9 @@ class SampleIDParser:
     def _parse_components(self, sample_id: str) -> Optional[ParsedSampleID]:
         """Parse individual components from sample ID."""
         # Check for negative values in the text before parsing
-        import re
-        neg_pattern = re.search(r'(_-\d+\.|\.-\d+)', sample_id)
-        if neg_pattern and self.strict:
-            raise ParseError("Invalid group/animal numbers found")
-        elif neg_pattern:
-            logger.warning(f"Negative values detected in: {sample_id}")
+        from .validation_utils import validate_sample_id_for_negative_values
+        
+        if not validate_sample_id_for_negative_values(sample_id, strict=self.strict):
             return None
             
         # Remove .fcs extension if present

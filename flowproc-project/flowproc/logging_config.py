@@ -81,25 +81,41 @@ def setup_logging(
         root.addHandler(file_handler)
 
         def custom_flush():
-            for handler in root.handlers:
-                if isinstance(handler, logging.FileHandler):
-                    handler.flush()
-                    with open(log_file, 'a') as f:
-                        f.flush()
-                        os.fsync(f.fileno())
-            root.debug("Forced flush of file handler")
-            print("Forced flush of file handler", file=sys.stderr)
+            try:
+                for handler in root.handlers:
+                    if isinstance(handler, logging.FileHandler):
+                        try:
+                            handler.flush()
+                            with open(log_file, 'a') as f:
+                                f.flush()
+                                os.fsync(f.fileno())
+                        except (OSError, ValueError) as e:
+                            # File handler might be closed, ignore the error
+                            pass
+                root.debug("Forced flush of file handler")
+                print("Forced flush of file handler", file=sys.stderr)
+            except Exception as e:
+                # Ignore any errors during flush
+                pass
 
         custom_flush()
 
         def on_shutdown():
-            custom_flush()
-            for handler in root.handlers[:]:
-                if isinstance(handler, logging.FileHandler):
-                    handler.close()
-                    root.removeHandler(handler)
-            root.debug("Shutdown logging handlers closed")
-            print("Shutdown logging handlers closed", file=sys.stderr)
+            try:
+                custom_flush()
+                for handler in root.handlers[:]:
+                    if isinstance(handler, logging.FileHandler):
+                        try:
+                            handler.close()
+                            root.removeHandler(handler)
+                        except (OSError, ValueError) as e:
+                            # Handler might already be closed, ignore the error
+                            pass
+                root.debug("Shutdown logging handlers closed")
+                print("Shutdown logging handlers closed", file=sys.stderr)
+            except Exception as e:
+                # Ignore any errors during shutdown
+                pass
 
         atexit.register(on_shutdown)
 

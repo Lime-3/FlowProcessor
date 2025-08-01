@@ -85,9 +85,15 @@ class VectorizedAggregator:
         Explicitly clean up memory used by the aggregator.
         Call this when done processing to free memory immediately.
         """
-        if hasattr(self, 'df'):
-            del self.df
-        gc.collect()
+        try:
+            if hasattr(self, 'df') and self.df is not None:
+                del self.df
+                self.df = None
+            gc.collect()
+        except Exception as e:
+            # Log but don't raise during cleanup
+            import logging
+            logging.getLogger(__name__).debug(f"Cleanup warning: {e}")
         
     def _clean_subpopulation_name(self, col_name: str) -> str:
         """
@@ -148,7 +154,9 @@ class VectorizedAggregator:
         
     def __del__(self):
         """Destructor to ensure cleanup on object deletion."""
-        self.cleanup()
+        # Disable automatic cleanup during garbage collection to prevent segfaults
+        # Use explicit cleanup() calls instead
+        pass
         
     def aggregate_metric(
         self,

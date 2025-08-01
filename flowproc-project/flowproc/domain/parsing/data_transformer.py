@@ -75,10 +75,11 @@ class DataTransformer:
         parsed_data = []
         
         # Check for negative values first
-        import re
+        from .validation_utils import validate_sample_id_for_negative_values
+        
         for sid in sample_ids:
-            if isinstance(sid, str) and re.search(r'(_-\d+\.|\.-\d+)', sid):
-                raise ValueError("Invalid group/animal")
+            if isinstance(sid, str):
+                validate_sample_id_for_negative_values(sid, strict=True)
         
         for idx, sid in enumerate(sample_ids):
             try:
@@ -129,9 +130,9 @@ class DataTransformer:
         
     def _extract_time_from_filename(self, df: pd.DataFrame, file_path: Path) -> pd.DataFrame:
         """Extract time information from filename and apply to all rows."""
-        from .time_parser import TimeParser
+        from .time_service import TimeService
         
-        time_parser = TimeParser()
+        time_parser = TimeService()
         filename = file_path.name
         
         # Try to extract time from filename
