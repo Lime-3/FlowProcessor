@@ -1,88 +1,64 @@
 """
-Visualization module for flow cytometry data.
+Simplified Visualization Module - Based on Simple Visualizer
 
-This module provides comprehensive visualization capabilities for flow cytometry data,
-including time-course analysis, bar plots, and interactive dashboards.
+This module provides a clean, simple interface for flow cytometry visualization
+using the proven simple_visualizer as the foundation.
 """
 
-# Core visualization components
-from .models import ProcessedData, PlotData, VisualizationResult
-from .config import VisualizationConfig, ConfigPresets, ConfigurationValidator
-from .data_processor import DataProcessor, DataProcessorFactory, preprocess_flowcytometry_data
-from .unified_service import UnifiedVisualizationService, get_unified_visualization_service
-from .plot_factory import PlotFactory, PlotCreator, BasePlotCreator
-from .plotly_renderer import PlotlyRenderer
-
-# High-level API
-from .facade import (
-    create_visualization,
-    create_quick_plot,
-    create_time_course_visualization,
-    create_publication_figure,
-    batch_create_visualizations,
-    validate_data_for_visualization,
-    visualize_data
-)
-
-# Quick plot functions
-from .facade import (
-    quick_scatter_plot,
-    quick_bar_plot,
-    quick_line_plot,
-    quick_box_plot
-)
-
-# Simple visualizer for direct plotting
+# Main visualization functions (the standard interface)
 from .simple_visualizer import (
-    plot,
-    time_plot,
-    time_plot_faceted,
-    compare_groups
+    plot,                    # Main plotting function
+    time_plot,              # Time-course analysis
+    time_plot_faceted,      # Faceted time-course plots
+    compare_groups,         # Group comparisons
+    scatter,                # Quick scatter plots
+    bar,                    # Quick bar plots
+    box,                    # Quick box plots
+    histogram               # Quick histograms
 )
 
-# Legacy compatibility
-from .visualize import visualize_data as legacy_visualize_data
+# Utility functions
+from .simple_visualizer import (
+    _detect_flow_columns,   # Column detection
+    _analyze_data_size      # Data analysis
+)
 
-# Export all public APIs
+# Export the main interface
 __all__ = [
-    # Core components
-    'ProcessedData',
-    'PlotData', 
-    'VisualizationResult',
-    'VisualizationConfig',
-    'ConfigPresets',
-    'ConfigurationValidator',
-    'DataProcessor',
-    'DataProcessorFactory',
-    'preprocess_flowcytometry_data',
-    'UnifiedVisualizationService',
-    'get_unified_visualization_service',
-    'PlotFactory',
-    'PlotCreator',
-    'BasePlotCreator',
-    'PlotlyRenderer',
-    
-    # High-level API
-    'create_visualization',
-    'create_quick_plot',
-    'create_time_course_visualization',
-    'create_publication_figure',
-    'batch_create_visualizations',
-    'validate_data_for_visualization',
-    'visualize_data',
-    
-    # Quick plot functions
-    'quick_scatter_plot',
-    'quick_bar_plot',
-    'quick_line_plot',
-    'quick_box_plot',
-    
-    # Simple visualizer
+    # Main functions
     'plot',
-    'time_plot',
+    'time_plot', 
     'time_plot_faceted',
     'compare_groups',
     
-    # Legacy compatibility
-    'legacy_visualize_data'
+    # Quick plot functions
+    'scatter',
+    'bar', 
+    'box',
+    'histogram',
+    
+    # Utilities
+    '_detect_flow_columns',
+    '_analyze_data_size'
 ]
+
+# Legacy compatibility (deprecated)
+def create_visualization(*args, **kwargs):
+    """Legacy function - use plot() instead."""
+    import warnings
+    warnings.warn(
+        "create_visualization() is deprecated. Use plot() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    return plot(*args, **kwargs)
+
+def create_time_course_visualization(*args, **kwargs):
+    """Legacy function - use time_plot() instead."""
+    import warnings
+    warnings.warn(
+        "create_time_course_visualization() is deprecated. Use time_plot() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    return time_plot(*args, **kwargs)

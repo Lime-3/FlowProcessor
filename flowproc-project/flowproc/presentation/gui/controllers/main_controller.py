@@ -12,7 +12,7 @@ from PySide6.QtCore import QObject, Signal, Slot
 
 from ....domain.parsing.service import ParseService
 from ....domain.processing.service import DataProcessingService
-from ....domain.visualization.service import VisualizationService
+# VisualizationService removed - using simple_visualizer directly
 from ....domain.export.service import ExportService
 from ..workers.processing_worker import ProcessingManager, ProcessingResult
 from ..views.main_window import MainWindow
@@ -45,7 +45,7 @@ class MainController(QObject):
         # Initialize domain services
         self.parse_service = ParseService()
         self.processing_service = DataProcessingService()
-        self.visualization_service = VisualizationService()
+        # self.visualization_service = VisualizationService()  # Removed - using simple_visualizer directly
         self.export_service = ExportService()
         
         # Connect signals
