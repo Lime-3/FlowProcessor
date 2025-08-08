@@ -1,1 +1,17 @@
-{"last_output_dir": "/Users/franklin.lime/Desktop"}
+{
+    "last_output_dir": "/Users/franklin.lime/Desktop",
+    "visualization": {
+        "default_theme": "plotly",
+        "default_width": 800,
+        "default_height": 600,
+        "dpi": 600,
+        "save_format": "png",
+        "interactive": true,
+        "show_legend": true,
+        "show_grid": true,
+        "plot_type": "bar",
+        "time_course_mode": false,
+        "show_individual_points": false,
+        "error_bars": true
+    }
+}

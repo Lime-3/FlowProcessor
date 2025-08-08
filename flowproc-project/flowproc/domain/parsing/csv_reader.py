@@ -50,8 +50,13 @@ class CSVReader:
                     encoding=encoding,
                     skipinitialspace=True,
                     skip_blank_lines=True,
-                    engine='python'
+                    engine='python',
+                    index_col=False  # Don't use first unnamed column as index
                 )
+                
+                # If first column is unnamed, give it a name
+                if df.columns[0] == 'Unnamed: 0' or df.columns[0] == '':
+                    df = df.rename(columns={df.columns[0]: 'Sample'})
                 
                 logger.debug(f"Successfully read {file_path} with {encoding} encoding")
                 
@@ -67,9 +72,10 @@ class CSVReader:
         
     def _clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clean up raw DataFrame."""
-        # Remove completely empty rows
+        # Remove completely empty rows and columns
         if self.remove_empty_rows:
-            df = df.dropna(how='all')
+            df = df.dropna(how='all', axis=0)  # Remove empty rows
+            df = df.dropna(how='all', axis=1)  # Remove empty columns
             
         # Remove footer rows (Mean, SD, etc.)
         footer_patterns = ['mean', 'sd', 'average', 'stddev', 'total']
@@ -83,5 +89,18 @@ class CSVReader:
         # Strip whitespace from string columns
         for col in df.select_dtypes(include=['object']).columns:
             df[col] = df[col].str.strip()
+        
+        # Convert numeric columns to float, handling any trailing commas
+        numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+        for col in numeric_cols:
+            try:
+                df[col] = pd.to_numeric(df[col].astype(str).str.rstrip(','), errors='coerce')
+            except Exception as e:
+                logger.warning(f"Failed to convert column {col} to numeric: {e}")
+        
+        # Extract group from sample names if Group column doesn't exist
+        if 'Sample' in df.columns and 'Group' not in df.columns:
+            from .group_animal_parser import extract_group_animal
+            df['Group'] = df['Sample'].apply(lambda x: f"Group {extract_group_animal(x).group}" if extract_group_animal(x) else "Unknown")
             
         return df

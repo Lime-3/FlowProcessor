@@ -3,8 +3,8 @@ Shared configuration constants for flow cytometry visualization plots.
 """
 
 # Default dimensions and spacing
-DEFAULT_WIDTH = 1200
-DEFAULT_HEIGHT = 800
+DEFAULT_WIDTH = 1000
+DEFAULT_HEIGHT = 600
 MARGIN = {'l': 50, 'r': 200, 't': 50, 'b': 50}
 VERTICAL_SPACING = 0.12
 HORIZONTAL_SPACING = 0.05

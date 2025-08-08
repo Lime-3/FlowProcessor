@@ -29,7 +29,12 @@ def aggregate_by_group_with_sem(df: DataFrame, y_col: str, group_col: str = 'Gro
     agg_df = df.groupby(group_col)[y_col].agg(['mean', 'std', 'count']).reset_index()
     
     # Calculate SEM (Standard Error of the Mean)
-    agg_df['sem'] = agg_df['std'] / np.sqrt(agg_df['count'])
+    # Handle cases where std is NaN (single value in group) or count is 1
+    agg_df['sem'] = np.where(
+        (agg_df['count'] > 1) & agg_df['std'].notna(),
+        agg_df['std'] / np.sqrt(agg_df['count']),
+        0  # Use 0 for SEM when there's only one value or std is NaN
+    )
     
     return agg_df
 

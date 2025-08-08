@@ -4,7 +4,7 @@ Column detection and utility functions for flow cytometry visualization.
 
 import logging
 import pandas as pd
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
@@ -78,16 +78,58 @@ def extract_cell_type_name(column_name: str) -> str:
     Returns:
         Extracted cell type name
     """
-    # Remove the common prefix and suffix
-    if 'FlowAIGoodEvents/Singlets/Live/' in column_name:
-        # Extract the cell type part
-        parts = column_name.split('FlowAIGoodEvents/Singlets/Live/')
-        if len(parts) > 1:
-            cell_part = parts[1].split(' | ')[0]  # Remove the metric part
-            # Clean up the cell type name
-            if '/' in cell_part:
-                cell_part = cell_part.split('/')[-1]  # Take the last part
-            return cell_part
+    # Handle different prefix patterns
+    prefixes = [
+        'FlowAIGoodEvents/Singlets/Live/',
+        'Singlets/Live/',
+        'Singlets/Live/'
+    ]
+    
+    for prefix in prefixes:
+        if prefix in column_name:
+            # Extract the cell type part
+            parts = column_name.split(prefix)
+            if len(parts) > 1:
+                cell_part = parts[1].split(' | ')[0]  # Remove the metric part
+                # Clean up the cell type name
+                if '/' in cell_part:
+                    # Take the meaningful parts after Singlets/Live
+                    path_parts = cell_part.split('/')
+                    if len(path_parts) > 2 and path_parts[0] == 'Singlets' and path_parts[1] == 'Live':
+                        # Skip Singlets/Live and take the meaningful cell type parts
+                        meaningful_parts = path_parts[2:]
+                        if len(meaningful_parts) == 1:
+                            return meaningful_parts[0]
+                        elif len(meaningful_parts) == 2:
+                            # Combine parent and child cell types
+                            return f"{meaningful_parts[0]}/{meaningful_parts[1]}"
+                        else:
+                            # Take the last two meaningful parts
+                            return f"{meaningful_parts[-2]}/{meaningful_parts[-1]}"
+                    else:
+                        # Take the last meaningful part
+                        return path_parts[-1]
+                return cell_part
+    
+    # Fallback: try to extract from the beginning if no prefix matches
+    if ' | ' in column_name:
+        cell_part = column_name.split(' | ')[0]
+        if '/' in cell_part:
+            # Take the last meaningful part (skip Singlets/Live if present)
+            path_parts = cell_part.split('/')
+            if len(path_parts) > 2 and path_parts[0] == 'Singlets' and path_parts[1] == 'Live':
+                # Skip Singlets/Live and take the meaningful parts
+                meaningful_parts = path_parts[2:]
+                if len(meaningful_parts) == 1:
+                    return meaningful_parts[0]
+                elif len(meaningful_parts) == 2:
+                    return f"{meaningful_parts[0]}/{meaningful_parts[1]}"
+                else:
+                    return f"{meaningful_parts[-2]}/{meaningful_parts[-1]}"
+            else:
+                return path_parts[-1]
+        return cell_part
+    
     return column_name
 
 
@@ -202,6 +244,21 @@ def analyze_data_size(df: DataFrame, value_cols: List[str]) -> Dict[str, Any]:
     }
 
 
+def extract_metric_name(column_name: str) -> str:
+    """
+    Extract metric name from column name by taking everything after the '|' character.
+    
+    Args:
+        column_name: Full column name
+        
+    Returns:
+        Extracted metric name
+    """
+    if '|' in column_name:
+        return column_name.split('|')[-1].strip()
+    return column_name
+
+
 def get_base_columns(df: DataFrame, time_col: str) -> List[str]:
     """
     Get base columns for plotting, including required and optional columns.
@@ -213,14 +270,93 @@ def get_base_columns(df: DataFrame, time_col: str) -> List[str]:
     Returns:
         List of base column names
     """
-    base_columns = ['Group']  # Always include Group
-    optional_columns = ['Animal', 'Well', 'Tissue']
+    base_columns = ['Group']  # Only use Group for x-axis
     
-    for opt_col in optional_columns:
-        if opt_col in df.columns and opt_col not in base_columns:
-            base_columns.append(opt_col)
-    
-    if time_col not in base_columns:
+    if time_col not in base_columns and time_col in df.columns:
         base_columns.append(time_col)
     
-    return base_columns 
+    return base_columns
+
+
+def detect_available_metric_types(df: DataFrame) -> List[str]:
+    """
+    Dynamically detect what metric types are available in the data.
+    
+    This function analyzes the actual column names to determine which
+    metric types (like 'Freq. of Parent', 'Freq. of Live', etc.) are
+    present in the data, rather than using hardcoded lists.
+    
+    Args:
+        df: DataFrame to analyze
+        
+    Returns:
+        List of available metric type names
+    """
+    available_metrics = []
+    columns = [col.lower() for col in df.columns]
+    
+    # Check for frequency metrics
+    if any('freq. of parent' in col for col in columns):
+        available_metrics.append('Freq. of Parent')
+    if any('freq. of live' in col for col in columns):
+        available_metrics.append('Freq. of Live')
+    if any('freq. of total' in col for col in columns):
+        available_metrics.append('Freq. of Total')
+    
+    # Check for other metrics
+    if any('median' in col and 'geometric' not in col for col in columns):
+        available_metrics.append('Median')
+    if any('mean' in col and 'geometric' not in col for col in columns):
+        available_metrics.append('Mean')
+    if any('geometric mean' in col for col in columns):
+        available_metrics.append('Geometric Mean')
+    if any('count' in col for col in columns):
+        available_metrics.append('Count')
+    if any('cv' in col for col in columns):
+        available_metrics.append('CV')
+    if any('mad' in col for col in columns):
+        available_metrics.append('MAD')
+    if any('mode' in col for col in columns):
+        available_metrics.append('Mode')
+    
+    return available_metrics
+
+
+def get_matching_columns_for_metric(df: DataFrame, metric_type: str) -> List[str]:
+    """
+    Get all columns that match a specific metric type.
+    
+    Args:
+        df: DataFrame to search
+        metric_type: Metric type to search for (e.g., 'Freq. of Parent')
+        
+    Returns:
+        List of column names that match the metric type
+    """
+    matching_cols = []
+    
+    if metric_type == "Freq. of Parent":
+        matching_cols = [col for col in df.columns if 'freq. of parent' in col.lower()]
+    elif metric_type == "Freq. of Live":
+        matching_cols = [col for col in df.columns if 'freq. of live' in col.lower()]
+    elif metric_type == "Freq. of Total":
+        matching_cols = [col for col in df.columns if 'freq. of total' in col.lower()]
+    elif metric_type == "Mean":
+        matching_cols = [col for col in df.columns if 'mean' in col.lower() and 'geometric mean' not in col.lower()]
+    elif metric_type == "Median":
+        matching_cols = [col for col in df.columns if 'median' in col.lower()]
+    elif metric_type == "Geometric Mean":
+        matching_cols = [col for col in df.columns if 'geometric mean' in col.lower()]
+    elif metric_type == "Count":
+        matching_cols = [col for col in df.columns if 'count' in col.lower()]
+    elif metric_type == "CV":
+        matching_cols = [col for col in df.columns if 'cv' in col.lower()]
+    elif metric_type == "MAD":
+        matching_cols = [col for col in df.columns if 'mad' in col.lower()]
+    elif metric_type == "Mode":
+        matching_cols = [col for col in df.columns if 'mode' in col.lower()]
+    else:
+        # Fallback to generic matching
+        matching_cols = [col for col in df.columns if metric_type.lower() in col.lower()]
+    
+    return matching_cols 

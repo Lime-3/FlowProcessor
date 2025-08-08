@@ -5,7 +5,7 @@ Legend configuration and styling functions for flow cytometry visualization.
 import logging
 import pandas as pd
 import plotly.graph_objects as go
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 
 from .plot_config import (
     DEFAULT_WIDTH, DEFAULT_HEIGHT, MARGIN, LEGEND_X_POSITION, 
@@ -76,11 +76,11 @@ def _configure_global_legend(
     fig: Figure,
     df: DataFrame,
     color_col: Optional[str],
-    width: int,
-    height: Optional[int],
-    font_size: int,
-    bg_color: str,
-    legend_width: Optional[int]
+    width: Optional[int] = DEFAULT_WIDTH,
+    height: Optional[int] = None,
+    font_size: int = LEGEND_FONT_SIZE,
+    bg_color: str = LEGEND_BG_COLOR,
+    legend_width: Optional[int] = None
 ) -> Figure:
     """
     Configure global legend for the entire figure.
@@ -98,25 +98,47 @@ def _configure_global_legend(
     Returns:
         Updated figure with global legend configuration
     """
-    # Determine legend items
+    # Determine legend items and whether to show legend
+    legend_items = 0
+    show_legend = False
+    
     if color_col and color_col in df.columns:
         legend_items = len(df[color_col].unique())
-        legend_labels = df[color_col].unique().tolist()
+        show_legend = legend_items > 1  # Only show legend if there are multiple items
     else:
         # Check if the figure has traces with names (for single metric plots)
-        legend_items = len([trace for trace in fig.data if trace.name])
-        legend_labels = [trace.name for trace in fig.data if trace.name]
+        named_traces = [trace for trace in fig.data if trace.name and trace.name.strip()]
+        legend_items = len(named_traces)
+        show_legend = legend_items > 1  # Only show legend if there are multiple named traces
+        
+        # For single metric plots, check if there's a legend title set (like "Mean ± SEM")
+        if legend_items <= 1 and hasattr(fig.layout, 'legend') and fig.layout.legend and hasattr(fig.layout.legend, 'title'):
+            show_legend = True  # Show legend if there's a meaningful title
     
     # Calculate legend width
     if legend_width is None:
         legend_width = max(legend_items * LEGEND_ITEM_WIDTH + 50, 100)
     
-    total_width = width + legend_width + 50  # 50px spacing between plot and legend
+    # Calculate total width with defaults - ensure enough space for legend at x=1.05
+    plot_width = width if width is not None else DEFAULT_WIDTH
+    legend_width = legend_width if legend_width is not None else 150
+    total_width = plot_width + legend_width + 50  # Extra space for legend positioned at x=1.05
+    
+    # Preserve existing legend title if set
+    existing_legend_title = None
+    if hasattr(fig.layout, 'legend') and fig.layout.legend and hasattr(fig.layout.legend, 'title'):
+        existing_legend_title = fig.layout.legend.title
     
     # Apply layout with legend
     layout_updates = {
         'width': total_width,
-        'legend': dict(
+        'showlegend': show_legend,
+        'margin': MARGIN
+    }
+    
+    # Only configure legend if we're showing it
+    if show_legend:
+        layout_updates['legend'] = dict(
             x=1.05,
             y=0.5,
             yanchor="middle",
@@ -133,9 +155,11 @@ def _configure_global_legend(
             entrywidthmode="pixels",
             itemclick="toggle",
             itemdoubleclick="toggleothers",
-        ),
-        'margin': MARGIN
-    }
+        )
+    
+    # Restore legend title if it existed and we're showing legend
+    if existing_legend_title and show_legend and 'legend' in layout_updates:
+        layout_updates['legend']['title'] = existing_legend_title
     
     if height is not None:
         layout_updates['height'] = height

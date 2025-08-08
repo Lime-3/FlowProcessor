@@ -3,11 +3,11 @@ Utility functions for flow cytometry visualization plots.
 """
 
 import logging
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Dict, Any
 import pandas as pd
 import numpy as np
 
-from .plot_config import TIME_THRESHOLDS
+from .plot_config import TIME_THRESHOLDS, DEFAULT_WIDTH, DEFAULT_HEIGHT, MARGIN, LEGEND_X_POSITION
 
 logger = logging.getLogger(__name__)
 
@@ -124,4 +124,139 @@ def calculate_subplot_dimensions(num_items: int, max_items_per_row: int = 1) -> 
     else:
         rows = (num_items + max_items_per_row - 1) // max_items_per_row
         cols = min(num_items, max_items_per_row)
-        return rows, cols 
+        return rows, cols
+
+
+def calculate_layout_for_long_labels(
+    labels: List[str], 
+    legend_items: int, 
+    title: str, 
+    legend_labels: List[str], 
+    default_width: int, 
+    default_height: int
+) -> Dict[str, Any]:
+    """
+    Calculate layout adjustments for plots with long labels.
+    
+    Args:
+        labels: List of x-axis labels
+        legend_items: Number of legend items
+        title: Plot title
+        legend_labels: List of legend labels
+        default_width: Default plot width
+        default_height: Default plot height
+        
+    Returns:
+        Dictionary with layout adjustments
+    """
+    # Calculate maximum label length
+    max_label_length = max(len(str(label)) for label in labels) if labels else 0
+    max_legend_length = max(len(str(label)) for label in legend_labels) if legend_labels else 0
+    
+    # Adjust width based on label length
+    width_adjustment = max(0, (max_label_length - 10) * 8)  # 8px per character over 10
+    adjusted_width = default_width + width_adjustment
+    
+    # Adjust height for legend if needed
+    height_adjustment = 0
+    if legend_items > 0:
+        height_adjustment = max(0, (legend_items - 3) * 20)  # 20px per legend item over 3
+    
+    adjusted_height = default_height + height_adjustment
+    
+    # Calculate margin adjustments
+    margin = MARGIN.copy()
+    if max_label_length > 15:
+        margin['b'] = 80  # Increase bottom margin for long labels
+        margin['r'] = 250  # Increase right margin for legend
+    
+    # Calculate x-axis adjustments
+    xaxis_title_standoff = 30
+    xaxis_tickangle = 0
+    if max_label_length > 12:
+        xaxis_tickangle = -45
+    
+    # Legend configuration
+    legend_config = {
+        'x': LEGEND_X_POSITION,
+        'y': 0.5,
+        'yanchor': 'middle',
+        'xanchor': 'left',
+        'orientation': 'v',
+        'itemwidth': 30,
+        'itemsizing': 'constant',
+        'tracegroupgap': 6,
+        'entrywidth': 30,
+        'entrywidthmode': 'pixels',
+        'itemclick': 'toggle',
+        'itemdoubleclick': 'toggleothers',
+        'bgcolor': 'rgba(255,255,255,0.9)',
+        'bordercolor': 'black',
+        'borderwidth': 0.5,
+        'font': {'size': 11}
+    }
+    
+    return {
+        'width': adjusted_width,
+        'height': adjusted_height,
+        'margin': margin,
+        'legend': legend_config,
+        'xaxis_title_standoff': xaxis_title_standoff,
+        'xaxis_tickangle': xaxis_tickangle
+    }
+
+
+def calculate_optimal_legend_position(
+    legend_items: int,
+    legend_labels: List[str],
+    plot_width: int,
+    plot_height: int
+) -> Dict[str, Any]:
+    """
+    Calculate optimal legend positioning and layout adjustments.
+    
+    Args:
+        legend_items: Number of legend items
+        legend_labels: List of legend labels
+        plot_width: Plot width
+        plot_height: Plot height
+        
+    Returns:
+        Dictionary with legend configuration and layout adjustments
+    """
+    # Calculate legend width based on longest label
+    max_legend_length = max(len(str(label)) for label in legend_labels) if legend_labels else 0
+    legend_width = max(max_legend_length * 8 + 50, 100)  # 8px per character + padding
+    
+    # Calculate total width including legend
+    total_width = plot_width + legend_width + 50  # 50px spacing
+    
+    # Adjust margins to accommodate legend
+    margin = MARGIN.copy()
+    margin['r'] = legend_width + 50  # Right margin for legend
+    
+    # Legend configuration
+    legend_config = {
+        'x': LEGEND_X_POSITION,
+        'y': 0.5,
+        'yanchor': 'middle',
+        'xanchor': 'left',
+        'orientation': 'v',
+        'itemwidth': 30,
+        'itemsizing': 'constant',
+        'tracegroupgap': 6,
+        'entrywidth': 30,
+        'entrywidthmode': 'pixels',
+        'itemclick': 'toggle',
+        'itemdoubleclick': 'toggleothers',
+        'bgcolor': 'rgba(255,255,255,0.9)',
+        'bordercolor': 'black',
+        'borderwidth': 0.5,
+        'font': {'size': 11}
+    }
+    
+    return {
+        'width': total_width,
+        'margin': margin,
+        'legend': legend_config
+    } 

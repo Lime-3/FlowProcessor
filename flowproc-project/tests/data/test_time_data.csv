@@ -1,0 +1,13 @@
+SampleID,Group,Time,Day,Tissue,Value
+AT25-AS001-Control-0,Control,0,Day 0,Liver,10.5
+AT25-AS002-Control-24,Control,24,Day 1,Liver,12.3
+AT25-AS003-Control-48,Control,48,Day 2,Liver,15.7
+AT25-AS004-Treatment-0,Treatment,0,Day 0,Liver,11.2
+AT25-AS005-Treatment-24,Treatment,24,Day 1,Liver,18.9
+AT25-AS006-Treatment-48,Treatment,48,Day 2,Liver,22.1
+AT25-AS007-Control-0,Control,0,Day 0,Spleen,8.4
+AT25-AS008-Control-24,Control,24,Day 1,Spleen,9.1
+AT25-AS009-Control-48,Control,48,Day 2,Spleen,11.3
+AT25-AS010-Treatment-0,Treatment,0,Day 0,Spleen,9.8
+AT25-AS011-Treatment-24,Treatment,24,Day 1,Spleen,14.2
+AT25-AS012-Treatment-48,Treatment,48,Day 2,Spleen,16.7 

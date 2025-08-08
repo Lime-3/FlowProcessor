@@ -1,53 +1,46 @@
 """
-Flow cytometry visualization package.
+Flow Cytometry Visualization Package
 
-This package provides visualization tools for flow cytometry data analysis.
+This package provides simple visualization tools for flow cytometry data.
 """
 
-# Import the main interface functions from the main visualizer
+# Simple visualizer for quick plotting
 from .flow_cytometry_visualizer import (
     plot,
-    time_plot,
-    time_plot_faceted,
     compare_groups,
     scatter,
     bar,
     box,
-    histogram
+    histogram,
+    time_plot
 )
 
-# Import the refactored modules for advanced usage
-from . import (
-    column_utils,
-    legend_config,
-    data_aggregation,
-    plot_creators,
-    faceted_plots,
-    time_plots,
-    plotly_renderer,
-    plot_config,
-    plot_utils
+# Utility functions
+from .column_utils import detect_flow_columns
+from .plot_creators import (
+    create_single_metric_plot,
+    create_cell_type_comparison_plot,
+    create_basic_plot
 )
+from .legend_config import configure_legend
+# PlotConfig class removed - constants are imported directly where needed
+# plot_utils functions imported individually where needed
 
+# Export simple interface
 __all__ = [
-    # Main interface functions
+    # Simple interface
     'plot',
-    'time_plot',
-    'time_plot_faceted', 
     'compare_groups',
     'scatter',
     'bar',
     'box',
     'histogram',
+    'time_plot',
     
-    # Module names
-    'column_utils',
-    'legend_config', 
-    'data_aggregation',
-    'plot_creators',
-    'faceted_plots',
-    'time_plots',
-    'plotly_renderer',
-    'plot_config',
-    'plot_utils'
+    # Utilities
+    'detect_flow_columns',
+    'create_single_metric_plot',
+    'create_cell_type_comparison_plot', 
+    'create_basic_plot',
+    'configure_legend'
 ]

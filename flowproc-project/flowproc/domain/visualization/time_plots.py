@@ -5,7 +5,7 @@ Time course plot functions for flow cytometry visualization.
 import logging
 import pandas as pd
 from pathlib import Path
-from typing import Optional, List, Union
+from typing import Optional, Union
 
 from .column_utils import detect_flow_columns, analyze_data_size
 from .plot_creators import create_time_course_single_plot
@@ -62,18 +62,23 @@ def time_plot(data: Union[str, DataFrame],
     
     # Handle value_col selection - check if it's a metric type or specific column
     if value_col is None:
-        # Default to "Freq. of Parent" for flow cytometry data
-        freq_parent_cols = [col for col in flow_cols['frequencies'] if 'Freq. of Parent' in col]
+        # Default to "Freq. of Parent" or "Freq. of Live" for flow cytometry data
+        freq_parent_cols = [col for col in flow_cols['frequencies'] if 'freq. of parent' in col.lower()]
+        freq_live_cols = [col for col in flow_cols['frequencies'] if 'freq. of live' in col.lower()]
+        
         if freq_parent_cols:
             value_col = 'Freq. of Parent'  # Use as metric type
+        elif freq_live_cols:
+            value_col = 'Freq. of Live'  # Use as metric type
         else:
             value_col = flow_cols['frequencies'][0] if flow_cols['frequencies'] else df.columns[1]
     
     # Check if value_col is a metric type (like "Freq. of Parent") or a specific column
-    metric_types = ['Freq. of Parent', 'Freq. of Total', 'Count', 'Median', 'Mean', 'Geometric Mean', 'Mode', 'CV', 'MAD']
+    from .column_utils import detect_available_metric_types, get_matching_columns_for_metric
+    metric_types = detect_available_metric_types(df)
     if value_col in metric_types:
-        # Find all columns matching this metric type
-        matching_cols = [col for col in df.columns if value_col.lower() in col.lower()]
+        # Find all columns matching this metric type using the new dynamic function
+        matching_cols = get_matching_columns_for_metric(df, value_col)
         
         # Debug logging
         logger.debug(f"Looking for metric type '{value_col}', found matching columns: {matching_cols}")
@@ -108,7 +113,7 @@ def time_plot(data: Union[str, DataFrame],
             fig = create_cell_type_faceted_plot(df, time_col, matching_cols, **kwargs)
         elif len(matching_cols) == 1:
             # Single column - use normal time plot
-            logger.info(f"time_plot: Single cell type detected, using _create_time_course_single_plot")
+            logger.info("time_plot: Single cell type detected, using _create_time_course_single_plot")
             fig = create_time_course_single_plot(df, time_col, matching_cols[0], group_col, sample_size=sample_size, **kwargs)
         else:
             # No matching columns - use original value_col
@@ -174,18 +179,23 @@ def time_plot_faceted(data: Union[str, DataFrame],
         time_col = time_candidates[0] if time_candidates else df.columns[0]
     
     if value_col is None:
-        freq_parent_cols = [col for col in flow_cols['frequencies'] if 'Freq. of Parent' in col]
+        freq_parent_cols = [col for col in flow_cols['frequencies'] if 'freq. of parent' in col.lower()]
+        freq_live_cols = [col for col in flow_cols['frequencies'] if 'freq. of live' in col.lower()]
+        
         if freq_parent_cols:
             value_col = 'Freq. of Parent'
+        elif freq_live_cols:
+            value_col = 'Freq. of Live'
         else:
             value_col = flow_cols['frequencies'][0] if flow_cols['frequencies'] else df.columns[1]
     
     # Handle metric types vs specific columns
-    metric_types = ['Freq. of Parent', 'Freq. of Total', 'Count', 'Median', 'Mean', 'Geometric Mean', 'Mode', 'CV', 'MAD']
+    from .column_utils import detect_available_metric_types, get_matching_columns_for_metric
+    metric_types = detect_available_metric_types(df)
     
     if value_col in metric_types:
-        # Find all columns matching this metric type
-        matching_cols = [col for col in df.columns if value_col.lower() in col.lower()]
+        # Find all columns matching this metric type using the new dynamic function
+        matching_cols = get_matching_columns_for_metric(df, value_col)
         
         if facet_by == "Cell Type":
             # Facet by cell type (each subplot is a different cell type)
