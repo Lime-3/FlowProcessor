@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from typing import List, Optional, Callable, Dict, Any
 
-from .legend_config import configure_legend
+
 from .plot_config import (
     DEFAULT_WIDTH, DEFAULT_HEIGHT, MARGIN, VERTICAL_SPACING, HORIZONTAL_SPACING,
     MAX_CELL_TYPES, SUBPLOT_HEIGHT_PER_ROW, DEFAULT_TRACE_CONFIG
@@ -85,11 +85,19 @@ def _create_faceted_plot(
     else:
         subplot_titles = [create_enhanced_title(df, col, time_col) for col in value_cols]
     
+    # Calculate appropriate vertical spacing based on number of rows
+    if rows > 1:
+        # Ensure vertical spacing doesn't exceed Plotly's limit
+        max_spacing = 1.0 / (rows - 1) - 0.01  # Leave a small margin
+        adjusted_vertical_spacing = min(vertical_spacing, max_spacing)
+    else:
+        adjusted_vertical_spacing = vertical_spacing
+    
     # Create subplots
     fig = make_subplots(
         rows=rows, cols=cols,
         subplot_titles=subplot_titles,
-        vertical_spacing=vertical_spacing,
+        vertical_spacing=adjusted_vertical_spacing,
         horizontal_spacing=horizontal_spacing
     )
     
@@ -115,7 +123,7 @@ def _create_faceted_plot(
                             y=plot_df[col],
                             mode='lines+markers',
                             name=trace_name,
-                            showlegend=False,
+                            showlegend=False,  # Disable individual trace legend
                             legendgroup=f"subplot_{row}",
                             **DEFAULT_TRACE_CONFIG
                         ),
@@ -137,10 +145,10 @@ def _create_faceted_plot(
                             y=group_data[col],
                             mode='lines+markers',
                             name=trace_name,
-                            showlegend=False,
+                            showlegend=False,  # Disable individual trace legend
                             legendgroup=f"subplot_{row}",
                             **DEFAULT_TRACE_CONFIG
-                        ),
+                    ),
                         row=row, col=col_idx
                     )
     
@@ -148,12 +156,16 @@ def _create_faceted_plot(
     if height is None:
         height = max(DEFAULT_HEIGHT, rows * SUBPLOT_HEIGHT_PER_ROW)
     
+    # Apply standardized legend configuration
+    from .legend_config import configure_legend
+    
+    # Enable legend for faceted plots - use the first value column as reference for color grouping
+    color_col = 'Group' if 'Group' in df.columns else None
+    fig = configure_legend(fig, df, color_col, is_subplot=False, width=width, height=height)
+    
     # Update layout
     fig.update_layout(
         title=title,
-        width=width,
-        height=height,
-        showlegend=False,
         margin=MARGIN
     )
     
@@ -165,27 +177,56 @@ def _create_faceted_plot(
         else:
             fig.update_yaxes(title_text="Frequency (%)", row=i, col=1)
     
-    # Add subplot legends
+    # Create individual legends for each subplot
     for i in range(1, rows + 1):
-        subplot_groups = []
+        # Get traces for this subplot
         subplot_traces = []
+        subplot_names = []
+        
         for trace in fig.data:
             if hasattr(trace, 'legendgroup') and trace.legendgroup == f"subplot_{i}":
-                if trace.name not in subplot_groups:
-                    subplot_groups.append(trace.name)
+                if trace.name not in subplot_names:
                     subplot_traces.append(trace)
+                    subplot_names.append(trace.name)
         
-        if subplot_groups:
-            legend_y = 1.0 - (i - 0.5) / rows
-            fig = configure_legend(
-                fig=fig,
-                subplot_groups=subplot_groups,
-                subplot_traces=subplot_traces,
-                is_subplot=True,
-                legend_x=1.05,
-                legend_y=legend_y,
-                width=width,
-                height=height
+        if subplot_traces:
+            # Calculate legend position for this subplot
+            # Position legend to the right of each subplot
+            legend_x = 1.05  # Right of the plot
+            legend_y = 1.0 - (i - 0.5) / rows  # Center of this subplot row
+            
+            # Create legend annotation for this subplot
+            legend_items = []
+            for j, trace in enumerate(subplot_traces):
+                # Get the actual color from the trace
+                color = "black"  # default
+                if hasattr(trace, 'line') and hasattr(trace.line, 'color') and trace.line.color:
+                    color = trace.line.color
+                elif hasattr(trace, 'marker') and hasattr(trace.marker, 'color') and trace.marker.color:
+                    color = trace.marker.color
+                else:
+                    # Generate a color if none is set
+                    color = f"hsl({j * 360 // len(subplot_traces)}, 70%, 50%)"
+                
+                legend_items.append(f'<span style="color: {color};">●</span> {trace.name}')
+            
+            legend_text = "<br>".join(legend_items)
+            
+            # Add legend annotation
+            fig.add_annotation(
+                text=legend_text,
+                xref="paper",
+                yref="paper",
+                x=legend_x,
+                y=legend_y,
+                xanchor="left",
+                yanchor="middle",
+                showarrow=False,
+                bgcolor='rgba(255,255,255,0.9)',
+                bordercolor='rgba(0,0,0,0.3)',
+                borderwidth=1,
+                font=dict(size=10, color="black"),
+                align="left"
             )
     
     return fig

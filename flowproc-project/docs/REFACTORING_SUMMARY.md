@@ -162,7 +162,7 @@ def _create_faceted_plot(
 
 ### Updated Files
 - **`plot_creators.py`:** Updated to use `configure_legend` instead of `apply_standard_legend_config`
-- **`simple_visualizer.py`:** Now contains the refactored version (replaced old monolithic file)
+- **`flow_cytometry_visualizer.py`:** Now contains the main interface (replaced old monolithic file)
 - **`legend_config.py`:** Removed backward compatibility functions
 - **Test files:** Updated to test new API exclusively
 

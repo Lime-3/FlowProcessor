@@ -1,21 +1,10 @@
 """
-Flow Cytometry Visualizer - Main Interface for Flow Cytometry Visualization
+Simple Visualizer - Minimal Interface for Flow Cytometry Visualization (Refactored)
 
-This module provides the main interface for creating flow cytometry visualizations.
-It offers a clean, high-level API that handles 90% of common visualization needs
-while delegating to specialized modules for specific functionality.
+This module provides a super simple interface for creating visualizations
+without the complexity of the full system. Just 3 main functions for 90% of use cases.
 
-Key Functions:
-- plot(): Main plotting function with auto-detection
-- time_plot(): Time course visualization
-- compare_groups(): Group comparison plots
-- Convenience functions: scatter(), bar(), box(), histogram()
-
-This module uses a modular architecture with specialized components for:
-- Column detection and analysis
-- Plot creation and styling
-- Legend configuration
-- Data aggregation and processing
+This is the refactored version that uses modular components.
 """
 
 import logging
@@ -94,10 +83,14 @@ def plot(data: Union[str, DataFrame],
                 x = df.columns[0] if len(df.columns) > 0 else "Sample"
         
         if y is None:
-            # Prioritize "Freq. of Parent" as default y-axis for flow cytometry data
+            # Prioritize "Freq. of Parent" or "Freq. of Live" as default y-axis for flow cytometry data
             freq_parent_cols = [col for col in flow_cols['frequencies'] if 'freq. of parent' in col.lower()]
+            freq_live_cols = [col for col in flow_cols['frequencies'] if 'freq. of live' in col.lower()]
+            
             if freq_parent_cols:
                 y = freq_parent_cols[0]
+            elif freq_live_cols:
+                y = freq_live_cols[0]
             elif flow_cols['frequencies']:
                 y = flow_cols['frequencies'][0]
             elif flow_cols['medians']:
@@ -124,10 +117,12 @@ def plot(data: Union[str, DataFrame],
     # For flow cytometry data, aggregate by Group and show Mean+/-SEM
     if x == 'Group' and 'Group' in df.columns:
         # Check if y is a metric type (like "Freq. of Parent") or a specific column
-        metric_types = ['Freq. of Parent', 'Freq. of Total', 'Count', 'Median', 'Mean', 'Geometric Mean', 'Mode', 'CV', 'MAD']
-        if y in metric_types:
-            # Find all columns matching this metric type
-            matching_cols = [col for col in df.columns if y.lower() in col.lower()]
+        from .column_utils import detect_available_metric_types, get_matching_columns_for_metric
+        
+        available_metric_types = detect_available_metric_types(df)
+        if y in available_metric_types:
+            # Find all columns matching this metric type using the new dynamic function
+            matching_cols = get_matching_columns_for_metric(df, y)
             
             # Debug logging
             logger.debug(f"Looking for metric type '{y}', found matching columns: {matching_cols}")
@@ -163,7 +158,9 @@ def plot(data: Union[str, DataFrame],
         
         # Apply standardized legend configuration to Group plots as well
         color_col = kwargs.get('color')
-        fig = configure_legend(fig, df, color_col, **kwargs)
+        width = kwargs.get('width')
+        height = kwargs.get('height')
+        fig = configure_legend(fig, df, color_col, is_subplot=False, width=width, height=height)
     else:
         # For non-Group plots, use original data
         fig = create_basic_plot(df, x, y, plot_type, **kwargs)
@@ -239,8 +236,10 @@ def compare_groups(data: Union[str, DataFrame],
     else:
         raise ValueError(f"Unknown plot type: {plot_type}")
     
-    # Apply standardized legend configuration
-    fig = configure_legend(fig, df, None, **kwargs)
+    # Apply standardized legend configuration  
+    width = kwargs.get('width')
+    height = kwargs.get('height')
+    fig = configure_legend(fig, df, None, is_subplot=False, width=width, height=height)
     
     fig.update_layout(
         title=f"{metric} Comparison Across Groups",
@@ -280,8 +279,7 @@ def histogram(data, x=None, **kwargs):
     return plot(data, x=x, y=x, plot_type="histogram", **kwargs)
 
 
-# Re-export time plot functions for convenience
-from .time_plots import time_plot, time_plot_faceted
+# Time plot functions already imported at top
 
 __all__ = [
     'plot',

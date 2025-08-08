@@ -84,6 +84,7 @@ COLUMN_PATTERNS = {
 # Keywords for flow cytometry metrics
 KEYWORDS = {
     'Freq. of Parent': 'freq. of parent',
+    'Freq. of Live': 'freq. of live',
     'Freq. of Total': 'freq. of total',
     'Count': 'count',
     'Median': 'median',

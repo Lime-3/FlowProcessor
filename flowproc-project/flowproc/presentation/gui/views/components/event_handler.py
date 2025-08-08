@@ -275,20 +275,20 @@ class EventHandler(QObject):
             )
             return
         
-        # Directly open the visualization display dialog with placeholder preview
-        from ..dialogs.visualization_display_dialog import VisualizationDisplayDialog
+        # Open the single visualization dialog directly
+        from ..dialogs.visualization_dialog import VisualizationDialog
         
         try:
             self.state_manager.update_status("Opening visualization...")
             
-            # Create and show the display dialog directly
-            display_dialog = VisualizationDisplayDialog(
+            # Create and show the single visualization dialog
+            visualization_dialog = VisualizationDialog(
                 parent=self.main_window,
                 csv_path=self.state_manager.last_csv
             )
             
             # Show the dialog (non-modal)
-            display_dialog.show()
+            visualization_dialog.show()
             
             self.state_manager.update_status("Visualization opened")
             

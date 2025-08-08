@@ -43,8 +43,31 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Apply default layout
-        fig.update_layout(**self.default_layout)
+        # Calculate optimal legend positioning
+        from .plot_utils import calculate_optimal_legend_position
+        
+        legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
+        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
+        
+        legend_config = calculate_optimal_legend_position(
+            legend_items=legend_items,
+            legend_labels=legend_labels,
+            plot_width=1000,
+            plot_height=600
+        )
+        
+        # Apply optimal legend positioning
+        layout_updates = {
+            "width": legend_config.get("width", 1000),
+            "margin": legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
+            "font": dict(family='Arial, sans-serif', size=12)
+        }
+        
+        # Add legend configuration if present
+        if "legend" in legend_config:
+            layout_updates["legend"] = legend_config["legend"]
+        
+        fig.update_layout(**layout_updates)
         
         return fig
     
@@ -62,7 +85,7 @@ class PlotlyRenderer:
         legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
         
         # Import the layout calculation function
-        from .plotting import calculate_layout_for_long_labels
+        from .plot_utils import calculate_layout_for_long_labels
         # Use consistent default dimensions
         default_width = 600
         default_height = 300
@@ -95,7 +118,7 @@ class PlotlyRenderer:
         )
         
         # Calculate optimal legend positioning
-        from .plotting import calculate_optimal_legend_position
+        from .plot_utils import calculate_optimal_legend_position
         
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
         legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
@@ -130,8 +153,31 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Apply default layout
-        fig.update_layout(**self.default_layout)
+        # Calculate optimal legend positioning
+        from .plot_utils import calculate_optimal_legend_position
+        
+        legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
+        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
+        
+        legend_config = calculate_optimal_legend_position(
+            legend_items=legend_items,
+            legend_labels=legend_labels,
+            plot_width=1000,
+            plot_height=600
+        )
+        
+        # Apply optimal legend positioning
+        layout_updates = {
+            "width": legend_config.get("width", 1000),
+            "margin": legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
+            "font": dict(family='Arial, sans-serif', size=12)
+        }
+        
+        # Add legend configuration if present
+        if "legend" in legend_config:
+            layout_updates["legend"] = legend_config["legend"]
+        
+        fig.update_layout(**layout_updates)
         
         return fig
     
@@ -153,8 +199,13 @@ class PlotlyRenderer:
             **kwargs
         )
         
-        # Apply default layout
-        fig.update_layout(**self.default_layout)
+        # Apply basic layout for heatmap (no legend positioning needed)
+        fig.update_layout(
+            width=1000,
+            height=600,
+            margin={'l': 50, 'r': 50, 't': 50, 'b': 50},
+            font=dict(family='Arial, sans-serif', size=12)
+        )
         
         return fig
     
@@ -166,8 +217,31 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Apply default layout
-        fig.update_layout(**self.default_layout)
+        # Calculate optimal legend positioning
+        from .plot_utils import calculate_optimal_legend_position
+        
+        legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
+        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
+        
+        legend_config = calculate_optimal_legend_position(
+            legend_items=legend_items,
+            legend_labels=legend_labels,
+            plot_width=1000,
+            plot_height=600
+        )
+        
+        # Apply optimal legend positioning
+        layout_updates = {
+            "width": legend_config.get("width", 1000),
+            "margin": legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
+            "font": dict(family='Arial, sans-serif', size=12)
+        }
+        
+        # Add legend configuration if present
+        if "legend" in legend_config:
+            layout_updates["legend"] = legend_config["legend"]
+        
+        fig.update_layout(**layout_updates)
         
         return fig
     
@@ -179,8 +253,31 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Apply default layout
-        fig.update_layout(**self.default_layout)
+        # Calculate optimal legend positioning
+        from .plot_utils import calculate_optimal_legend_position
+        
+        legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
+        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
+        
+        legend_config = calculate_optimal_legend_position(
+            legend_items=legend_items,
+            legend_labels=legend_labels,
+            plot_width=1000,
+            plot_height=600
+        )
+        
+        # Apply optimal legend positioning
+        layout_updates = {
+            "width": legend_config.get("width", 1000),
+            "margin": legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
+            "font": dict(family='Arial, sans-serif', size=12)
+        }
+        
+        # Add legend configuration if present
+        if "legend" in legend_config:
+            layout_updates["legend"] = legend_config["legend"]
+        
+        fig.update_layout(**layout_updates)
         
         return fig
     
@@ -192,8 +289,31 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Apply default layout
-        fig.update_layout(**self.default_layout)
+        # Calculate optimal legend positioning
+        from .plot_utils import calculate_optimal_legend_position
+        
+        legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
+        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
+        
+        legend_config = calculate_optimal_legend_position(
+            legend_items=legend_items,
+            legend_labels=legend_labels,
+            plot_width=1000,
+            plot_height=600
+        )
+        
+        # Apply optimal legend positioning
+        layout_updates = {
+            "width": legend_config.get("width", 1000),
+            "margin": legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
+            "font": dict(family='Arial, sans-serif', size=12)
+        }
+        
+        # Add legend configuration if present
+        if "legend" in legend_config:
+            layout_updates["legend"] = legend_config["legend"]
+        
+        fig.update_layout(**layout_updates)
         
         return fig
     

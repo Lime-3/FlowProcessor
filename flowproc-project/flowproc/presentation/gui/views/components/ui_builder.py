@@ -56,6 +56,7 @@ class UIBuilder:
 
         # Checkboxes row
         self.widgets['time_course_checkbox'] = QCheckBox("Time Course Output Format")
+        self.widgets['time_course_checkbox'].setChecked(False)  # Ensure standard mode by default
         self.widgets['time_course_checkbox'].setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.widgets['manual_groups_checkbox'] = QCheckBox("Manually Define Groups and Replicates")
         self.widgets['manual_groups_checkbox'].setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)

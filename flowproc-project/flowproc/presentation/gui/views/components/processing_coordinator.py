@@ -190,7 +190,7 @@ class ProcessingCoordinator(QObject):
                 # Use simple plot for regular data
                 fig = plot(
                     data=csv_path,
-                    x=options.x_axis,
+                    x='Group',  # Always use 'Group' for x-axis
                     y=options.y_axis,
                     plot_type=options.plot_type,
                     save_html=output_html

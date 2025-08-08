@@ -7,9 +7,9 @@ import pandas as pd
 import plotly.express as px
 from typing import Optional, List
 
-from .legend_config import configure_legend, apply_default_layout
+from .legend_config import configure_legend
 from .data_aggregation import aggregate_by_group_with_sem, aggregate_multiple_metrics_by_group
-from .column_utils import extract_cell_type_name
+from .column_utils import extract_cell_type_name, extract_metric_name
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +43,7 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, **kwarg
         fig = px.box(df, x='Group', y=y_col, **kwargs)
     elif plot_type == "line":
         fig = px.line(agg_df, x='Group', y='mean', error_y='sem', **kwargs)
-    elif plot_type == "histogram":
-        fig = px.histogram(df, x=y_col, **kwargs)
+
     else:
         raise ValueError(f"Unknown plot type: {plot_type}")
     
@@ -54,9 +53,30 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, **kwarg
     height = kwargs.get('height')
     fig = configure_legend(fig, df, color_col, is_subplot=False, width=width, height=height)
         
-    # Update y-axis title to show it's mean with error bars
+    # Update y-axis title and legend title
     if 'title' not in kwargs:
-        fig.update_layout(title=f"Mean {y_col} ± SEM by Group")
+        metric_name = extract_metric_name(y_col)
+        fig.update_layout(
+            title=f"{metric_name} by Group",
+            yaxis_title=metric_name,
+            legend_title="Mean ± SEM"
+        )
+    
+    # Ensure all x-axis ticks are shown with correct group numbers
+    if 'Group' in df.columns:
+        # Convert group values to numeric if they're strings representing numbers
+        unique_groups = df['Group'].unique()
+        try:
+            # Try to convert to numeric and sort
+            numeric_groups = sorted([float(g) if isinstance(g, str) else g for g in unique_groups])
+            # Convert back to original type (int if whole numbers)
+            unique_groups = [int(g) if g.is_integer() else g for g in numeric_groups]
+        except (ValueError, AttributeError):
+            # If conversion fails, use regular sorting
+            unique_groups = sorted(unique_groups)
+        
+        # Use the actual group values for both positions and labels
+        fig.update_xaxes(tickmode='array', tickvals=unique_groups, ticktext=unique_groups)
     
     return fig
 
@@ -77,6 +97,9 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
     # Prepare data for plotting all cell types together
     combined_df = aggregate_multiple_metrics_by_group(df, freq_cols)
     
+    # Get the base metric name from the first column (they should all be the same type)
+    base_metric = extract_metric_name(freq_cols[0]) if freq_cols else "Value"
+
     # Create plot with cell types in legend
     if plot_type == "scatter":
         fig = px.scatter(combined_df, x='Group', y='mean', color='Cell Type', error_y='sem', **kwargs)
@@ -90,12 +113,7 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
         fig = px.box(melted_df, x='Group', y='Frequency', color='Cell Type', **kwargs)
     elif plot_type == "line":
         fig = px.line(combined_df, x='Group', y='mean', color='Cell Type', error_y='sem', **kwargs)
-    elif plot_type == "histogram":
-        # For histogram, use original data
-        melted_df = df.melt(id_vars=['Group'], value_vars=freq_cols, 
-                           var_name='Cell Type', value_name='Frequency')
-        melted_df['Cell Type'] = melted_df['Cell Type'].apply(extract_cell_type_name)
-        fig = px.histogram(melted_df, x='Frequency', color='Cell Type', **kwargs)
+
     else:
         raise ValueError(f"Unknown plot type: {plot_type}")
     
@@ -104,9 +122,29 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
     height = kwargs.get('height')
     fig = configure_legend(fig, combined_df, 'Cell Type', is_subplot=False, width=width, height=height)
         
-    # Update title
+    # Update title, y-axis, and legend
     if 'title' not in kwargs:
-        fig.update_layout(title=f"Cell Type Comparison by Group")
+        fig.update_layout(
+            title="Cell Type Comparison by Group",
+            yaxis_title=base_metric,
+            legend_title="Mean ± SEM"
+        )
+    
+    # Ensure all x-axis ticks are shown with correct group numbers
+    if 'Group' in combined_df.columns:
+        # Convert group values to numeric if they're strings representing numbers
+        unique_groups = combined_df['Group'].unique()
+        try:
+            # Try to convert to numeric and sort
+            numeric_groups = sorted([float(g) if isinstance(g, str) else g for g in unique_groups])
+            # Convert back to original type (int if whole numbers)
+            unique_groups = [int(g) if g.is_integer() else g for g in numeric_groups]
+        except (ValueError, AttributeError):
+            # If conversion fails, use regular sorting
+            unique_groups = sorted(unique_groups)
+        
+        # Use the actual group values for both positions and labels
+        fig.update_xaxes(tickmode='array', tickvals=unique_groups, ticktext=unique_groups)
     
     return fig
 
@@ -160,7 +198,7 @@ def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, **kwargs):
         df: DataFrame containing the data
         x: Column for x-axis
         y: Column for y-axis
-        plot_type: Type of plot ('scatter', 'bar', 'box', 'line', 'histogram')
+        plot_type: Type of plot ('scatter', 'bar', 'box', 'line')
         **kwargs: Additional keyword arguments
         
     Returns:
@@ -175,8 +213,7 @@ def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, **kwargs):
         fig = px.box(df, x=x, y=y, **kwargs)
     elif plot_type == "line":
         fig = px.line(df, x=x, y=y, **kwargs)
-    elif plot_type == "histogram":
-        fig = px.histogram(df, x=y, **kwargs)
+
     else:
         raise ValueError(f"Unknown plot type: {plot_type}")
     
