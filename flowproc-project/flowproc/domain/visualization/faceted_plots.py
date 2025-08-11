@@ -16,7 +16,7 @@ from .plot_config import (
 from .plot_utils import (
     format_time_title, validate_plot_data, limit_cell_types, calculate_subplot_dimensions
 )
-from .column_utils import create_enhanced_title, extract_cell_type_name, get_base_columns
+from .column_utils import create_enhanced_title, extract_cell_type_name, get_base_columns, create_comprehensive_plot_title, extract_metric_name
 from .data_aggregation import prepare_data_for_plotting
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,8 @@ def _create_faceted_plot(
     height: Optional[int] = None,
     vertical_spacing: float = VERTICAL_SPACING,
     horizontal_spacing: float = HORIZONTAL_SPACING,
-    max_cell_types: int = MAX_CELL_TYPES
+    max_cell_types: int = MAX_CELL_TYPES,
+    filter_options=None
 ) -> Figure:
     """
     Base function for creating faceted plots with shared logic.
@@ -163,7 +164,17 @@ def _create_faceted_plot(
     color_col = 'Group' if 'Group' in df.columns else None
     fig = configure_legend(fig, df, color_col, is_subplot=False, width=width, height=height)
     
-    # Update layout
+    # Update layout with enhanced title
+    if not title or title in ["Time Course by Cell Type", "Time Course by Group", "Time Course by Tissue"]:
+        # Create comprehensive title if using default titles
+        if facet_by:
+            metric_name = extract_metric_name(value_cols[0]) if value_cols else "Frequency"
+            enhanced_title = create_comprehensive_plot_title(df, metric_name, value_cols, filter_options=filter_options)
+        else:
+            metric_name = extract_metric_name(value_cols[0]) if value_cols else "Frequency"
+            enhanced_title = create_comprehensive_plot_title(df, metric_name, value_cols, filter_options=filter_options)
+        title = enhanced_title
+    
     fig.update_layout(
         title=title,
         margin=MARGIN
@@ -238,7 +249,8 @@ def create_cell_type_faceted_plot(
     value_cols: List[str],
     width: int = DEFAULT_WIDTH,
     height: Optional[int] = None,
-    max_cell_types: int = MAX_CELL_TYPES
+    max_cell_types: int = MAX_CELL_TYPES,
+    filter_options=None
 ) -> Figure:
     """
     Create faceted plot with each subplot showing a different cell type in vertically stacked single columns.
@@ -261,7 +273,8 @@ def create_cell_type_faceted_plot(
         title="Time Course by Cell Type",
         width=width,
         height=height,
-        max_cell_types=max_cell_types
+        max_cell_types=max_cell_types,
+        filter_options=filter_options
     )
 
 

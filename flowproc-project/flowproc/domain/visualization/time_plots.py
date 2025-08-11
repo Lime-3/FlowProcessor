@@ -24,6 +24,7 @@ def time_plot(data: Union[str, DataFrame],
               save_html: Optional[str] = None,
               max_cell_types: int = 10,  # Limit number of cell types to plot
               sample_size: Optional[int] = None,  # Sample data points if dataset is large
+              filter_options=None,
               **kwargs):
     """
     Create time-course plots - optimized for temporal data.
@@ -110,14 +111,14 @@ def time_plot(data: Union[str, DataFrame],
         if len(matching_cols) > 1:
             # Create a faceted time plot with cell types in separate subplots
             logger.info(f"time_plot: Multiple cell types detected ({len(matching_cols)}), using faceted plot")
-            fig = create_cell_type_faceted_plot(df, time_col, matching_cols, **kwargs)
+            fig = create_cell_type_faceted_plot(df, time_col, matching_cols, filter_options=filter_options, **kwargs)
         elif len(matching_cols) == 1:
             # Single column - use normal time plot
             logger.info("time_plot: Single cell type detected, using _create_time_course_single_plot")
-            fig = create_time_course_single_plot(df, time_col, matching_cols[0], group_col, sample_size=sample_size, **kwargs)
+            fig = create_time_course_single_plot(df, time_col, matching_cols[0], group_col, sample_size=sample_size, filter_options=filter_options, **kwargs)
         else:
             # No matching columns - use original value_col
-            fig = create_time_course_single_plot(df, time_col, value_col, group_col, sample_size=sample_size, **kwargs)
+            fig = create_time_course_single_plot(df, time_col, value_col, group_col, sample_size=sample_size, filter_options=filter_options, **kwargs)
     else:
         # Specific column - use normal time plot
         # Validate column exists
@@ -129,7 +130,7 @@ def time_plot(data: Union[str, DataFrame],
             sample_size = 1000
             logger.info(f"Auto-applying sample size: {sample_size} for large dataset")
         
-        fig = create_time_course_single_plot(df, time_col, value_col, group_col, sample_size=sample_size, **kwargs)
+        fig = create_time_course_single_plot(df, time_col, value_col, group_col, sample_size=sample_size, filter_options=filter_options, **kwargs)
     
     # Save if requested
     if save_html:

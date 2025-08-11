@@ -9,7 +9,7 @@ from typing import Optional, List
 
 from .legend_config import configure_legend
 from .data_aggregation import aggregate_by_group_with_sem, aggregate_multiple_metrics_by_group
-from .column_utils import extract_cell_type_name, extract_metric_name
+from .column_utils import extract_cell_type_name, extract_metric_name, create_comprehensive_plot_title
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 DataFrame = pd.DataFrame
 
 
-def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, **kwargs):
+def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_options=None, **kwargs):
     """
     Create a plot for a single metric with aggregation.
     
@@ -53,11 +53,12 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, **kwarg
     height = kwargs.get('height')
     fig = configure_legend(fig, df, color_col, is_subplot=False, width=width, height=height)
         
-    # Update y-axis title and legend title
+    # Update title, y-axis title and legend title
     if 'title' not in kwargs:
         metric_name = extract_metric_name(y_col)
+        comprehensive_title = create_comprehensive_plot_title(df, metric_name, [y_col], filter_options=filter_options)
         fig.update_layout(
-            title=f"{metric_name} by Group",
+            title=comprehensive_title,
             yaxis_title=metric_name,
             legend_title="Mean ± SEM"
         )
@@ -81,7 +82,7 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, **kwarg
     return fig
 
 
-def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_type: str, **kwargs):
+def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_type: str, filter_options=None, **kwargs):
     """
     Create a plot comparing all cell types with cell types in legend.
     
@@ -124,8 +125,9 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
         
     # Update title, y-axis, and legend
     if 'title' not in kwargs:
+        comprehensive_title = create_comprehensive_plot_title(df, base_metric, freq_cols, filter_options=filter_options)
         fig.update_layout(
-            title="Cell Type Comparison by Group",
+            title=comprehensive_title,
             yaxis_title=base_metric,
             legend_title="Mean ± SEM"
         )
@@ -150,7 +152,7 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
 
 
 def create_time_course_single_plot(df: DataFrame, time_col: str, value_col: str, 
-                                 group_col: Optional[str], sample_size: Optional[int] = None, **kwargs):
+                                 group_col: Optional[str], sample_size: Optional[int] = None, filter_options=None, **kwargs):
     """
     Create a single time course plot with optional grouping.
     
@@ -182,15 +184,16 @@ def create_time_course_single_plot(df: DataFrame, time_col: str, value_col: str,
     
     # Update title
     if 'title' not in kwargs:
-        title = f"{value_col} over Time"
+        metric_name = extract_metric_name(value_col)
+        comprehensive_title = create_comprehensive_plot_title(df, metric_name, [value_col], filter_options=filter_options)
         if group_col:
-            title += f" by {group_col}"
-        fig.update_layout(title=title)
+            comprehensive_title += f" by {group_col}"
+        fig.update_layout(title=comprehensive_title)
     
     return fig
 
 
-def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, **kwargs):
+def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, filter_options=None, **kwargs):
     """
     Create a basic plot without aggregation.
     
@@ -225,6 +228,11 @@ def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, **kwargs):
     
     # Update title
     if 'title' not in kwargs:
-        fig.update_layout(title=f"{y} vs {x}")
+        metric_name = extract_metric_name(y) if y != x else y
+        if x == 'Group':
+            comprehensive_title = create_comprehensive_plot_title(df, metric_name, [y], filter_options=filter_options)
+        else:
+            comprehensive_title = f"{metric_name} vs {x}"
+        fig.update_layout(title=comprehensive_title)
     
     return fig 

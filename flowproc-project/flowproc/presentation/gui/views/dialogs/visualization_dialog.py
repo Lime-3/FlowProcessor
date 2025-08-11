@@ -15,14 +15,14 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, 
     QComboBox, QCheckBox, QPushButton, QMessageBox,
     QWidget, QSplitter, QSizePolicy, QApplication,
-    QFileDialog
+    QFileDialog, QListWidget, QListWidgetItem
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWebEngineWidgets import QWebEngineView
 import pandas as pd
 
 from flowproc.domain.parsing import load_and_parse_df
-from flowproc.domain.visualization.flow_cytometry_visualizer import plot, time_plot
+# Import moved to where it's used to avoid circular imports
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,9 @@ class VisualizationOptions:
     show_individual_points: bool = False
     error_bars: bool = True
     interactive: bool = True
+    # Filter options
+    selected_tissues: Optional[list] = None
+    selected_times: Optional[list] = None
 
 
 class VisualizationDialog(QDialog):
@@ -56,12 +59,13 @@ class VisualizationDialog(QDialog):
         super().__init__(parent)
         self.csv_path = csv_path
         self.temp_html_file: Optional[Path] = None
-        self.df = None
         
         # UI Components
         self.plot_type_combo: Optional[QComboBox] = None
         self.y_axis_combo: Optional[QComboBox] = None
         self.time_course_checkbox: Optional[QCheckBox] = None
+        self.tissue_filter: Optional[QListWidget] = None
+        self.time_filter: Optional[QListWidget] = None
         self.web_view: Optional[QWebEngineView] = None
         self.status_label: Optional[QLabel] = None
         
@@ -87,7 +91,6 @@ class VisualizationDialog(QDialog):
         # Load and analyze data if CSV path provided
         if self.csv_path:
             self._analyze_data()
-            self._generate_plot()  # Auto-generate initial plot
     
     def _setup_ui(self):
         """Set up the main UI layout."""
@@ -121,8 +124,8 @@ class VisualizationDialog(QDialog):
         basic_group = QGroupBox("Visualization Settings")
         basic_layout = QVBoxLayout(basic_group)
         
-        # First row: Plot type and Y-axis
-        first_row = QHBoxLayout()
+        # Single row: Plot type, Y-axis, Mode, Tissue filter, Time filter, and Action buttons
+        main_row = QHBoxLayout()
         
         # Plot type selection
         plot_type_layout = QVBoxLayout()
@@ -131,7 +134,7 @@ class VisualizationDialog(QDialog):
         self.plot_type_combo.addItems(["bar", "box", "scatter", "line"])
         self.plot_type_combo.currentTextChanged.connect(self._on_option_changed)
         plot_type_layout.addWidget(self.plot_type_combo)
-        first_row.addLayout(plot_type_layout)
+        main_row.addLayout(plot_type_layout)
         
         # Y-axis selection
         y_axis_layout = QVBoxLayout()
@@ -139,7 +142,7 @@ class VisualizationDialog(QDialog):
         self.y_axis_combo = QComboBox()
         self.y_axis_combo.currentTextChanged.connect(self._on_option_changed)
         y_axis_layout.addWidget(self.y_axis_combo)
-        first_row.addLayout(y_axis_layout)
+        main_row.addLayout(y_axis_layout)
         
         # Time course mode
         time_course_layout = QVBoxLayout()
@@ -147,16 +150,34 @@ class VisualizationDialog(QDialog):
         self.time_course_checkbox = QCheckBox("Time Course Mode")
         self.time_course_checkbox.toggled.connect(self._on_time_course_toggled)
         time_course_layout.addWidget(self.time_course_checkbox)
-        first_row.addLayout(time_course_layout)
+        main_row.addLayout(time_course_layout)
         
-        # Add some spacing
-        first_row.addStretch()
+        # Tissue filter
+        tissue_filter_layout = QVBoxLayout()
+        tissue_filter_layout.addWidget(QLabel("Tissue Filter:"))
+        self.tissue_filter = QListWidget()
+        self.tissue_filter.setMaximumHeight(80)
+        # Use NoSelection mode to rely on checkboxes instead of selection highlighting
+        self.tissue_filter.setSelectionMode(QListWidget.SelectionMode.NoSelection)
+        self.tissue_filter.itemChanged.connect(self._on_filter_changed)
+        tissue_filter_layout.addWidget(self.tissue_filter)
+        main_row.addLayout(tissue_filter_layout)
         
-        basic_layout.addLayout(first_row)
+        # Time filter
+        self.time_filter_layout = QVBoxLayout()
+        self.time_filter_label = QLabel("Time Filter:")
+        self.time_filter_layout.addWidget(self.time_filter_label)
+        self.time_filter = QListWidget()
+        self.time_filter.setMaximumHeight(80)
+        # Use NoSelection mode to rely on checkboxes instead of selection highlighting
+        self.time_filter.setSelectionMode(QListWidget.SelectionMode.NoSelection)
+        self.time_filter.itemChanged.connect(self._on_filter_changed)
+        self.time_filter_layout.addWidget(self.time_filter)
+        main_row.addLayout(self.time_filter_layout)
         
-        # Action Buttons - prominently displayed
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()  # Push buttons to the right
+        # Action Buttons - stacked vertically to the right of filters
+        button_layout = QVBoxLayout()
+        button_layout.addStretch()  # Push buttons to the top
         
         generate_button = QPushButton("Generate Plot")
         generate_button.setMinimumHeight(40)
@@ -168,7 +189,10 @@ class VisualizationDialog(QDialog):
         save_button.clicked.connect(self._save_visualization)
         button_layout.addWidget(save_button)
         
-        basic_layout.addLayout(button_layout)
+        button_layout.addStretch()  # Add spacing at bottom
+        main_row.addLayout(button_layout)
+        
+        basic_layout.addLayout(main_row)
         settings_layout.addWidget(basic_group)
         
         return settings_widget
@@ -217,7 +241,7 @@ class VisualizationDialog(QDialog):
                 font-weight: 600;
             }
             QPushButton {
-                background-color: #007BFF;
+                background-color: #0064FF;
                 color: white;
                 border: none;
                 padding: 8px 16px;
@@ -228,10 +252,10 @@ class VisualizationDialog(QDialog):
                 font-size: 12px;
             }
             QPushButton:hover {
-                background-color: #0056b3;
+                background-color: #0052CC;
             }
             QPushButton:pressed {
-                background-color: #004085;
+                background-color: #004099;
             }
             QComboBox {
                 padding: 8px;
@@ -283,6 +307,24 @@ class VisualizationDialog(QDialog):
                 background-color: #0F0F0F;
                 color: #F0F0F0;
             }
+            QListWidget {
+                background-color: #191919;
+                border: 1px solid #303030;
+                border-radius: 4px;
+                padding: 4px;
+                color: #F0F0F0;
+                selection-background-color: #0064FF;
+            }
+            QListWidget::item {
+                padding: 2px;
+                border-radius: 2px;
+            }
+            QListWidget::item:selected {
+                background-color: #0064FF;
+            }
+            QListWidget::item:hover {
+                background-color: #252525;
+            }
         """)
     
     def _analyze_data(self):
@@ -292,14 +334,24 @@ class VisualizationDialog(QDialog):
                 self.status_label.setText("Error: CSV file not found")
                 return
             
-            self.df, _ = load_and_parse_df(self.csv_path)
+            # Load data for analysis only (not stored)
+            df, _ = load_and_parse_df(self.csv_path)
             
-            if self.df is None or self.df.empty:
+            if df is None or df.empty:
                 self.status_label.setText("Error: No data found in CSV file")
                 return
             
             # Populate column options
-            self._populate_column_options(self.df)
+            self._populate_column_options(df)
+            
+            # Populate filter options
+            self._populate_filter_options(df)
+            
+            # Auto-generate initial plot if filters are available
+            if 'Tissue' in df.columns or ('Time' in df.columns and len(df['Time'].dropna().unique()) > 0):
+                self._generate_plot()
+            else:
+                self.status_label.setText("Please select tissue and/or time filters to display data.")
             
         except Exception as e:
             logger.error(f"Failed to analyze data: {e}")
@@ -323,8 +375,77 @@ class VisualizationDialog(QDialog):
         for metric_type in available_metrics:
             self.y_axis_combo.addItem(metric_type)
     
+    def _populate_filter_options(self, df: pd.DataFrame):
+        """Populate tissue and time filter options from parsed data."""
+        if self.tissue_filter is None or self.time_filter is None:
+            return
+        
+        # Clear existing items
+        self.tissue_filter.clear()
+        self.time_filter.clear()
+        
+        # Populate tissue filter with unique tissue values
+        if 'Tissue' in df.columns:
+            unique_tissues = df['Tissue'].dropna().unique()
+            # Use tissue parser to get full names
+            from flowproc.domain.parsing.tissue_parser import TissueParser
+            tissue_parser = TissueParser()
+            
+            for tissue_code in sorted(unique_tissues):
+                # Get count for this tissue
+                tissue_count = len(df[df['Tissue'] == tissue_code])
+                
+                if tissue_code == 'UNK':
+                    # Include UNK but mark it clearly
+                    display_text = f"UNK (Unknown) [{tissue_count} samples]"
+                else:
+                    full_name = tissue_parser.get_full_name(tissue_code)
+                    display_text = f"{tissue_code} ({full_name}) [{tissue_count} samples]"
+                    
+                item = QListWidgetItem(display_text)
+                item.setData(Qt.ItemDataRole.UserRole, tissue_code)  # Store the tissue code
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)  # Enable checkbox
+                item.setCheckState(Qt.CheckState.Checked)  # Auto-select all tissues by default
+                self.tissue_filter.addItem(item)
+        
+        # Populate time filter with unique time values  
+        has_time_data = False
+        if 'Time' in df.columns:
+            unique_times = df['Time'].dropna().unique()
+            if len(unique_times) > 0:
+                has_time_data = True
+                # Use time parser to format time values
+                from flowproc.domain.parsing.time_service import TimeService
+                time_service = TimeService()
+                
+                for time_hours in sorted(unique_times):
+                    if pd.notna(time_hours):
+                        # Get count for this time point
+                        time_count = len(df[df['Time'] == time_hours])
+                        
+                        formatted_time = time_service.format(time_hours, format_style='auto')
+                        display_text = f"{formatted_time} ({time_hours}h) [{time_count} samples]"
+                        
+                        item = QListWidgetItem(display_text)
+                        item.setData(Qt.ItemDataRole.UserRole, time_hours)  # Store the time value
+                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)  # Enable checkbox
+                        item.setCheckState(Qt.CheckState.Checked)  # Auto-select all time points by default
+                        self.time_filter.addItem(item)
+        
+        # Hide time filter section if no time data is available
+        self.time_filter_label.setVisible(has_time_data)
+        self.time_filter.setVisible(has_time_data)
+    
     def _on_option_changed(self):
         """Handle option changes."""
+        self._generate_plot()
+    
+    def _on_filter_changed(self):
+        """Handle filter changes."""
+        # Debug: Log current filter state
+        options = self.get_current_options()
+        logger.info(f"Filter changed - selected tissues: {options.selected_tissues}, selected times: {options.selected_times}")
+        logger.info("Filter changed - regenerating plot")
         self._generate_plot()
     
     def _on_time_course_toggled(self, checked: bool):
@@ -338,17 +459,43 @@ class VisualizationDialog(QDialog):
         
         self._generate_plot()
     
+    def get_current_options(self) -> VisualizationOptions:
+        """Get current visualization options including filters."""
+        # Get selected tissues
+        selected_tissues = []
+        if self.tissue_filter:
+            for i in range(self.tissue_filter.count()):
+                item = self.tissue_filter.item(i)
+                if item.checkState() == Qt.CheckState.Checked:
+                    tissue_code = item.data(Qt.ItemDataRole.UserRole)
+                    selected_tissues.append(tissue_code)
+        
+        # Get selected times
+        selected_times = []
+        if self.time_filter:
+            for i in range(self.time_filter.count()):
+                item = self.time_filter.item(i)
+                if item.checkState() == Qt.CheckState.Checked:
+                    time_value = item.data(Qt.ItemDataRole.UserRole)
+                    selected_times.append(time_value)
+        
+        return VisualizationOptions(
+            plot_type=self.plot_type_combo.currentText() if self.plot_type_combo else "bar",
+            y_axis=self.y_axis_combo.currentText() if self.y_axis_combo else None,
+            time_course_mode=self.time_course_checkbox.isChecked() if self.time_course_checkbox else False,
+            selected_tissues=selected_tissues,
+            selected_times=selected_times
+        )
+    
     def _generate_plot(self):
-        """Generate the plot based on current options."""
+        """Generate the plot using the coordinator's unified method."""
         try:
-            if not self.csv_path or self.df is None:
+            if not self.csv_path:
                 self.status_label.setText("Error: No data available")
                 return
             
-            # Get current options
-            plot_type = self.plot_type_combo.currentText()
-            y_axis = self.y_axis_combo.currentText()
-            time_course_mode = self.time_course_checkbox.isChecked()
+            # Get current options including filters
+            options = self.get_current_options()
             
             # Create temporary HTML file
             if self.temp_html_file and self.temp_html_file.exists():
@@ -359,31 +506,96 @@ class VisualizationDialog(QDialog):
             
             self.status_label.setText("Generating plot...")
             
-            # Generate plot
-            if time_course_mode:
-                time_plot(
-                    data=self.csv_path,
+            # Use the coordinator's unified visualization method
+            from flowproc.presentation.gui.views.components.processing_coordinator import ProcessingCoordinator
+            
+            # Load data and apply filters using coordinator's static method
+            from flowproc.domain.parsing import load_and_parse_df
+            df, _ = load_and_parse_df(self.csv_path)
+            
+            if df is None or df.empty:
+                self._show_error_message("No data found in CSV file")
+                return
+            
+            # Apply filters using coordinator's static method
+            filtered_df = ProcessingCoordinator.apply_filters(df, options)
+            
+            # Provide detailed feedback about filtering
+            filter_message = f"Filtered data: {len(filtered_df)} of {len(df)} rows"
+            if options.selected_tissues:
+                filter_message += f" (tissues: {', '.join(options.selected_tissues)})"
+            if options.selected_times:
+                filter_message += f" (times: {', '.join(map(str, options.selected_times))})"
+            logger.info(filter_message)
+            
+            if filtered_df.empty:
+                # Check if no filters are selected
+                has_tissue_filter = options.selected_tissues and len(options.selected_tissues) > 0
+                has_time_filter = options.selected_times and len(options.selected_times) > 0
+                has_time_data = 'Time' in df.columns and len(df['Time'].dropna().unique()) > 0
+                
+                if not has_tissue_filter and not has_time_filter and has_time_data:
+                    error_msg = "No filters selected. Please select at least one tissue or time filter to display data."
+                    if 'Tissue' in df.columns:
+                        available_tissues = df['Tissue'].dropna().unique()
+                        error_msg += f"\n\nAvailable tissues: {', '.join(available_tissues)}"
+                    if 'Time' in df.columns:
+                        available_times = df['Time'].dropna().unique()
+                        error_msg += f"\nAvailable times: {', '.join(map(str, available_times))}"
+                elif not has_tissue_filter and not has_time_data:
+                    error_msg = "No tissue filter selected. Please select at least one tissue to display data."
+                    if 'Tissue' in df.columns:
+                        available_tissues = df['Tissue'].dropna().unique()
+                        error_msg += f"\n\nAvailable tissues: {', '.join(available_tissues)}"
+                else:
+                    error_msg = "No data matches the current filter selection."
+                    if options.selected_tissues:
+                        available_tissues = df['Tissue'].dropna().unique() if 'Tissue' in df.columns else []
+                        error_msg += f"\nAvailable tissues: {', '.join(available_tissues)}"
+                    if options.selected_times:
+                        available_times = df['Time'].dropna().unique() if 'Time' in df.columns else []
+                        error_msg += f"\nAvailable times: {', '.join(map(str, available_times))}"
+                    error_msg += "\nPlease adjust your filters."
+                self._show_error_message(error_msg)
+                return
+            
+            # Generate plot with filtered data
+            from flowproc.domain.visualization.flow_cytometry_visualizer import plot, time_plot
+            
+            if options.time_course_mode:
+                fig = time_plot(
+                    data=filtered_df,
                     time_col='Time',
-                    value_col=y_axis,
+                    value_col=options.y_axis,
                     save_html=self.temp_html_file
                 )
             else:
-                plot(
-                    data=self.csv_path,
+                fig = plot(
+                    data=filtered_df,
                     x='Group',
-                    y=y_axis,
-                    plot_type=plot_type,
+                    y=options.y_axis,
+                    plot_type=options.plot_type,
                     save_html=self.temp_html_file
                 )
             
-            # Load in web view
-            from PySide6.QtCore import QUrl
-            file_url = QUrl.fromLocalFile(str(self.temp_html_file))
-            self.web_view.load(file_url)
+            result_path = self.temp_html_file
             
-            # Update status
-            self.status_label.setText("Plot generated successfully")
-            self.plot_generated.emit()
+            if fig and result_path:
+                # Load in web view
+                from PySide6.QtCore import QUrl
+                file_url = QUrl.fromLocalFile(str(self.temp_html_file))
+                self.web_view.load(file_url)
+                
+                # Update status with filter information
+                status_text = f"Plot generated successfully - {len(filtered_df)} of {len(df)} rows displayed"
+                if options.selected_tissues and len(options.selected_tissues) < len(df['Tissue'].dropna().unique()):
+                    status_text += " (filtered by tissue)"
+                if options.selected_times and len(options.selected_times) < len(df['Time'].dropna().unique()):
+                    status_text += " (filtered by time)"
+                self.status_label.setText(status_text)
+                self.plot_generated.emit()
+            else:
+                self._show_error_message("Failed to generate plot. Please check your data and filters.")
             
         except Exception as e:
             logger.error(f"Failed to generate plot: {e}")

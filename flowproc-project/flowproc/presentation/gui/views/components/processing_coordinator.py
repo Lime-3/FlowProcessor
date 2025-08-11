@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Dict, Any, Optional, List
 from pathlib import Path
+import pandas as pd
 
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QMessageBox
@@ -120,83 +121,109 @@ class ProcessingCoordinator(QObject):
         """Check if processing is currently active."""
         return self.processing_manager.is_processing()
 
-    def visualize_data(self, csv_path: Path, metric: str, time_course: bool, user_group_labels: Optional[List[str]] = None) -> None:
+    @staticmethod
+    def apply_filters(df: pd.DataFrame, options) -> pd.DataFrame:
         """
-        Visualize processed data.
+        Apply filters to data based on visualization options.
+        When no filters are selected, returns an empty DataFrame.
         
         Args:
-            csv_path: Path to the CSV file to visualize
-            metric: Visualization metric to use
-            time_course: Whether to use time course mode
-            user_group_labels: Optional group labels for visualization
+            df: DataFrame to filter
+            options: VisualizationOptions object with filter settings
+            
+        Returns:
+            Filtered DataFrame (empty if no filters selected)
         """
-        try:
-            # Import the flow cytometry visualizer
-            from flowproc.domain.visualization.flow_cytometry_visualizer import plot, time_plot
-            
-            # Create a temporary HTML file for the visualization
-            import tempfile
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp_file:
-                output_html = Path(tmp_file.name)
-            
-            # Use the flow cytometry visualizer
-            if time_course:
-                fig = time_plot(
-                    data=csv_path,
-                    save_html=output_html
-                )
+        filtered_df = df.copy()
+        original_rows = len(filtered_df)
+        
+        # Check if any filters are selected
+        has_tissue_filter = hasattr(options, 'selected_tissues') and options.selected_tissues
+        has_time_filter = hasattr(options, 'selected_times') and options.selected_times
+        
+        # Check if data has filterable columns
+        has_tissue_data = 'Tissue' in filtered_df.columns and not filtered_df['Tissue'].isna().all()
+        has_time_data = 'Time' in filtered_df.columns and not filtered_df['Time'].isna().all()
+        
+        # If no filters are selected but data has filterable columns, show all data
+        # This handles the case where filters are auto-populated but not explicitly selected
+        if not has_tissue_filter and not has_time_filter:
+            if has_tissue_data or has_time_data:
+                logger.info("No filters explicitly selected but data has filterable columns - showing all data")
+                return filtered_df  # Return all data
             else:
-                fig = plot(
-                    data=csv_path,
-                    y=metric,
-                    save_html=output_html
-                )
-            
-            logger.info(f"Visualization created for {csv_path} with metric {metric}")
-            
-        except Exception as e:
-            error_msg = f"Failed to visualize data: {str(e)}"
-            QMessageBox.critical(
-                self.main_window,
-                "Visualization Error",
-                error_msg
-            )
-            logger.error("Visualization failed", exc_info=True)
+                logger.info("No filters selected and no filterable data - returning empty DataFrame")
+                return filtered_df.iloc[0:0]  # Return empty DataFrame with same structure
+        
+        # Apply tissue filter
+        if has_tissue_filter and 'Tissue' in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df['Tissue'].isin(options.selected_tissues)]
+            logger.info(f"After tissue filter: {len(filtered_df)} rows (was {original_rows})")
+        
+        # Apply time filter
+        if has_time_filter and 'Time' in filtered_df.columns:
+            pre_time_rows = len(filtered_df)
+            filtered_df = filtered_df[filtered_df['Time'].isin(options.selected_times)]
+            logger.info(f"After time filter: {len(filtered_df)} rows (was {pre_time_rows})")
+        
+        logger.info(f"Filter summary: {original_rows} -> {len(filtered_df)} rows")
+        return filtered_df
 
-    def visualize_data_with_options(self, csv_path: Path, options) -> None:
+    def visualize_data_with_options(self, csv_path: Path, options, output_html: Optional[Path] = None) -> Optional[Path]:
         """
-        Visualize processed data with options from the visualization dialog.
+        Unified visualization method that handles filtering and options.
         
         Args:
             csv_path: Path to the CSV file to visualize
-            options: VisualizationOptions object with all selected parameters
+            options: VisualizationOptions object with all parameters and filters
+            output_html: Optional output path, will create temp file if not provided
+            
+        Returns:
+            Path to generated HTML file, or None if failed
         """
         try:
-            # Create a temporary HTML file for the visualization
-            import tempfile
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp_file:
-                output_html = Path(tmp_file.name)
+            # Load and parse data
+            from flowproc.domain.parsing import load_and_parse_df
+            df, _ = load_and_parse_df(csv_path)
             
-            # Use the flow cytometry visualizer
+            if df is None or df.empty:
+                raise ValueError("No data found in CSV file")
+            
+            # Apply filters
+            filtered_df = self.apply_filters(df, options)
+            
+            if filtered_df.empty:
+                raise ValueError("No data matches current filters")
+            
+            # Create output file if not provided
+            if output_html is None:
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp_file:
+                    output_html = Path(tmp_file.name)
+            
+            # Use the flow cytometry visualizer with filtered data
             from flowproc.domain.visualization.flow_cytometry_visualizer import plot, time_plot
             
             if options.time_course_mode:
-                # Use time_plot for time course data
                 fig = time_plot(
-                    data=csv_path,
-                    save_html=output_html
+                    data=filtered_df,  # Pass filtered DataFrame
+                    time_col='Time',
+                    value_col=options.y_axis,
+                    save_html=output_html,
+                    filter_options=options
                 )
             else:
-                # Use simple plot for regular data
                 fig = plot(
-                    data=csv_path,
-                    x='Group',  # Always use 'Group' for x-axis
+                    data=filtered_df,  # Pass filtered DataFrame
+                    x='Group',
                     y=options.y_axis,
                     plot_type=options.plot_type,
-                    save_html=output_html
+                    save_html=output_html,
+                    filter_options=options
                 )
             
             logger.info(f"Visualization created for {csv_path} with options: {options}")
+            return output_html
             
         except Exception as e:
             error_msg = f"Failed to visualize data: {str(e)}"
@@ -206,6 +233,7 @@ class ProcessingCoordinator(QObject):
                 error_msg
             )
             logger.error("Visualization failed", exc_info=True)
+            return None
 
     def handle_close_request(self) -> bool:
         """

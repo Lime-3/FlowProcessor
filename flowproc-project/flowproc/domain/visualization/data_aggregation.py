@@ -28,6 +28,9 @@ def aggregate_by_group_with_sem(df: DataFrame, y_col: str, group_col: str = 'Gro
     # Aggregate data by Group
     agg_df = df.groupby(group_col)[y_col].agg(['mean', 'std', 'count']).reset_index()
     
+    # Replace NaN means with 0.0 for visualization (happens when all values in group are NaN)
+    agg_df['mean'] = agg_df['mean'].fillna(0.0)
+    
     # Calculate SEM (Standard Error of the Mean)
     # Handle cases where std is NaN (single value in group) or count is 1
     agg_df['sem'] = np.where(
@@ -53,16 +56,30 @@ def aggregate_multiple_metrics_by_group(df: DataFrame, freq_cols: List[str], gro
     """
     plot_data = []
     
+    # Check if we have multiple tissues
+    # For single metric plots, don't separate by tissue - combine all data
+    # This creates cleaner plots with cell types as the main distinction
+    tissues_detected = False  # Disable tissue separation for now to fix plotting issues
+    
     for col in freq_cols:
         # Extract cell type name from column
-        from .column_utils import extract_cell_type_name
-        cell_type = extract_cell_type_name(col)
+        from .column_utils import extract_cell_type_name, enhance_cell_type_name
+        basic_cell_type = extract_cell_type_name(col)
+        cell_type = enhance_cell_type_name(basic_cell_type, col)
         
-        # Aggregate by Group for this cell type
-        agg_df = aggregate_by_group_with_sem(df, col, group_col)
-        agg_df['Cell Type'] = cell_type
-        
-        plot_data.append(agg_df)
+        if tissues_detected:
+            # When multiple tissues detected, aggregate by Group AND Tissue separately
+            for tissue in df['Tissue'].unique():
+                tissue_df = df[df['Tissue'] == tissue]
+                if not tissue_df.empty:
+                    agg_df = aggregate_by_group_with_sem(tissue_df, col, group_col)
+                    agg_df['Cell Type'] = f"{cell_type} ({tissue})"  # Include tissue in cell type name
+                    plot_data.append(agg_df)
+        else:
+            # Single tissue or no tissue info - aggregate by Group only
+            agg_df = aggregate_by_group_with_sem(df, col, group_col)
+            agg_df['Cell Type'] = cell_type
+            plot_data.append(agg_df)
     
     # Combine all data
     combined_df = pd.concat(plot_data, ignore_index=True)

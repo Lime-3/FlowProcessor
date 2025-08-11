@@ -28,6 +28,7 @@ def plot(data: Union[str, DataFrame],
          y: Optional[str] = None,
          plot_type: str = "scatter",
          save_html: Optional[str] = None,
+         filter_options=None,
          **kwargs):
     """
     Simple plotting function - handles 90% of visualization needs.
@@ -127,34 +128,39 @@ def plot(data: Union[str, DataFrame],
             # Debug logging
             logger.debug(f"Looking for metric type '{y}', found matching columns: {matching_cols}")
             
-            if len(matching_cols) > 1:
-                # Create a combined plot with all matching columns
+            if matching_cols:
+                # Always use cell type comparison plot for consistent multi-subpopulation display
                 fig = create_cell_type_comparison_plot(df, matching_cols, plot_type, **kwargs)
-            elif len(matching_cols) == 1:
-                # Single column - use normal aggregation
-                fig = create_single_metric_plot(df, matching_cols[0], plot_type, **kwargs)
             else:
                 # No matching columns found - try to find any frequency column as fallback
                 logger.warning(f"No columns found matching metric type '{y}'. Available columns: {list(df.columns)}")
                 freq_cols = [col for col in df.columns if 'freq' in col.lower()]
                 if freq_cols:
-                    logger.info(f"Using fallback frequency column: {freq_cols[0]}")
-                    fig = create_single_metric_plot(df, freq_cols[0], plot_type, **kwargs)
+                    logger.info(f"Using fallback frequency columns: {freq_cols}")
+                    fig = create_cell_type_comparison_plot(df, freq_cols, plot_type, **kwargs)
                 else:
-                    # Last resort - use first non-metadata column
+                    # Last resort - use all non-metadata columns
                     metadata_cols = ['SampleID', 'Group', 'Animal', 'Well', 'Time', 'Replicate', 'Tissue']
                     non_metadata_cols = [col for col in df.columns if col not in metadata_cols]
                     if non_metadata_cols:
-                        logger.info(f"Using fallback column: {non_metadata_cols[0]}")
-                        fig = create_single_metric_plot(df, non_metadata_cols[0], plot_type, **kwargs)
+                        logger.info(f"Using fallback columns: {non_metadata_cols}")
+                        fig = create_cell_type_comparison_plot(df, non_metadata_cols, plot_type, **kwargs)
                     else:
                         raise ValueError(f"No suitable columns found for metric type '{y}'. Available: {list(df.columns)}")
         else:
-            # Specific column - use normal aggregation
-            # Validate column exists
+            # Specific column - find all similar columns for consistent display
             if y not in df.columns:
                 raise ValueError(f"Column '{y}' not found. Available: {list(df.columns)}")
-            fig = create_single_metric_plot(df, y, plot_type, **kwargs)
+            
+            # Try to find related columns for multi-subpopulation display
+            related_cols = [col for col in df.columns if any(keyword in col.lower() for keyword in ['freq', 'mean', 'median', 'count']) and col != y]
+            if related_cols:
+                all_cols = [y] + related_cols
+                logger.info(f"Found related columns for '{y}': {all_cols}")
+                fig = create_cell_type_comparison_plot(df, all_cols, plot_type, **kwargs)
+            else:
+                # Single column fallback - still use comparison plot for consistency
+                fig = create_cell_type_comparison_plot(df, [y], plot_type, **kwargs)
         
         # Apply standardized legend configuration to Group plots as well
         color_col = kwargs.get('color')
@@ -163,7 +169,7 @@ def plot(data: Union[str, DataFrame],
         fig = configure_legend(fig, df, color_col, is_subplot=False, width=width, height=height)
     else:
         # For non-Group plots, use original data
-        fig = create_basic_plot(df, x, y, plot_type, **kwargs)
+        fig = create_basic_plot(df, x, y, plot_type, filter_options=filter_options, **kwargs)
     
     # Save if requested
     if save_html:
@@ -228,11 +234,11 @@ def compare_groups(data: Union[str, DataFrame],
     
     # Create comparison plot
     if plot_type == "box":
-        fig = create_basic_plot(df, group_col, metric, "box", **kwargs)
+        fig = create_basic_plot(df, group_col, metric, "box", filter_options=filter_options, **kwargs)
     elif plot_type == "bar":
-        fig = create_basic_plot(df, group_col, metric, "bar", **kwargs)
+        fig = create_basic_plot(df, group_col, metric, "bar", filter_options=filter_options, **kwargs)
     elif plot_type == "scatter":
-        fig = create_basic_plot(df, group_col, metric, "scatter", **kwargs)
+        fig = create_basic_plot(df, group_col, metric, "scatter", filter_options=filter_options, **kwargs)
     else:
         raise ValueError(f"Unknown plot type: {plot_type}")
     
@@ -241,8 +247,12 @@ def compare_groups(data: Union[str, DataFrame],
     height = kwargs.get('height')
     fig = configure_legend(fig, df, None, is_subplot=False, width=width, height=height)
     
+    # Create comprehensive title with metric, tissue, and timepoint info
+    from .column_utils import create_comprehensive_plot_title
+    comprehensive_title = create_comprehensive_plot_title(df, metric, filter_options=filter_options)
+    
     fig.update_layout(
-        title=f"{metric} Comparison Across Groups",
+        title=comprehensive_title,
         xaxis_title="Group",
         yaxis_title=metric
     )
