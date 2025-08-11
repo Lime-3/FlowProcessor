@@ -206,6 +206,70 @@ def calculate_layout_for_long_labels(
     }
 
 
+def calculate_aspect_ratio_dimensions(
+    labels: List[str], 
+    legend_items: int, 
+    num_subplots: int = 1,
+    base_width: int = DEFAULT_WIDTH
+) -> Dict[str, int]:
+    """
+    Calculate dimensions maintaining 2:1 width:height aspect ratio with content adjustments.
+    
+    Args:
+        labels: List of x-axis labels
+        legend_items: Number of legend items
+        num_subplots: Number of subplots
+        base_width: Base width to calculate height from
+        
+    Returns:
+        Dictionary with width and height maintaining aspect ratio
+    """
+    from .plot_config import TARGET_ASPECT_RATIO
+    
+    # Start with target 2:1 aspect ratio
+    target_ratio = TARGET_ASPECT_RATIO
+    
+    # Adjust for content needs while maintaining aspect ratio
+    content_adjustments = 0.0
+    
+    # Adjust for label length (longer labels need more height, so reduce ratio)
+    max_label_length = max(len(str(label)) for label in labels) if labels else 0
+    if max_label_length > 15:
+        content_adjustments += 0.3  # Reduce ratio to 1.7:1 for long labels
+    elif max_label_length > 10:
+        content_adjustments += 0.1  # Reduce ratio to 1.9:1 for medium labels
+    
+    # Adjust for legend items (more items need more height, so reduce ratio)
+    if legend_items > 5:
+        content_adjustments += 0.2  # Reduce ratio for many legend items
+    elif legend_items > 3:
+        content_adjustments += 0.1  # Slight reduction for moderate legend items
+    
+    # Adjust for subplot count (more subplots need more height, so reduce ratio)
+    if num_subplots > 3:
+        content_adjustments += 0.4  # Reduce ratio significantly for many subplots
+    elif num_subplots > 1:
+        content_adjustments += 0.2  # Reduce ratio for multiple subplots
+    
+    # Calculate final aspect ratio with content adjustments
+    final_ratio = max(1.0, target_ratio - content_adjustments)  # Don't go below 1:1
+    
+    # Calculate dimensions
+    width = base_width
+    height = int(width / final_ratio)
+    
+    # Ensure minimum dimensions
+    width = max(width, 600)
+    height = max(height, 300)
+    
+    return {
+        'width': width,
+        'height': height,
+        'aspect_ratio': final_ratio,
+        'content_adjustments': content_adjustments
+    }
+
+
 def calculate_optimal_legend_position(
     legend_items: int,
     legend_labels: List[str],

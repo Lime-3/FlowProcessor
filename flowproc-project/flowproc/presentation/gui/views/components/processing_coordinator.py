@@ -138,15 +138,41 @@ class ProcessingCoordinator(QObject):
         original_rows = len(filtered_df)
         
         # Check if any filters are selected
-        has_tissue_filter = hasattr(options, 'selected_tissues') and options.selected_tissues
-        has_time_filter = hasattr(options, 'selected_times') and options.selected_times
+        # None means "show all" (filter is hidden), empty list means "no selection" (filter is visible but nothing checked)
+        has_tissue_filter = hasattr(options, 'selected_tissues') and options.selected_tissues is not None and len(options.selected_tissues) > 0
+        has_time_filter = hasattr(options, 'selected_times') and options.selected_times is not None and len(options.selected_times) > 0
         
         # Check if data has filterable columns
         has_tissue_data = 'Tissue' in filtered_df.columns and not filtered_df['Tissue'].isna().all()
         has_time_data = 'Time' in filtered_df.columns and not filtered_df['Time'].isna().all()
         
-        # If no filters are selected but data has filterable columns, show all data
-        # This handles the case where filters are auto-populated but not explicitly selected
+        # Check if we have real tissue data (not just UNK)
+        has_real_tissue_data = False
+        if has_tissue_data:
+            unique_tissues = filtered_df['Tissue'].dropna().unique()
+            real_tissues = [t for t in unique_tissues if t != 'UNK']
+            has_real_tissue_data = len(real_tissues) > 0
+        
+        # Debug logging
+        logger.info(f"Filter analysis - has_tissue_filter: {has_tissue_filter}, has_time_filter: {has_time_filter}")
+        logger.info(f"Data analysis - has_tissue_data: {has_tissue_data}, has_time_data: {has_time_data}, has_real_tissue_data: {has_real_tissue_data}")
+        if has_tissue_data:
+            logger.info(f"Tissue values: {unique_tissues}")
+        if has_time_data:
+            logger.info(f"Time values: {filtered_df['Time'].dropna().unique()}")
+        
+        # Handle the case where filters are hidden (None) vs. no selection (empty list)
+        # None means "show all", empty list means "no selection"
+        tissue_filter_hidden = hasattr(options, 'selected_tissues') and options.selected_tissues is None
+        time_filter_hidden = hasattr(options, 'selected_times') and options.selected_times is None
+        
+        # If filters are hidden (None), show all data
+        if tissue_filter_hidden and time_filter_hidden:
+            logger.info("All filters are hidden - showing all data")
+            return filtered_df
+        
+        # If no filters are selected (empty lists) but data has filterable columns, show all data
+        # This handles the case where filters are visible but nothing is checked
         if not has_tissue_filter and not has_time_filter:
             if has_tissue_data or has_time_data:
                 logger.info("No filters explicitly selected but data has filterable columns - showing all data")
@@ -159,12 +185,29 @@ class ProcessingCoordinator(QObject):
         if has_tissue_filter and 'Tissue' in filtered_df.columns:
             filtered_df = filtered_df[filtered_df['Tissue'].isin(options.selected_tissues)]
             logger.info(f"After tissue filter: {len(filtered_df)} rows (was {original_rows})")
+        elif tissue_filter_hidden:
+            # Tissue filter is hidden (None) - show all tissue data
+            logger.info("Tissue filter is hidden - showing all tissue data")
+        elif has_tissue_data and not has_real_tissue_data:
+            # No tissue filter selected but we have tissue data (only UNK)
+            # Filter out UNK tissues to show only meaningful data
+            filtered_df = filtered_df[filtered_df['Tissue'] != 'UNK']
+            logger.info(f"Auto-filtered out UNK tissues: {len(filtered_df)} rows (was {original_rows})")
+        elif has_tissue_data and has_real_tissue_data and not has_tissue_filter:
+            # No tissue filter selected but we have real tissue data
+            # Don't filter by tissue - show all tissue data
+            logger.info("No tissue filter selected but real tissue data available - showing all tissue data")
+            # Ensure we keep all tissue data when no filter is applied
+            # This handles the case where tissue filter is visible but nothing is checked
         
         # Apply time filter
         if has_time_filter and 'Time' in filtered_df.columns:
             pre_time_rows = len(filtered_df)
             filtered_df = filtered_df[filtered_df['Time'].isin(options.selected_times)]
             logger.info(f"After time filter: {len(filtered_df)} rows (was {pre_time_rows})")
+        elif time_filter_hidden:
+            # Time filter is hidden (None) - show all time data
+            logger.info("Time filter is hidden - showing all time data")
         
         logger.info(f"Filter summary: {original_rows} -> {len(filtered_df)} rows")
         return filtered_df

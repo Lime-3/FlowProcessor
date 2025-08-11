@@ -20,6 +20,10 @@ LEGEND_TRACE_GROUP_GAP = 6
 MAX_CELL_TYPES = 8
 SUBPLOT_HEIGHT_PER_ROW = 200
 
+# Aspect ratio configuration
+TARGET_ASPECT_RATIO = 2.0  # Width:Height ratio (2:1 = wide and short)
+ASPECT_TOLERANCE = 0.2  # Allow 20% variation from target ratio
+
 # Trace styling defaults
 DEFAULT_TRACE_CONFIG = {
     'line': {'width': 2},

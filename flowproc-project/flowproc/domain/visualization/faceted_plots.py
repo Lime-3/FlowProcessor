@@ -14,7 +14,7 @@ from .plot_config import (
     MAX_CELL_TYPES, SUBPLOT_HEIGHT_PER_ROW, DEFAULT_TRACE_CONFIG
 )
 from .plot_utils import (
-    format_time_title, validate_plot_data, limit_cell_types, calculate_subplot_dimensions
+    format_time_title, validate_plot_data, limit_cell_types, calculate_subplot_dimensions, calculate_aspect_ratio_dimensions
 )
 from .column_utils import create_enhanced_title, extract_cell_type_name, get_base_columns, create_comprehensive_plot_title, extract_metric_name
 from .data_aggregation import prepare_data_for_plotting
@@ -153,9 +153,23 @@ def _create_faceted_plot(
                         row=row, col=col_idx
                     )
     
-    # Calculate height if not provided
+    # Calculate height maintaining 2:1 aspect ratio if not provided
     if height is None:
-        height = max(DEFAULT_HEIGHT, rows * SUBPLOT_HEIGHT_PER_ROW)
+        # Get labels for aspect ratio calculation
+        if facet_by:
+            labels = df[facet_by].unique().tolist()
+            legend_items = len(value_cols)
+        else:
+            labels = value_cols
+            legend_items = len(df['Group'].unique()) if 'Group' in df.columns else 0
+        
+        dimensions = calculate_aspect_ratio_dimensions(
+            labels=labels,
+            legend_items=legend_items,
+            num_subplots=rows,
+            base_width=width
+        )
+        height = dimensions['height']
     
     # Apply standardized legend configuration
     from .legend_config import configure_legend
