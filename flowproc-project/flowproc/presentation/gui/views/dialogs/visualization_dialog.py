@@ -168,7 +168,8 @@ class VisualizationDialog(QDialog):
         # Tissue filter
         tissue_filter_layout = QVBoxLayout()
         tissue_filter_layout.setSpacing(5)  # Consistent spacing between label and control
-        tissue_filter_layout.addWidget(QLabel("Tissue Filter:"))
+        self.tissue_filter_label = QLabel("Tissue Filter:")
+        tissue_filter_layout.addWidget(self.tissue_filter_label)
         self.tissue_filter = QListWidget()
         self.tissue_filter.setMaximumHeight(80)
         # Use NoSelection mode to rely on checkboxes instead of selection highlighting
@@ -362,10 +363,21 @@ class VisualizationDialog(QDialog):
             self._populate_filter_options(df)
             
             # Auto-generate initial plot if filters are available
-            if 'Tissue' in df.columns or ('Time' in df.columns and len(df['Time'].dropna().unique()) > 0):
+            has_tissue_data = 'Tissue' in df.columns and not df['Tissue'].isna().all()
+            has_time_data = 'Time' in df.columns and len(df['Time'].dropna().unique()) > 0
+            
+            # Check if we have real tissue data (not just UNK)
+            has_real_tissue_data = False
+            if has_tissue_data:
+                unique_tissues = df['Tissue'].dropna().unique()
+                real_tissues = [t for t in unique_tissues if t != 'UNK']
+                has_real_tissue_data = len(real_tissues) > 0
+            
+            if has_real_tissue_data or has_time_data:
                 self._generate_plot()
             else:
-                self.status_label.setText("Please select tissue and/or time filters to display data.")
+                self.status_label.setText("No real tissue or time data detected. Generating plot with available data.")
+                self._generate_plot()
             
         except Exception as e:
             logger.error(f"Failed to analyze data: {e}")
@@ -399,28 +411,38 @@ class VisualizationDialog(QDialog):
         self.time_filter.clear()
         
         # Populate tissue filter with unique tissue values
+        has_real_tissue_data = False
         if 'Tissue' in df.columns:
             unique_tissues = df['Tissue'].dropna().unique()
-            # Use tissue parser to get full names
-            from flowproc.domain.parsing.tissue_parser import TissueParser
-            tissue_parser = TissueParser()
+            # Check if we have any real tissues (not just UNK)
+            real_tissues = [t for t in unique_tissues if t != 'UNK']
+            has_real_tissue_data = len(real_tissues) > 0
             
-            for tissue_code in sorted(unique_tissues):
-                # Get count for this tissue
-                tissue_count = len(df[df['Tissue'] == tissue_code])
+            if has_real_tissue_data:
+                # Use tissue parser to get full names
+                from flowproc.domain.parsing.tissue_parser import TissueParser
+                tissue_parser = TissueParser()
                 
-                if tissue_code == 'UNK':
-                    # Include UNK but mark it clearly
-                    display_text = f"UNK (Unknown) [{tissue_count} samples]"
-                else:
-                    full_name = tissue_parser.get_full_name(tissue_code)
-                    display_text = f"{tissue_code} ({full_name}) [{tissue_count} samples]"
+                for tissue_code in sorted(unique_tissues):
+                    # Get count for this tissue
+                    tissue_count = len(df[df['Tissue'] == tissue_code])
                     
-                item = QListWidgetItem(display_text)
-                item.setData(Qt.ItemDataRole.UserRole, tissue_code)  # Store the tissue code
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)  # Enable checkbox
-                item.setCheckState(Qt.CheckState.Checked)  # Auto-select all tissues by default
-                self.tissue_filter.addItem(item)
+                    if tissue_code == 'UNK':
+                        # Include UNK but mark it clearly
+                        display_text = f"UNK (Unknown) [{tissue_count} samples]"
+                    else:
+                        full_name = tissue_parser.get_full_name(tissue_code)
+                        display_text = f"{tissue_code} ({full_name}) [{tissue_count} samples]"
+                        
+                    item = QListWidgetItem(display_text)
+                    item.setData(Qt.ItemDataRole.UserRole, tissue_code)  # Store the tissue code
+                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)  # Enable checkbox
+                    item.setCheckState(Qt.CheckState.Checked)  # Auto-select all tissues by default
+                    self.tissue_filter.addItem(item)
+        
+        # Hide tissue filter section if no real tissue data is available
+        self.tissue_filter_label.setVisible(has_real_tissue_data)
+        self.tissue_filter.setVisible(has_real_tissue_data)
         
         # Populate time filter with unique time values  
         has_time_data = False
@@ -431,6 +453,8 @@ class VisualizationDialog(QDialog):
                 # Use time parser to format time values
                 from flowproc.domain.parsing.time_service import TimeService
                 time_service = TimeService()
+                
+                logger.info(f"Populating time filter with {len(unique_times)} time points: {unique_times}")
                 
                 for time_hours in sorted(unique_times):
                     if pd.notna(time_hours):
@@ -445,10 +469,13 @@ class VisualizationDialog(QDialog):
                         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)  # Enable checkbox
                         item.setCheckState(Qt.CheckState.Checked)  # Auto-select all time points by default
                         self.time_filter.addItem(item)
+                        
+                        logger.info(f"Added time filter item: {time_hours}h -> {display_text} (checked: {item.checkState()})")
         
         # Hide time filter section if no time data is available
         self.time_filter_label.setVisible(has_time_data)
         self.time_filter.setVisible(has_time_data)
+        logger.info(f"Time filter visibility - has_time_data: {has_time_data}, visible: {has_time_data}")
     
     def _on_option_changed(self):
         """Handle option changes."""
@@ -477,21 +504,36 @@ class VisualizationDialog(QDialog):
         """Get current visualization options including filters."""
         # Get selected tissues
         selected_tissues = []
-        if self.tissue_filter:
+        if self.tissue_filter and self.tissue_filter.isVisible():
             for i in range(self.tissue_filter.count()):
                 item = self.tissue_filter.item(i)
                 if item.checkState() == Qt.CheckState.Checked:
                     tissue_code = item.data(Qt.ItemDataRole.UserRole)
                     selected_tissues.append(tissue_code)
+        else:
+            # If tissue filter is not visible, it means no real tissue data was detected
+            # In this case, we want to show all data (no tissue filtering)
+            # Set selected_tissues to None to indicate "show all" rather than empty list
+            selected_tissues = None
         
         # Get selected times
         selected_times = []
-        if self.time_filter:
+        if self.time_filter and self.time_filter.isVisible():
             for i in range(self.time_filter.count()):
                 item = self.time_filter.item(i)
                 if item.checkState() == Qt.CheckState.Checked:
                     time_value = item.data(Qt.ItemDataRole.UserRole)
                     selected_times.append(time_value)
+        else:
+            # If time filter is not visible, it means no time data was detected
+            # In this case, we want to show all data (no time filtering)
+            # Set selected_times to None to indicate "show all" rather than empty list
+            selected_times = None
+        
+        # Debug logging for filter selection
+        logger.info(f"Filter selection - tissue_filter visible: {self.tissue_filter and self.tissue_filter.isVisible()}, count: {self.tissue_filter.count() if self.tissue_filter else 0}")
+        logger.info(f"Filter selection - time_filter visible: {self.time_filter and self.time_filter.isVisible()}, count: {self.time_filter.count() if self.time_filter else 0}")
+        logger.info(f"Filter selection - selected tissues: {selected_tissues}, selected times: {selected_times}")
         
         return VisualizationOptions(
             plot_type=self.plot_type_combo.currentText() if self.plot_type_combo else "bar",
@@ -510,6 +552,9 @@ class VisualizationDialog(QDialog):
             
             # Get current options including filters
             options = self.get_current_options()
+            
+            # Debug logging for filter options
+            logger.info(f"Current options - tissues: {options.selected_tissues}, times: {options.selected_times}, time_course: {options.time_course_mode}")
             
             # Create temporary HTML file
             if self.temp_html_file and self.temp_html_file.exists():
@@ -531,42 +576,78 @@ class VisualizationDialog(QDialog):
                 self._show_error_message("No data found in CSV file")
                 return
             
+            # Debug logging for data structure
+            logger.info(f"Data loaded - rows: {len(df)}, columns: {list(df.columns)}")
+            if 'Tissue' in df.columns:
+                logger.info(f"Tissue data - unique values: {df['Tissue'].dropna().unique()}")
+            if 'Time' in df.columns:
+                logger.info(f"Time data - unique values: {df['Time'].dropna().unique()}")
+            
             # Apply filters using coordinator's static method
             filtered_df = ProcessingCoordinator.apply_filters(df, options)
             
             # Provide detailed feedback about filtering
             filter_message = f"Filtered data: {len(filtered_df)} of {len(df)} rows"
-            if options.selected_tissues:
+            if options.selected_tissues is not None:
                 filter_message += f" (tissues: {', '.join(options.selected_tissues)})"
-            if options.selected_times:
+            if options.selected_times is not None:
                 filter_message += f" (times: {', '.join(map(str, options.selected_times))})"
             logger.info(filter_message)
             
             if filtered_df.empty:
                 # Check if no filters are selected
-                has_tissue_filter = options.selected_tissues and len(options.selected_tissues) > 0
-                has_time_filter = options.selected_times and len(options.selected_times) > 0
+                # None means "show all" (filter is hidden), empty list means "no selection" (filter is visible but nothing checked)
+                has_tissue_filter = options.selected_tissues is not None and len(options.selected_tissues) > 0
+                has_time_filter = options.selected_times is not None and len(options.selected_times) > 0
                 has_time_data = 'Time' in df.columns and len(df['Time'].dropna().unique()) > 0
+                has_tissue_data = 'Tissue' in df.columns and not df['Tissue'].isna().all()
                 
-                if not has_tissue_filter and not has_time_filter and has_time_data:
+                # Check if we have real tissue data (not just UNK)
+                has_real_tissue_data = False
+                if has_tissue_data:
+                    unique_tissues = df['Tissue'].dropna().unique()
+                    real_tissues = [t for t in unique_tissues if t != 'UNK']
+                    has_real_tissue_data = len(real_tissues) > 0
+                
+                # Check if time filter is visible and populated (even if no items are checked)
+                time_filter_visible = self.time_filter and self.time_filter.isVisible() and self.time_filter.count() > 0
+                
+                # Check if tissue filter is visible and populated (even if no items are checked)
+                tissue_filter_visible = self.tissue_filter and self.tissue_filter.isVisible() and self.tissue_filter.count() > 0
+                
+                if not has_tissue_filter and not has_time_filter and (has_time_data or has_real_tissue_data):
                     error_msg = "No filters selected. Please select at least one tissue or time filter to display data."
-                    if 'Tissue' in df.columns:
-                        available_tissues = df['Tissue'].dropna().unique()
+                    if has_real_tissue_data:
+                        available_tissues = [t for t in df['Tissue'].dropna().unique() if t != 'UNK']
                         error_msg += f"\n\nAvailable tissues: {', '.join(available_tissues)}"
-                    if 'Time' in df.columns:
+                    if has_time_data:
                         available_times = df['Time'].dropna().unique()
                         error_msg += f"\nAvailable times: {', '.join(map(str, available_times))}"
+                elif not has_tissue_filter and not has_time_data and not has_real_tissue_data:
+                    error_msg = "No real tissue data detected and no time data available. Please check your data."
+                    if has_tissue_data:
+                        available_tissues = df['Tissue'].dropna().unique()
+                        error_msg += f"\n\nDetected tissue codes: {', '.join(available_tissues)}"
                 elif not has_tissue_filter and not has_time_data:
                     error_msg = "No tissue filter selected. Please select at least one tissue to display data."
-                    if 'Tissue' in df.columns:
-                        available_tissues = df['Tissue'].dropna().unique()
+                    if has_real_tissue_data:
+                        available_tissues = [t for t in df['Tissue'].dropna().unique() if t != 'UNK']
                         error_msg += f"\n\nAvailable tissues: {', '.join(available_tissues)}"
+                elif has_time_filter and has_time_data and not has_tissue_filter:
+                    # Time filter is selected but no tissue filter - this might be the issue
+                    error_msg = "Time filter selected but no tissue filter selected. Please select at least one tissue to display data."
+                    if has_real_tissue_data:
+                        available_tissues = [t for t in df['Tissue'].dropna().unique() if t != 'UNK']
+                        error_msg += f"\n\nAvailable tissues: {', '.join(available_tissues)}"
+                    if has_time_data:
+                        available_times = df['Time'].dropna().unique()
+                        error_msg += f"\nAvailable times: {', '.join(map(str, available_times))}"
                 else:
                     error_msg = "No data matches the current filter selection."
-                    if options.selected_tissues:
+                    if options.selected_tissues is not None:
                         available_tissues = df['Tissue'].dropna().unique() if 'Tissue' in df.columns else []
                         error_msg += f"\nAvailable tissues: {', '.join(available_tissues)}"
-                    if options.selected_times:
+                    if options.selected_times is not None:
                         available_times = df['Time'].dropna().unique() if 'Time' in df.columns else []
                         error_msg += f"\nAvailable times: {', '.join(map(str, available_times))}"
                     error_msg += "\nPlease adjust your filters."
@@ -602,10 +683,22 @@ class VisualizationDialog(QDialog):
                 
                 # Update status with filter information
                 status_text = f"Plot generated successfully - {len(filtered_df)} of {len(df)} rows displayed"
-                if options.selected_tissues and len(options.selected_tissues) < len(df['Tissue'].dropna().unique()):
+                
+                # Check if we have real tissue data
+                has_real_tissue_data = False
+                if 'Tissue' in df.columns:
+                    unique_tissues = df['Tissue'].dropna().unique()
+                    real_tissues = [t for t in unique_tissues if t != 'UNK']
+                    has_real_tissue_data = len(real_tissues) > 0
+                
+                if options.selected_tissues is not None and len(options.selected_tissues) < len(df['Tissue'].dropna().unique()):
                     status_text += " (filtered by tissue)"
-                if options.selected_times and len(options.selected_times) < len(df['Time'].dropna().unique()):
+                elif not has_real_tissue_data and 'Tissue' in df.columns:
+                    status_text += " (auto-filtered UNK tissues)"
+                
+                if options.selected_times is not None and len(options.selected_times) < len(df['Time'].dropna().unique()):
                     status_text += " (filtered by time)"
+                
                 self.status_label.setText(status_text)
                 self.plot_generated.emit()
             else:

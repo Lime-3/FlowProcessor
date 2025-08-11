@@ -43,31 +43,39 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Calculate optimal legend positioning
-        from .plot_utils import calculate_optimal_legend_position
-        
+        # Calculate dimensions maintaining 2:1 aspect ratio
+        labels = df[x_col].unique().tolist() if x_col in df.columns else []
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
-        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
         
-        legend_config = calculate_optimal_legend_position(
+        from .plot_utils import calculate_aspect_ratio_dimensions
+        dimensions = calculate_aspect_ratio_dimensions(
+            labels=labels,
             legend_items=legend_items,
-            legend_labels=legend_labels,
-            plot_width=1000,
-            plot_height=600
+            base_width=1000
         )
         
-        # Apply optimal legend positioning
-        layout_updates = {
-            "width": legend_config.get("width", 1000),
-            "margin": legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
-            "font": dict(family='Arial, sans-serif', size=12)
-        }
+        # Apply dimensions maintaining aspect ratio
+        fig.update_layout(
+            width=dimensions['width'],
+            height=dimensions['height'],
+            **self.default_layout
+        )
         
-        # Add legend configuration if present
-        if "legend" in legend_config:
-            layout_updates["legend"] = legend_config["legend"]
+        # Apply margin and legend adjustments
+        margin = self.default_layout['margin'].copy()
+        if max(len(str(label)) for label in labels) > 15:
+            margin['b'] = 80  # Increase bottom margin for long labels
+            margin['r'] = 250  # Increase right margin for legend
         
-        fig.update_layout(**layout_updates)
+        fig.update_layout(
+            margin=margin,
+            legend=dict(
+                x=0.5,
+                y=-0.25,
+                yanchor='top',
+                xanchor='center'
+            )
+        )
         
         return fig
     
@@ -79,33 +87,39 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Calculate optimal layout based on label lengths
+        # Calculate dimensions maintaining 2:1 aspect ratio
         labels = df[x_col].unique().tolist() if x_col in df.columns else []
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
-        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
         
-        # Import the layout calculation function
-        from .plot_utils import calculate_layout_for_long_labels
-        # Use consistent default dimensions
-        default_width = 600
-        default_height = 300
-        layout_adjustments = calculate_layout_for_long_labels(labels, legend_items, title, legend_labels, default_width, default_height)
+        from .plot_utils import calculate_aspect_ratio_dimensions
+        dimensions = calculate_aspect_ratio_dimensions(
+            labels=labels,
+            legend_items=legend_items,
+            base_width=1000
+        )
         
-        # Apply default layout
-        fig.update_layout(**self.default_layout)
+        # Apply dimensions maintaining aspect ratio
+        fig.update_layout(
+            width=dimensions['width'],
+            height=dimensions['height'],
+            **self.default_layout
+        )
         
-        # Apply dynamic layout adjustments if needed
-        if layout_adjustments:
-            fig.update_layout(
-                width=layout_adjustments.get("width", default_width),
-                height=layout_adjustments.get("height", default_height),
-                margin=layout_adjustments["margin"],
-                legend=layout_adjustments["legend"]
+        # Apply margin and legend adjustments
+        margin = self.default_layout['margin'].copy()
+        if max(len(str(label)) for label in labels) > 15:
+            margin['b'] = 80  # Increase bottom margin for long labels
+            margin['r'] = 250  # Increase right margin for legend
+        
+        fig.update_layout(
+            margin=margin,
+            legend=dict(
+                x=0.5,
+                y=-0.25,
+                yanchor='top',
+                xanchor='center'
             )
-            fig.update_xaxes(
-                title_standoff=layout_adjustments["xaxis_title_standoff"],
-                tickangle=layout_adjustments["xaxis_tickangle"]
-            )
+        )
         
         return fig
     
@@ -117,31 +131,39 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Calculate optimal legend positioning
-        from .plot_utils import calculate_optimal_legend_position
-        
+        # Calculate dimensions maintaining 2:1 aspect ratio
+        labels = df[x_col].unique().tolist() if x_col in df.columns else []
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
-        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
         
-        legend_config = calculate_optimal_legend_position(
+        from .plot_utils import calculate_aspect_ratio_dimensions
+        dimensions = calculate_aspect_ratio_dimensions(
+            labels=labels,
             legend_items=legend_items,
-            legend_labels=legend_labels,
-            plot_width=1000,
-            plot_height=600
+            base_width=1000
         )
         
-        # Apply optimal legend positioning
-        layout_updates = {
-            "width": legend_config.get("width", 1000),
-            "margin": legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
-            "font": dict(family='Arial, sans-serif', size=12)
-        }
+        # Apply dimensions maintaining aspect ratio
+        fig.update_layout(
+            width=dimensions['width'],
+            height=dimensions['height'],
+            **self.default_layout
+        )
         
-        # Add legend configuration if present
-        if "legend" in legend_config:
-            layout_updates["legend"] = legend_config["legend"]
+        # Apply margin and legend adjustments
+        margin = self.default_layout['margin'].copy()
+        if max(len(str(label)) for label in labels) > 15:
+            margin['b'] = 80  # Increase bottom margin for long labels
+            margin['r'] = 250  # Increase right margin for legend
         
-        fig.update_layout(**layout_updates)
+        fig.update_layout(
+            margin=margin,
+            legend=dict(
+                x=0.5,
+                y=-0.25,
+                yanchor='top',
+                xanchor='center'
+            )
+        )
         
         return fig
     
@@ -153,31 +175,39 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Calculate optimal legend positioning
-        from .plot_utils import calculate_optimal_legend_position
-        
+        # Calculate dimensions maintaining 2:1 aspect ratio
+        labels = df[x_col].unique().tolist() if x_col in df.columns else []
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
-        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
         
-        legend_config = calculate_optimal_legend_position(
+        from .plot_utils import calculate_aspect_ratio_dimensions
+        dimensions = calculate_aspect_ratio_dimensions(
+            labels=labels,
             legend_items=legend_items,
-            legend_labels=legend_labels,
-            plot_width=1000,
-            plot_height=600
+            base_width=1000
         )
         
-        # Apply optimal legend positioning
-        layout_updates = {
-            "width": legend_config.get("width", 1000),
-            "margin": legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
-            "font": dict(family='Arial, sans-serif', size=12)
-        }
+        # Apply dimensions maintaining aspect ratio
+        fig.update_layout(
+            width=dimensions['width'],
+            height=dimensions['height'],
+            **self.default_layout
+        )
         
-        # Add legend configuration if present
-        if "legend" in legend_config:
-            layout_updates["legend"] = legend_config["legend"]
+        # Apply margin and legend adjustments
+        margin = self.default_layout['margin'].copy()
+        if max(len(str(label)) for label in labels) > 15:
+            margin['b'] = 80  # Increase bottom margin for long labels
+            margin['r'] = 250  # Increase right margin for legend
         
-        fig.update_layout(**layout_updates)
+        fig.update_layout(
+            margin=margin,
+            legend=dict(
+                x=0.5,
+                y=-0.25,
+                yanchor='top',
+                xanchor='center'
+            )
+        )
         
         return fig
     
@@ -199,10 +229,22 @@ class PlotlyRenderer:
             **kwargs
         )
         
-        # Apply basic layout for heatmap (no legend positioning needed)
+        # Calculate dimensions maintaining 2:1 aspect ratio
+        x_labels = pivot_df.columns.tolist()
+        y_labels = pivot_df.index.tolist()
+        labels = x_labels + y_labels
+        
+        from .plot_utils import calculate_aspect_ratio_dimensions
+        dimensions = calculate_aspect_ratio_dimensions(
+            labels=labels,
+            legend_items=0,  # Heatmaps don't have legends
+            base_width=1000
+        )
+        
+        # Apply dimensions maintaining aspect ratio
         fig.update_layout(
-            width=1000,
-            height=600,
+            width=dimensions['width'],
+            height=dimensions['height'],
             margin={'l': 50, 'r': 50, 't': 50, 'b': 50},
             font=dict(family='Arial, sans-serif', size=12)
         )
@@ -217,31 +259,39 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Calculate optimal legend positioning
-        from .plot_utils import calculate_optimal_legend_position
-        
+        # Calculate dimensions maintaining 2:1 aspect ratio
+        labels = df[x_col].unique().tolist() if x_col in df.columns else []
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
-        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
         
-        legend_config = calculate_optimal_legend_position(
+        from .plot_utils import calculate_aspect_ratio_dimensions
+        dimensions = calculate_aspect_ratio_dimensions(
+            labels=labels,
             legend_items=legend_items,
-            legend_labels=legend_labels,
-            plot_width=1000,
-            plot_height=600
+            base_width=1000
         )
         
-        # Apply optimal legend positioning
-        layout_updates = {
-            "width": legend_config.get("width", 1000),
-            "margin": legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
-            "font": dict(family='Arial, sans-serif', size=12)
-        }
+        # Apply dimensions maintaining aspect ratio
+        fig.update_layout(
+            width=dimensions['width'],
+            height=dimensions['height'],
+            **self.default_layout
+        )
         
-        # Add legend configuration if present
-        if "legend" in legend_config:
-            layout_updates["legend"] = legend_config["legend"]
+        # Apply margin and legend adjustments
+        margin = self.default_layout['margin'].copy()
+        if max(len(str(label)) for label in labels) > 15:
+            margin['b'] = 80  # Increase bottom margin for long labels
+            margin['r'] = 250  # Increase right margin for legend
         
-        fig.update_layout(**layout_updates)
+        fig.update_layout(
+            margin=margin,
+            legend=dict(
+                x=0.5,
+                y=-0.25,
+                yanchor='top',
+                xanchor='center'
+            )
+        )
         
         return fig
     
@@ -253,31 +303,39 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Calculate optimal legend positioning
-        from .plot_utils import calculate_optimal_legend_position
-        
+        # Calculate dimensions maintaining 2:1 aspect ratio
+        labels = df[x_col].unique().tolist() if x_col in df.columns else []
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
-        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
         
-        legend_config = calculate_optimal_legend_position(
+        from .plot_utils import calculate_aspect_ratio_dimensions
+        dimensions = calculate_aspect_ratio_dimensions(
+            labels=labels,
             legend_items=legend_items,
-            legend_labels=legend_labels,
-            plot_width=1000,
-            plot_height=600
+            base_width=1000
         )
         
-        # Apply optimal legend positioning
-        layout_updates = {
-            "width": legend_config.get("width", 1000),
-            "margin": legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
-            "font": dict(family='Arial, sans-serif', size=12)
-        }
+        # Apply dimensions maintaining aspect ratio
+        fig.update_layout(
+            width=dimensions['width'],
+            height=dimensions['height'],
+            **self.default_layout
+        )
         
-        # Add legend configuration if present
-        if "legend" in legend_config:
-            layout_updates["legend"] = legend_config["legend"]
+        # Apply margin and legend adjustments
+        margin = self.default_layout['margin'].copy()
+        if max(len(str(label)) for label in labels) > 15:
+            margin['b'] = 80  # Increase bottom margin for long labels
+            margin['r'] = 250  # Increase right margin for legend
         
-        fig.update_layout(**layout_updates)
+        fig.update_layout(
+            margin=margin,
+            legend=dict(
+                x=0.5,
+                y=-0.25,
+                yanchor='top',
+                xanchor='center'
+            )
+        )
         
         return fig
     
@@ -289,31 +347,27 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Calculate optimal legend positioning
-        from .plot_utils import calculate_optimal_legend_position
-        
+        # Calculate dimensions maintaining 2:1 aspect ratio
+        # For 3D plots, we'll use a more square aspect ratio since they need more height
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
-        legend_labels = df[color_col].unique().tolist() if color_col and color_col in df.columns else []
         
-        legend_config = calculate_optimal_legend_position(
+        from .plot_utils import calculate_aspect_ratio_dimensions
+        dimensions = calculate_aspect_ratio_dimensions(
+            labels=[],  # 3D plots don't have x-axis labels in the same way
             legend_items=legend_items,
-            legend_labels=legend_labels,
-            plot_width=1000,
-            plot_height=600
+            base_width=1000
         )
         
-        # Apply optimal legend positioning
-        layout_updates = {
-            "width": legend_config.get("width", 1000),
-            "margin": legend_config.get("margin", {"l": 50, "r": 50, "t": 50, "b": 50}),
-            "font": dict(family='Arial, sans-serif', size=12)
-        }
+        # For 3D plots, adjust to be more square (reduce aspect ratio)
+        adjusted_height = int(dimensions['width'] * 0.8)  # 1.25:1 ratio for 3D
         
-        # Add legend configuration if present
-        if "legend" in legend_config:
-            layout_updates["legend"] = legend_config["legend"]
-        
-        fig.update_layout(**layout_updates)
+        # Apply dimensions maintaining adjusted aspect ratio for 3D
+        fig.update_layout(
+            width=dimensions['width'],
+            height=adjusted_height,
+            margin={'l': 50, 'r': 50, 't': 50, 'b': 50},
+            font=dict(family='Arial, sans-serif', size=12)
+        )
         
         return fig
     
@@ -335,8 +389,25 @@ class PlotlyRenderer:
             for trace in plot.data:
                 fig.add_trace(trace, row=row, col=col)
         
-        # Apply default layout
-        fig.update_layout(**self.default_layout)
+        # Calculate dimensions maintaining 2:1 aspect ratio for subplots
+        from .plot_utils import calculate_aspect_ratio_dimensions
+        
+        # Estimate labels and legend items from the plots
+        total_legend_items = sum(len(plot.data) for plot in plots)
+        
+        dimensions = calculate_aspect_ratio_dimensions(
+            labels=[],  # Subplot titles are handled separately
+            legend_items=total_legend_items,
+            num_subplots=rows * cols,
+            base_width=1000
+        )
+        
+        # Apply dimensions maintaining aspect ratio
+        fig.update_layout(
+            width=dimensions['width'],
+            height=dimensions['height'],
+            **self.default_layout
+        )
         
         return fig
     
