@@ -96,8 +96,9 @@ class VisualizationDialog(QDialog):
         """Set up the main UI layout."""
         main_layout = QVBoxLayout(self)
         
-        # Settings panel at the top
+        # Settings panel at the top with fixed height
         settings_widget = self._create_settings_panel()
+        settings_widget.setFixedHeight(180)  # Fixed height for settings panel
         main_layout.addWidget(settings_widget)
         
         # Create splitter for plot display
@@ -108,8 +109,9 @@ class VisualizationDialog(QDialog):
         plot_widget = self._create_plot_panel()
         splitter.addWidget(plot_widget)
         
-        # Status bar at bottom
+        # Status bar at bottom with fixed height
         self.status_label = QLabel("Ready")
+        self.status_label.setFixedHeight(30)  # Fixed height for status bar
         self.status_label.setStyleSheet("padding: 5px; background-color: #191919; border-top: 1px solid #303030; color: #F0F0F0;")
         main_layout.addWidget(self.status_label)
     
@@ -117,43 +119,55 @@ class VisualizationDialog(QDialog):
         """Create the settings configuration panel at the top."""
         settings_widget = QWidget()
         settings_layout = QVBoxLayout(settings_widget)
-        settings_layout.setContentsMargins(10, 10, 10, 10)
+        settings_layout.setContentsMargins(5, 5, 5, 5)
         settings_layout.setSpacing(15)
         
         # Basic Options Group
         basic_group = QGroupBox("Visualization Settings")
+        basic_group.setStyleSheet("QGroupBox { border: 1px solid #404040; border-radius: 4px; margin-top: 8px; padding-top: 8px; }")
         basic_layout = QVBoxLayout(basic_group)
+        basic_layout.setContentsMargins(8, 8, 8, 8)  # Tighter margins
+        
+        # Add top stretch to center content vertically
+        basic_layout.addStretch()
         
         # Single row: Plot type, Y-axis, Mode, Tissue filter, Time filter, and Action buttons
         main_row = QHBoxLayout()
         
         # Plot type selection
         plot_type_layout = QVBoxLayout()
+        plot_type_layout.setSpacing(5)  # Consistent spacing between label and control
         plot_type_layout.addWidget(QLabel("Plot Type:"))
         self.plot_type_combo = QComboBox()
         self.plot_type_combo.addItems(["bar", "box", "scatter", "line"])
         self.plot_type_combo.currentTextChanged.connect(self._on_option_changed)
         plot_type_layout.addWidget(self.plot_type_combo)
+        plot_type_layout.addStretch()  # Push content to top
         main_row.addLayout(plot_type_layout)
         
         # Y-axis selection
         y_axis_layout = QVBoxLayout()
+        y_axis_layout.setSpacing(5)  # Consistent spacing between label and control
         y_axis_layout.addWidget(QLabel("Y-Axis:"))
         self.y_axis_combo = QComboBox()
         self.y_axis_combo.currentTextChanged.connect(self._on_option_changed)
         y_axis_layout.addWidget(self.y_axis_combo)
+        y_axis_layout.addStretch()  # Push content to top
         main_row.addLayout(y_axis_layout)
         
         # Time course mode
         time_course_layout = QVBoxLayout()
+        time_course_layout.setSpacing(5)  # Consistent spacing between label and control
         time_course_layout.addWidget(QLabel("Mode:"))
         self.time_course_checkbox = QCheckBox("Time Course Mode")
         self.time_course_checkbox.toggled.connect(self._on_time_course_toggled)
         time_course_layout.addWidget(self.time_course_checkbox)
+        time_course_layout.addStretch()  # Push content to top
         main_row.addLayout(time_course_layout)
         
         # Tissue filter
         tissue_filter_layout = QVBoxLayout()
+        tissue_filter_layout.setSpacing(5)  # Consistent spacing between label and control
         tissue_filter_layout.addWidget(QLabel("Tissue Filter:"))
         self.tissue_filter = QListWidget()
         self.tissue_filter.setMaximumHeight(80)
@@ -161,10 +175,12 @@ class VisualizationDialog(QDialog):
         self.tissue_filter.setSelectionMode(QListWidget.SelectionMode.NoSelection)
         self.tissue_filter.itemChanged.connect(self._on_filter_changed)
         tissue_filter_layout.addWidget(self.tissue_filter)
+        tissue_filter_layout.addStretch()  # Push content to top
         main_row.addLayout(tissue_filter_layout)
         
         # Time filter
         self.time_filter_layout = QVBoxLayout()
+        self.time_filter_layout.setSpacing(5)  # Consistent spacing between label and control
         self.time_filter_label = QLabel("Time Filter:")
         self.time_filter_layout.addWidget(self.time_filter_label)
         self.time_filter = QListWidget()
@@ -173,6 +189,7 @@ class VisualizationDialog(QDialog):
         self.time_filter.setSelectionMode(QListWidget.SelectionMode.NoSelection)
         self.time_filter.itemChanged.connect(self._on_filter_changed)
         self.time_filter_layout.addWidget(self.time_filter)
+        self.time_filter_layout.addStretch()  # Push content to top
         main_row.addLayout(self.time_filter_layout)
         
         # Action Buttons - stacked vertically to the right of filters
@@ -193,6 +210,9 @@ class VisualizationDialog(QDialog):
         main_row.addLayout(button_layout)
         
         basic_layout.addLayout(main_row)
+        
+        # Add bottom stretch to center content vertically
+        basic_layout.addStretch()
         settings_layout.addWidget(basic_group)
         
         return settings_widget
@@ -202,12 +222,6 @@ class VisualizationDialog(QDialog):
         plot_widget = QWidget()
         plot_layout = QVBoxLayout(plot_widget)
         plot_layout.setContentsMargins(10, 10, 10, 10)
-        
-        # Plot title
-        plot_title = QLabel("Flow Cytometry Visualization")
-        plot_title.setStyleSheet("font-size: 16px; font-weight: bold; padding: 10px; color: #0064FF;")
-        plot_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        plot_layout.addWidget(plot_title)
         
         # Web view for plot display
         self.web_view = QWebEngineView()
