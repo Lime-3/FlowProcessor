@@ -70,13 +70,13 @@ def detect_flow_columns(df: DataFrame) -> Dict[str, List[str]]:
 
 def extract_cell_type_name(column_name: str) -> str:
     """
-    Extract cell type name from column name.
+    Extract cell type name from column name and format it appropriately.
     
     Args:
         column_name: Full column name
         
     Returns:
-        Extracted cell type name
+        Extracted and formatted cell type name
     """
     # Handle different prefix patterns
     prefixes = [
@@ -115,8 +115,68 @@ def extract_cell_type_name(column_name: str) -> str:
     if ' | ' in column_name:
         cell_part = column_name.split(' | ')[0]
         if '/' in cell_part:
-            # Take the last meaningful part (skip Singlets/Live if present)
+            # Parse the hierarchical path to extract the cell type
             path_parts = cell_part.split('/')
+            
+            # Handle the specific format: Scatter/Singlets - FSC/Singlets - SSC/Live/CD45+/T Cells/CD4/GFP-A+
+            # We need to identify the cell type before the GFP marker
+            
+            # Find the position of "Live" in the path
+            live_index = -1
+            for i, part in enumerate(path_parts):
+                if 'Live' in part:
+                    live_index = i
+                    break
+            
+            if live_index >= 0 and live_index < len(path_parts) - 1:
+                # Take parts after "Live" but before any GFP markers
+                meaningful_parts = path_parts[live_index + 1:]
+                
+                # Remove GFP markers and empty parts
+                clean_parts = []
+                for part in meaningful_parts:
+                    if part and not part.startswith('GFP') and not part.endswith('+'):
+                        clean_parts.append(part)
+                    elif part.endswith('+') and not part.startswith('GFP'):
+                        # Handle markers ending with +
+                        if part == 'CD45+':
+                            # Skip CD45+ as it's a general leukocyte marker
+                            continue
+                        elif any(cell_marker in part for cell_marker in ['CD4', 'CD8', 'CD3']):
+                            # Include specific cell markers like CD4+, CD8+
+                            clean_parts.append(part.rstrip('+'))
+                        else:
+                            # Include other markers, removing the +
+                            clean_parts.append(part.rstrip('+'))
+                
+                # Reconstruct the cell type name
+                if len(clean_parts) == 1:
+                    return clean_parts[0]
+                elif len(clean_parts) == 2:
+                    # For cases like "T Cells/CD4" -> return "CD4"
+                    if clean_parts[1] in ['CD4', 'CD8', 'CD3']:
+                        return clean_parts[1]
+                    else:
+                        return f"{clean_parts[0]}/{clean_parts[1]}"
+                elif len(clean_parts) > 2:
+                    # For longer paths, prioritize the most specific cell type
+                    # Check for specific cell markers
+                    for part in reversed(clean_parts):
+                        if part in ['CD4', 'CD8', 'CD3']:
+                            return part
+                    # If no specific markers, use the last meaningful part
+                    return clean_parts[-1]
+                elif len(clean_parts) == 0:
+                    # If no clean parts found, look for broader cell types
+                    for part in meaningful_parts:
+                        if 'T Cells' in part:
+                            return 'T Cells'
+                        elif 'Non-T Cells' in part:
+                            return 'Non-T Cells'
+                        elif 'B Cells' in part:
+                            return 'B Cells'
+            
+            # Original fallback logic for other formats
             if len(path_parts) > 2 and path_parts[0] == 'Singlets' and path_parts[1] == 'Live':
                 # Skip Singlets/Live and take the meaningful parts
                 meaningful_parts = path_parts[2:]
@@ -127,63 +187,108 @@ def extract_cell_type_name(column_name: str) -> str:
                 else:
                     return f"{meaningful_parts[-2]}/{meaningful_parts[-1]}"
             else:
+                # For other formats, try to extract the most meaningful part
+                # Skip common prefixes and look for actual cell type names
+                for part in reversed(path_parts):
+                    if part and not part.startswith('GFP') and part not in ['Scatter', 'Singlets', 'FSC', 'SSC']:
+                        return part
+                # Last resort - return the last part
                 return path_parts[-1]
         return cell_part
     
     return column_name
 
 
+def enhance_cell_type_name(cell_type: str, column_name: str) -> str:
+    """
+    Enhance cell type name with GFP+ information based on the column context.
+    
+    Args:
+        cell_type: Basic cell type name (e.g., "CD4", "T Cells")
+        column_name: Full column name for context
+        
+    Returns:
+        Enhanced cell type name (e.g., "CD4+GFP+", "T cells GFP+")
+    """
+    # Check if this is a GFP-related column
+    is_gfp_column = 'GFP' in column_name or 'gfp' in column_name.lower()
+    
+    if not is_gfp_column:
+        return cell_type
+    
+    # Format cell type names to match the expected display
+    if cell_type == "CD4":
+        return "CD4+GFP+"
+    elif cell_type == "CD8":
+        return "CD8+GFP+"
+    elif cell_type == "T Cells":
+        return "T cells GFP+"
+    elif cell_type == "Non-T Cells":
+        return "Non T cells GFP+"
+    else:
+        # Generic enhancement for other cell types
+        return f"{cell_type} GFP+"
+
+
 def create_enhanced_title(df: DataFrame, column_name: str, time_col: str = 'Time') -> str:
     """
-    Create an enhanced title that includes both cell type and timepoint information.
+    Create a simple title that shows just the metric name.
     
     Args:
         df: DataFrame containing the data
-        column_name: Name of the column (cell type)
-        time_col: Name of the time column
+        column_name: Name of the column (cell type and metric)
+        time_col: Name of the time column (unused, kept for compatibility)
         
     Returns:
-        Enhanced title string with cell type and timepoint info
+        Simple title string with just the metric
     """
-    cell_type = extract_cell_type_name(column_name)
+    # Extract metric from column name
+    metric = extract_metric_name(column_name)
     
-    # Get timepoint information if available
-    time_info = ""
-    if time_col in df.columns:
-        time_values = df[time_col].dropna().unique()
-        if len(time_values) > 0:
-            # Format time values nicely
-            time_strs = []
-            for time_val in sorted(time_values):
-                if isinstance(time_val, (int, float)):
-                    if time_val >= 24:  # Convert to days if >= 24 hours
-                        days = time_val / 24
-                        if days.is_integer():
-                            time_strs.append(f"Day {int(days)}")
-                        else:
-                            time_strs.append(f"Day {days:.1f}")
-                    elif time_val >= 1:  # Show as hours
-                        if time_val.is_integer():
-                            time_strs.append(f"{int(time_val)}h")
-                        else:
-                            time_strs.append(f"{time_val:.1f}h")
-                    else:  # Convert to minutes
-                        minutes = time_val * 60
-                        if minutes.is_integer():
-                            time_strs.append(f"{int(minutes)}min")
-                        else:
-                            time_strs.append(f"{minutes:.1f}min")
-                else:
-                    time_strs.append(str(time_val))
-            
-            if len(time_strs) == 1:
-                time_info = f" ({time_strs[0]})"
-            elif len(time_strs) <= 3:
-                time_info = f" ({', '.join(time_strs)})"
+    # Return just the metric name
+    return metric if metric else extract_cell_type_name(column_name)
+
+
+def create_comprehensive_plot_title(df: DataFrame, metric_type: str = None, cell_types: List[str] = None, time_col: str = 'Time', filter_options=None) -> str:
+    """
+    Create a comprehensive plot title that includes metric name and filter information.
+    
+    Args:
+        df: DataFrame containing the data (unused, kept for compatibility)
+        metric_type: Type of metric being plotted (e.g., "Freq. of Parent")
+        cell_types: List of cell types being plotted (unused, kept for compatibility)
+        time_col: Name of the time column (unused, kept for compatibility)
+        filter_options: Optional filter options containing selected tissues and times
+        
+    Returns:
+        Title string with metric and filter information
+    """
+    # Start with the base metric name
+    title = metric_type if metric_type else "Flow Cytometry Analysis"
+    
+    # Add filter information if available
+    if filter_options:
+        filter_parts = []
+        
+        # Add tissue filter information
+        if hasattr(filter_options, 'selected_tissues') and filter_options.selected_tissues:
+            if len(filter_options.selected_tissues) == 1:
+                filter_parts.append(f"Tissue: {filter_options.selected_tissues[0]}")
             else:
-                time_info = f" ({time_strs[0]}-{time_strs[-1]})"
+                filter_parts.append(f"Tissues: {', '.join(filter_options.selected_tissues)}")
+        
+        # Add time filter information
+        if hasattr(filter_options, 'selected_times') and filter_options.selected_times:
+            if len(filter_options.selected_times) == 1:
+                filter_parts.append(f"Time: {filter_options.selected_times[0]}")
+            else:
+                filter_parts.append(f"Times: {', '.join(map(str, filter_options.selected_times))}")
+        
+        # Append filter information to title
+        if filter_parts:
+            title += f" ({'; '.join(filter_parts)})"
     
-    return f"{cell_type}{time_info}"
+    return title
 
 
 def analyze_data_size(df: DataFrame, value_cols: List[str]) -> Dict[str, Any]:
