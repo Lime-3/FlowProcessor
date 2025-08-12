@@ -71,8 +71,8 @@ def mock_ui_builder():
     
     # Create mock widgets
     widgets = {
-        'manual_groups_checkbox': Mock(),
-        'save_button': Mock(),
+
+
         'browse_input_button': Mock(),
         'clear_button': Mock(),
         'preview_button': Mock(),
@@ -82,15 +82,13 @@ def mock_ui_builder():
         'cancel_button': Mock(),
         'pause_button': Mock(),
         'group_labels_button': Mock(),
+        'manual_groups_button': Mock(),
         'path_entry': Mock(),
-        'groups_entry': Mock(),
-        'replicates_entry': Mock(),
         'output_entry': Mock(),
         'out_dir_entry': Mock(),  # Added missing widget
         'group_combo': Mock(),
         'metric_combo': Mock(),
         'timecourse_combo': Mock(),
-        'time_course_checkbox': Mock(),
 
         'progress_bar': Mock(),
         'status_label': Mock()
@@ -129,7 +127,7 @@ def mock_ui_builder():
     ui_builder.set_processing_state = Mock()
     ui_builder.update_progress = Mock()
     ui_builder.update_status = Mock()
-    ui_builder.toggle_manual_mode = Mock()
+    
     ui_builder.set_pause_button_text = Mock()
     ui_builder.build_complete_ui = Mock()
     

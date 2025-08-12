@@ -13,6 +13,7 @@ from PySide6.QtCore import QObject, Slot
 from PySide6.QtWidgets import QMessageBox, QFileDialog, QTableWidget, QTableWidgetItem, QHeaderView, QMainWindow, QDialog, QSizePolicy
 
 from ..dialogs import GroupLabelsDialog
+from ..dialogs.manual_groups_dialog import ManualGroupsDialog
 from ...workers.processing_worker import ProcessingResult
 from ...config_handler import save_last_output_dir
 from flowproc.config import parse_range_or_list, USER_GROUPS, USER_REPLICATES, AUTO_PARSE_GROUPS, USER_GROUP_LABELS
@@ -51,12 +52,6 @@ class EventHandler(QObject):
         """Connect all UI signals to their handlers."""
         ui_builder = self.main_window.ui_builder
         
-        # Manual group/replicate checkbox
-        ui_builder.get_widget('manual_groups_checkbox').stateChanged.connect(self.toggle_manual)
-        
-        # Save button for manual definitions
-        ui_builder.get_widget('save_button').clicked.connect(self.save_definitions)
-        
         # Button connections
         ui_builder.get_widget('browse_input_button').clicked.connect(self.browse_input)
         ui_builder.get_widget('clear_button').clicked.connect(self.clear_input)
@@ -65,46 +60,12 @@ class EventHandler(QObject):
         ui_builder.get_widget('process_button').clicked.connect(self.process_data)
         ui_builder.get_widget('visualize_button').clicked.connect(self.visualize_results)
         ui_builder.get_widget('group_labels_button').clicked.connect(self.open_group_labels_dialog)
+        ui_builder.get_widget('manual_groups_button').clicked.connect(self.open_manual_groups_dialog)
         
         # Path entry text change
         ui_builder.get_widget('path_entry').textChanged.connect(self.update_preview_paths)
 
-    @Slot(int)
-    def toggle_manual(self, state: int) -> None:
-        """Toggle manual group/replicate mode based on checkbox state."""
-        global AUTO_PARSE_GROUPS
-        AUTO_PARSE_GROUPS = not bool(state)
-        enabled = bool(state)
-        
-        ui_builder = self.main_window.ui_builder
-        ui_builder.toggle_manual_mode(enabled)
-        
-        if not enabled:
-            USER_GROUPS.clear()
-            USER_REPLICATES.clear()
-            
-        self.state_manager.update_status(
-            "Manual group/replicate mode enabled." if enabled else "Automatic parsing enabled."
-        )
 
-    @Slot()
-    def save_definitions(self) -> None:
-        """Save user-defined groups and replicates."""
-        try:
-            ui_builder = self.main_window.ui_builder
-            groups_text = ui_builder.get_widget('groups_entry').text().strip()
-            replicates_text = ui_builder.get_widget('replicates_entry').text().strip()
-            
-            USER_GROUPS[:] = parse_range_or_list(groups_text)
-            USER_REPLICATES[:] = parse_range_or_list(replicates_text)
-            
-            if not USER_GROUPS or not USER_REPLICATES:
-                raise ValueError("Groups and replicates cannot be empty.")
-                
-            self.state_manager.update_status("Groups and replicates saved.")
-            
-        except ValueError as e:
-            QMessageBox.critical(self.main_window, "Input Error", str(e))
 
     @Slot()
     def update_preview_paths(self) -> None:
@@ -255,7 +216,7 @@ class EventHandler(QObject):
         params = {
             'input_paths': input_paths,
             'output_dir': output_dir,
-            'time_course_mode': self.main_window.ui_builder.get_widget('time_course_checkbox').isChecked(),
+            'time_course_mode': False,  # Always use automatic detection
             'user_replicates': USER_REPLICATES if not AUTO_PARSE_GROUPS and USER_REPLICATES else None,
             'auto_parse_groups': AUTO_PARSE_GROUPS,
             'user_group_labels': USER_GROUP_LABELS if USER_GROUP_LABELS else None,
@@ -314,6 +275,46 @@ class EventHandler(QObject):
         else:
             # User cancelled, restore previous labels
             dialog.set_labels(self.state_manager.current_group_labels)
+
+    @Slot()
+    def open_manual_groups_dialog(self) -> None:
+        """Open the manual groups and replicates dialog."""
+        global AUTO_PARSE_GROUPS, USER_GROUPS, USER_REPLICATES
+        
+        dialog = ManualGroupsDialog(
+            self.main_window, 
+            initial_groups=USER_GROUPS.copy(),
+            initial_replicates=USER_REPLICATES.copy(),
+            manual_mode_enabled=not AUTO_PARSE_GROUPS
+        )
+        
+        # Connect dialog signals
+        dialog.manual_mode_toggled.connect(self._on_manual_mode_toggled)
+        dialog.definitions_saved.connect(self._on_definitions_saved)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Update global state
+            AUTO_PARSE_GROUPS = not dialog.is_manual_mode_enabled()
+            USER_GROUPS[:] = dialog.get_groups()
+            USER_REPLICATES[:] = dialog.get_replicates()
+            
+            self.state_manager.update_status(
+                f"Manual mode {'enabled' if dialog.is_manual_mode_enabled() else 'disabled'}. "
+                f"Groups: {len(USER_GROUPS)}, Replicates: {len(USER_REPLICATES)}"
+            )
+        else:
+            # User cancelled, no changes made
+            pass
+
+    def _on_manual_mode_toggled(self, enabled: bool) -> None:
+        """Handle manual mode toggle from dialog."""
+        # This is just for UI feedback, actual state is saved when dialog is accepted
+        pass
+        
+    def _on_definitions_saved(self, groups: List[int], replicates: List[int]) -> None:
+        """Handle definitions saved from dialog."""
+        # This is just for UI feedback, actual state is saved when dialog is accepted
+        pass
 
     def on_group_mode_changed(self, mode_text: str) -> None:
         """Handle group mode change."""

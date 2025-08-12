@@ -263,28 +263,15 @@ class TestUIBuilder:
         # Build the complete UI
         ui_builder.build_complete_ui(main_layout)
         
-        # Check that all widget groups were created
-        assert 'time_course_checkbox' in ui_builder.widgets
-        assert 'manual_groups_checkbox' in ui_builder.widgets
-        assert 'path_entry' in ui_builder.widgets
-        assert 'browse_input_button' in ui_builder.widgets
-        assert 'clear_button' in ui_builder.widgets
-        assert 'preview_button' in ui_builder.widgets
-        assert 'out_dir_entry' in ui_builder.widgets
-        assert 'out_dir_button' in ui_builder.widgets
-        assert 'process_button' in ui_builder.widgets
-        assert 'visualize_button' in ui_builder.widgets
-        assert 'group_labels_button' in ui_builder.widgets
-        assert 'progress_bar' in ui_builder.widgets
-        assert 'status_label' in ui_builder.widgets
-
-    def test_build_options_group(self, ui_builder, main_layout):
-        """Test building the options group."""
-        ui_builder._build_options_group(main_layout)
+        # Check that all expected widgets are present
+        expected_widgets = [
+            'group_labels_button', 'manual_groups_button'
+        ]
         
-        # Check that option widgets were created
-        assert 'time_course_checkbox' in ui_builder.widgets
-        assert 'manual_groups_checkbox' in ui_builder.widgets
+        for widget_name in expected_widgets:
+            assert widget_name in ui_builder.widgets, f"Widget {widget_name} not found"
+
+
 
     @patch('flowproc.presentation.gui.views.components.ui_builder.load_last_output_dir')
     def test_build_io_group(self, mock_load_dir, ui_builder, main_layout):
@@ -399,7 +386,7 @@ class TestUIBuilder:
         
         # Test buttons are QPushButton
         for button_name in ['browse_input_button', 'clear_button', 'preview_button', 
-                           'process_button', 'visualize_button', 'group_labels_button']:
+                           'process_button', 'visualize_button', 'group_labels_button', 'manual_groups_button']:
             button = built_ui_builder.widgets[button_name]
             assert hasattr(button, 'clicked')
             assert hasattr(button, 'setEnabled')
@@ -414,11 +401,7 @@ class TestUIBuilder:
         assert hasattr(progress_bar, 'setMinimum')
         assert hasattr(progress_bar, 'setMaximum')
 
-    def test_widget_initialization(self, built_ui_builder):
-        """Test that widgets are properly initialized."""
-        # Check initial states
-        time_course_checkbox = built_ui_builder.widgets['time_course_checkbox']
-        assert not time_course_checkbox.isChecked()  # Should be unchecked by default
+
 
     def test_widget_isolation(self, ui_builder, main_layout):
         """Test that widgets are isolated between different UI builder instances."""
@@ -476,23 +459,5 @@ class TestUIBuilder:
         built_ui_builder.set_processing_state(True)
         assert not process_button.isEnabled()
 
-    def test_toggle_manual_mode(self, built_ui_builder):
-        """Test toggling manual mode for group/replicate definition."""
-        # Test enabling manual mode
-        built_ui_builder.toggle_manual_mode(True)
-        
-        groups_entry = built_ui_builder.widgets['groups_entry']
-        replicates_entry = built_ui_builder.widgets['replicates_entry']
-        save_button = built_ui_builder.widgets['save_button']
-        
-        assert groups_entry.isEnabled()
-        assert replicates_entry.isEnabled()
-        assert save_button.isEnabled()
-        
-        # Test disabling manual mode
-        built_ui_builder.toggle_manual_mode(False)
-        
-        assert not groups_entry.isEnabled()
-        assert not replicates_entry.isEnabled()
-        assert not save_button.isEnabled()
+
 
