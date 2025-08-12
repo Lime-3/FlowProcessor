@@ -59,8 +59,8 @@ class MainWindow(QMainWindow, StylingMixin, ValidationMixin):
         self.setWindowTitle("Flow Cytometry Processor")
         
         # Set initial size and allow resizing
-        self.setMinimumSize(700, 500)
-        self.resize(700, 550)
+        self.setMinimumSize(700, 380)
+        self.resize(700, 380)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
         # Setup styling and icon

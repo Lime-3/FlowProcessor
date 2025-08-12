@@ -37,117 +37,10 @@ class UIBuilder:
         
     def build_complete_ui(self, main_layout: QVBoxLayout) -> None:
         """Build the complete user interface."""
-        self._build_options_group(main_layout)
         self._build_io_group(main_layout)
         self._build_process_controls(main_layout)
         self._build_progress_section(main_layout)
         self._setup_tooltips()
-
-    def _build_options_group(self, parent_layout: QVBoxLayout) -> None:
-        """Build the options group box with manual group/replicate definition."""
-        # Options label
-        options_label = QLabel("Options")
-        options_label.setStyleSheet("font-size: 16px; font-weight: 600; color: #0064FF;")
-        parent_layout.addWidget(options_label)
-
-        self.options_group = QGroupBox()
-        options_layout = QVBoxLayout(self.options_group)
-        options_layout.setSpacing(10)
-
-        # Checkboxes row
-        self.widgets['time_course_checkbox'] = QCheckBox("Force Time Course Mode (Override Auto-Detection)")
-        self.widgets['time_course_checkbox'].setChecked(False)  # Ensure standard mode by default
-        self.widgets['time_course_checkbox'].setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.widgets['manual_groups_checkbox'] = QCheckBox("Manually Define Groups and Replicates")
-        self.widgets['manual_groups_checkbox'].setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-        checkbox_layout = QHBoxLayout()
-        checkbox_layout.addWidget(self.widgets['manual_groups_checkbox'])
-        checkbox_layout.addStretch()
-        checkbox_layout.addWidget(self.widgets['time_course_checkbox'])
-        options_layout.addLayout(checkbox_layout)
-
-        # Add note about automatic dual processing
-        dual_processing_note = QLabel("Note: When time data is detected, files are automatically processed in both grouped and timecourse formats.")
-        dual_processing_note.setStyleSheet("font-size: 12px; color: #888888; font-style: italic;")
-        dual_processing_note.setWordWrap(True)
-        options_layout.addWidget(dual_processing_note)
-
-
-        # Manual definition widget
-        self.widgets['manual_widget'] = QWidget()
-        manual_layout = QVBoxLayout(self.widgets['manual_widget'])
-        manual_layout.setContentsMargins(0, 0, 0, 0)
-        manual_layout.setSpacing(10)
-
-        # Group section
-        group_section = QWidget()
-        group_layout = QVBoxLayout(group_section)
-        group_layout.setContentsMargins(0, 0, 0, 0)
-        group_layout.setSpacing(5)
-        
-        group_label = QLabel("Group Numbers:")
-        group_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        group_label.setStyleSheet("font-weight: 500; color: #F0F0F0;")
-        
-        self.widgets['groups_entry'] = QLineEdit("1-13")
-        self.widgets['groups_entry'].setEnabled(False)
-        self.widgets['groups_entry'].setObjectName("groupEntry")
-        self.widgets['groups_entry'].setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.widgets['groups_entry'].setFixedHeight(25)
-        self.widgets['groups_entry'].setFixedWidth(100)
-        
-        group_layout.addWidget(group_label)
-        group_layout.addWidget(self.widgets['groups_entry'])
-
-        # Replicate section
-        replicate_section = QWidget()
-        replicate_layout = QVBoxLayout(replicate_section)
-        replicate_layout.setContentsMargins(0, 0, 0, 0)
-        replicate_layout.setSpacing(5)
-        
-        replicate_label = QLabel("Replicate Numbers:")
-        replicate_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        replicate_label.setStyleSheet("font-weight: 500; color: #F0F0F0;")
-        
-        self.widgets['replicates_entry'] = QLineEdit("1-3")
-        self.widgets['replicates_entry'].setEnabled(False)
-        self.widgets['replicates_entry'].setObjectName("replicateEntry")
-        self.widgets['replicates_entry'].setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.widgets['replicates_entry'].setFixedHeight(25)
-        self.widgets['replicates_entry'].setFixedWidth(100)
-        
-        replicate_layout.addWidget(replicate_label)
-        replicate_layout.addWidget(self.widgets['replicates_entry'])
-
-        # Save button
-        self.widgets['save_button'] = QPushButton("Save")
-        self.widgets['save_button'].setEnabled(False)
-        self.widgets['save_button'].setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.widgets['save_button'].setFixedHeight(30)
-
-        # Arrange sections horizontally in one row
-        manual_row_layout = QHBoxLayout()
-        
-        # Group and replicate sections side by side
-        group_replicate_layout = QHBoxLayout()
-        group_replicate_layout.addWidget(group_section)
-        group_replicate_layout.addSpacing(10)
-        group_replicate_layout.addWidget(replicate_section)
-        
-        # Right side: Save button
-        right_layout = QVBoxLayout()
-        right_layout.addStretch()
-        right_layout.addWidget(self.widgets['save_button'])
-        right_layout.addStretch()
-        
-        manual_row_layout.addLayout(group_replicate_layout, stretch=0)
-        manual_row_layout.addStretch()
-        manual_row_layout.addLayout(right_layout, stretch=0)
-        manual_layout.addLayout(manual_row_layout)
-        options_layout.addWidget(self.widgets['manual_widget'])
-
-        parent_layout.addWidget(self.options_group)
 
     def _build_io_group(self, parent_layout: QVBoxLayout) -> None:
         """Build the input/output group box."""
@@ -252,6 +145,12 @@ class UIBuilder:
         self.widgets['group_labels_button'].setFixedHeight(48)
         self.widgets['group_labels_button'].setStyleSheet("border-radius: 10px; background-color: #28a745;")
         
+        # Manual Groups button
+        self.widgets['manual_groups_button'] = QPushButton("Manual Groups")
+        self.widgets['manual_groups_button'].setFixedWidth(120)
+        self.widgets['manual_groups_button'].setFixedHeight(48)
+        self.widgets['manual_groups_button'].setStyleSheet("border-radius: 10px; background-color: #FF6B35;")
+        
         # Visualize button
         self.widgets['visualize_button'] = QPushButton("Visualize")
         self.widgets['visualize_button'].setFixedWidth(120)
@@ -261,6 +160,7 @@ class UIBuilder:
         controls_layout.addStretch()
         controls_layout.addWidget(self.widgets['process_button'])
         controls_layout.addWidget(self.widgets['group_labels_button'])
+        controls_layout.addWidget(self.widgets['manual_groups_button'])
         controls_layout.addWidget(self.widgets['visualize_button'])
         controls_layout.addStretch()
         
@@ -295,12 +195,8 @@ class UIBuilder:
             'out_dir_entry': "Specify the directory where processed Excel files will be saved.",
             'process_button': "Start processing the selected files or folders.",
             'group_labels_button': "Manage group labels for data processing.",
-            'time_course_checkbox': "Enable for time-course output; requires 'Time' data in CSV.",
+            'manual_groups_button': "Manually define groups and replicates for data processing.",
             'visualize_button': "Visualize data from the first CSV file. Metric can be changed in the dialog. Uses current group labels if set.",
-            'manual_groups_checkbox': "Enable manual definition of groups and replicates.",
-            'groups_entry': "Enter group numbers (e.g., 1-10 or 1,2,3,4).",
-            'replicates_entry': "Enter replicate numbers (e.g., 1-3 or 1,2).",
-            'save_button': "Save the manual group and replicate definitions.",
             'preview_button': "Preview the structure of selected CSV files.",
             'clear_button': "Clear the input field and reset preview paths."
         }
@@ -328,12 +224,6 @@ class UIBuilder:
     def get_widget(self, name: str) -> Any:
         """Get a widget by name."""
         return self.widgets.get(name)
-
-    def toggle_manual_mode(self, enabled: bool) -> None:
-        """Toggle manual group/replicate mode."""
-        self.widgets['groups_entry'].setEnabled(enabled)
-        self.widgets['replicates_entry'].setEnabled(enabled)
-        self.widgets['save_button'].setEnabled(enabled)
 
 
 

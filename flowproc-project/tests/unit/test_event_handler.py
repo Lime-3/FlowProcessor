@@ -33,8 +33,6 @@ class TestEventHandler:
         event_handler.connect_all_signals()
         
         # Check that all buttons are connected
-        widgets['manual_groups_checkbox'].stateChanged.connect.assert_called_once()
-        widgets['save_button'].clicked.connect.assert_called_once()
         widgets['browse_input_button'].clicked.connect.assert_called_once()
         widgets['clear_button'].clicked.connect.assert_called_once()
         widgets['preview_button'].clicked.connect.assert_called_once()
@@ -42,6 +40,7 @@ class TestEventHandler:
         widgets['process_button'].clicked.connect.assert_called_once()
         widgets['visualize_button'].clicked.connect.assert_called_once()
         widgets['group_labels_button'].clicked.connect.assert_called_once()
+        widgets['manual_groups_button'].clicked.connect.assert_called_once()
         widgets['path_entry'].textChanged.connect.assert_called_once()
 
     @patch('flowproc.presentation.gui.views.components.event_handler.QFileDialog.getOpenFileNames')
@@ -187,8 +186,6 @@ class TestEventHandler:
         widgets['out_dir_entry'].text.return_value = "/tmp/test_output"
         widgets['group_combo'].currentText.return_value = "Group Mode"
         widgets['metric_combo'].currentText.return_value = "Mean"
-        widgets['timecourse_combo'].currentText.return_value = "Time Course"
-        widgets['time_course_checkbox'].isChecked.return_value = False
         
         # Set up valid state
         event_handler.state_manager.preview_paths = ["/tmp/test_file.csv"]
