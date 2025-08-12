@@ -204,29 +204,14 @@ class ProcessingWorker(QThread):
         """
         try:
             if input_path.is_file() and input_path.suffix.lower() == '.csv':
-                # Check time data for time course mode
-                if self._task.time_course_mode:
-                    self.status_updated.emit(f"Analyzing time data in {input_path.name}...")
-                    df, _ = load_and_parse_df(input_path)
-                    try:
-                        if 'Time' not in df.columns or df['Time'].isna().all():
-                            msg = f"No time data in {input_path.name} for time course mode"
-                            self.status_updated.emit(f"Skipping {input_path.name}: No time data")
-                            return False, msg, None
-                    finally:
-                        # Explicit cleanup of DataFrame after time check
-                        del df
-                        gc.collect()  # Force garbage collection
+                # Generate base output filename - the actual output files will be created with suffixes
+                base_output = self._task.output_dir / f"{input_path.stem}_Processed"
                 
-                # Generate output filename
-                suffix = '_Timecourse' if self._task.time_course_mode else '_Grouped'
-                output_file = self._task.output_dir / f"{input_path.stem}_Processed{suffix}.xlsx"
-                
-                # Process the CSV
+                # Process the CSV - the new logic automatically detects time data and processes in both modes
                 self.status_updated.emit(f"Processing {input_path.name}...")
                 process_csv(
                     input_path,
-                    output_file,
+                    base_output,
                     time_course_mode=self._task.time_course_mode,
                     user_replicates=self._task.user_replicates,
                     auto_parse_groups=self._task.auto_parse_groups,

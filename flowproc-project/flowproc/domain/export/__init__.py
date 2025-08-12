@@ -53,23 +53,78 @@ def process_csv(input_file, output_file, time_course_mode=False, user_replicates
         logger.info(f"Saved empty output to {output_file}")
         return
     
-    # Create workbook
-    wb = Workbook()
-    wb.remove(wb.active)
+    # Check if we have time data
+    has_time_data = 'Time' in df.columns and df['Time'].notna().any()
+    times = sorted(t for t in df["Time"].unique() if pd.notna(t)) if has_time_data else [None]
+    is_timecourse = len(times) > 1 or (len(times) == 1 and times[0] is not None)
     
-    # Process and write categories
-    process_and_write_categories(
-        df, sid_col, wb, replicate_count, 
-        time_course_mode, user_group_labels
-    )
+    # Determine processing modes
+    # If time_course_mode is explicitly set, respect that choice
+    # If not set but time data is detected, process in both modes
+    process_grouped = not time_course_mode or (not time_course_mode and not is_timecourse)
+    process_timecourse = time_course_mode or (not time_course_mode and is_timecourse)
     
-    # Save workbook
-    if not wb.sheetnames:
-        logger.warning(f"No valid data for {input_file}")
-        wb.create_sheet("No Data")
+    logger.info(f"Time data detected: {has_time_data}, Processing modes - Grouped: {process_grouped}, Timecourse: {process_timecourse}")
     
-    wb.save(output_file)
-    logger.info(f"Saved output to {output_file}")
+    # Process in grouped mode if needed
+    if process_grouped:
+        grouped_output = output_file.parent / f"{output_file.stem}_Grouped.xlsx"
+        logger.info(f"Processing in grouped mode: {grouped_output}")
+        
+        # Create workbook for grouped mode
+        wb_grouped = Workbook()
+        wb_grouped.remove(wb_grouped.active)
+        
+        # Process and write categories in grouped mode
+        process_and_write_categories(
+            df, sid_col, wb_grouped, replicate_count, 
+            False, user_group_labels  # time_course_mode=False for grouped
+        )
+        
+        # Save grouped workbook
+        if not wb_grouped.sheetnames:
+            logger.warning(f"No valid data for grouped mode in {input_file}")
+            wb_grouped.create_sheet("No Data")
+        
+        wb_grouped.save(grouped_output)
+        logger.info(f"Saved grouped output to {grouped_output}")
+    
+    # Process in timecourse mode if needed
+    if process_timecourse:
+        timecourse_output = output_file.parent / f"{output_file.stem}_Timecourse.xlsx"
+        logger.info(f"Processing in timecourse mode: {timecourse_output}")
+        
+        # Create workbook for timecourse mode
+        wb_timecourse = Workbook()
+        wb_timecourse.remove(wb_timecourse.active)
+        
+        # Process and write categories in timecourse mode
+        process_and_write_categories(
+            df, sid_col, wb_timecourse, replicate_count, 
+            True, user_group_labels  # time_course_mode=True for timecourse
+        )
+        
+        # Save timecourse workbook
+        if not wb_timecourse.sheetnames:
+            logger.warning(f"No valid data for timecourse mode in {input_file}")
+            wb_timecourse.create_sheet("No Data")
+        
+        wb_timecourse.save(timecourse_output)
+        logger.info(f"Saved timecourse output to {timecourse_output}")
+    
+    # For backward compatibility, if only one mode was processed, save to the original output file
+    if process_grouped and not process_timecourse:
+        # Only grouped mode was processed, save to original output
+        import shutil
+        shutil.copy2(grouped_output, output_file)
+        logger.info(f"Saved output to {output_file}")
+    elif process_timecourse and not process_grouped:
+        # Only timecourse mode was processed, save to original output
+        import shutil
+        shutil.copy2(timecourse_output, output_file)
+        logger.info(f"Saved output to {output_file}")
+    # If both modes were processed, the original output_file parameter is ignored
+    # and both _Grouped.xlsx and _Timecourse.xlsx files are created
 
 def process_directory(input_dir, output_dir, recursive=True, pattern="*.csv",
                      status_callback=None, time_course_mode=False, user_replicates=None,
@@ -100,10 +155,11 @@ def process_directory(input_dir, output_dir, recursive=True, pattern="*.csv",
         if status_callback:
             status_callback(f"Processing file {idx}/{len(csv_files)}: {f.name}")
         
-        out_file = output_dir / f"{f.stem}_Processed{'_Timecourse' if time_course_mode else '_Grouped'}.xlsx"
+        # Generate base output filename - the actual output files will be created with suffixes
+        base_output = output_dir / f"{f.stem}_Processed"
         
         try:
-            process_csv(f, out_file, time_course_mode, user_replicates, 
+            process_csv(f, base_output, time_course_mode, user_replicates, 
                        auto_parse_groups, user_group_labels, user_groups)
             count += 1
         except Exception as exc:

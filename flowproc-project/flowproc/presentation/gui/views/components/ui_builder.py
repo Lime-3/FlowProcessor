@@ -55,7 +55,7 @@ class UIBuilder:
         options_layout.setSpacing(10)
 
         # Checkboxes row
-        self.widgets['time_course_checkbox'] = QCheckBox("Time Course Output Format")
+        self.widgets['time_course_checkbox'] = QCheckBox("Force Time Course Mode (Override Auto-Detection)")
         self.widgets['time_course_checkbox'].setChecked(False)  # Ensure standard mode by default
         self.widgets['time_course_checkbox'].setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.widgets['manual_groups_checkbox'] = QCheckBox("Manually Define Groups and Replicates")
@@ -67,6 +67,11 @@ class UIBuilder:
         checkbox_layout.addWidget(self.widgets['time_course_checkbox'])
         options_layout.addLayout(checkbox_layout)
 
+        # Add note about automatic dual processing
+        dual_processing_note = QLabel("Note: When time data is detected, files are automatically processed in both grouped and timecourse formats.")
+        dual_processing_note.setStyleSheet("font-size: 12px; color: #888888; font-style: italic;")
+        dual_processing_note.setWordWrap(True)
+        options_layout.addWidget(dual_processing_note)
 
 
         # Manual definition widget
