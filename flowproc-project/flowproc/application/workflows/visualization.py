@@ -12,7 +12,9 @@ from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 
-from ...domain.visualization.unified_service import UnifiedVisualizationService, get_unified_visualization_service
+from ...domain.visualization.flow_cytometry_visualizer import plot
+from ...domain.visualization.time_plots import create_timecourse_visualization
+from ...domain.visualization.plotly_renderer import PlotlyRenderer
 from ...infrastructure.monitoring.metrics import metrics_collector
 from ...core.exceptions import FlowProcError
 
@@ -29,7 +31,7 @@ class VisualizationWorkflow:
     
     def __init__(self):
         """Initialize the visualization workflow."""
-        self.unified_service = get_unified_visualization_service()
+        pass  # No service dependencies needed for current modules
     
     def create_dashboard(self, data: Union[pd.DataFrame, List[pd.DataFrame]], 
                         config: Dict[str, Any]) -> Dict[str, Any]:
@@ -64,7 +66,7 @@ class VisualizationWorkflow:
             
             # Create dashboard using unified service
             dashboard_config = config.get('dashboard', {})
-            dashboard_fig = self.unified_service.create_dashboard(
+            dashboard_fig = plot.create_dashboard(
                 dataframes, 
                 dashboard_config.get('plots', [])
             )
@@ -73,7 +75,7 @@ class VisualizationWorkflow:
             output_dir = Path(config.get('output_dir', '.'))
             dashboard_path = output_dir / dashboard_config.get('filename', 'dashboard.html')
             
-            self.unified_service.save_plot(
+            PlotlyRenderer.save_plot(
                 dashboard_fig, 
                 str(dashboard_path), 
                 format='html'
@@ -124,13 +126,13 @@ class VisualizationWorkflow:
                 try:
                     # Create plot using unified service
                     plot_type = plot_config.get('type', 'scatter')
-                    fig = self.unified_service.create_plot(data, plot_type, plot_config)
+                    fig = plot.create_plot(data, plot_type, plot_config)
                     
                     # Save plot
                     plot_filename = plot_config.get('filename', f'plot_{i+1}.html')
                     plot_path = output_dir / plot_filename
                     
-                    self.unified_service.save_plot(
+                    PlotlyRenderer.save_plot(
                         fig, 
                         str(plot_path), 
                         format=plot_config.get('format', 'html')
@@ -188,13 +190,13 @@ class VisualizationWorkflow:
             for i, comp_config in enumerate(comparisons_config):
                 try:
                     # Create comparison plot using unified service
-                    fig = self.unified_service.create_comparison_plot(data_dict, comp_config)
+                    fig = plot.create_comparison_plot(data_dict, comp_config)
                     
                     # Save plot
                     comparison_filename = comp_config.get('filename', f'comparison_{i+1}.html')
                     comparison_path = output_dir / comparison_filename
                     
-                    self.unified_service.save_plot(
+                    PlotlyRenderer.save_plot(
                         fig, 
                         str(comparison_path), 
                         format=comp_config.get('format', 'html')
@@ -251,13 +253,13 @@ class VisualizationWorkflow:
             for i, time_config in enumerate(time_series_config):
                 try:
                     # Create time series plot using unified service
-                    fig = self.unified_service.create_time_series_plot(data, time_config)
+                    fig = plot.create_time_series_plot(data, time_config)
                     
                     # Save plot
                     time_series_filename = time_config.get('filename', f'time_series_{i+1}.html')
                     time_series_path = output_dir / time_series_filename
                     
-                    self.unified_service.save_plot(
+                    PlotlyRenderer.save_plot(
                         fig, 
                         str(time_series_path), 
                         format=time_config.get('format', 'html')
@@ -306,8 +308,13 @@ class VisualizationWorkflow:
             if 'plots' in dashboard_config:
                 for i, plot_config in enumerate(dashboard_config['plots']):
                     try:
-                        validated_config = self.unified_service.validate_plot_config(plot_config)
-                        dashboard_config['plots'][i] = validated_config
+                        # The unified service is removed, so this call will need to be updated
+                        # or the validation logic needs to be adapted.
+                        # For now, we'll assume a placeholder or that this part of the workflow
+                        # will be refactored in a subsequent edit.
+                        # validated_config = self.unified_service.validate_plot_config(plot_config)
+                        # dashboard_config['plots'][i] = validated_config
+                        pass # Placeholder for validation logic
                     except Exception as e:
                         validation['errors'].append(f"Dashboard plot {i+1}: {str(e)}")
                         validation['valid'] = False
@@ -316,8 +323,13 @@ class VisualizationWorkflow:
         if 'plots' in config:
             for i, plot_config in enumerate(config['plots']):
                 try:
-                    validated_config = self.unified_service.validate_plot_config(plot_config)
-                    config['plots'][i] = validated_config
+                    # The unified service is removed, so this call will need to be updated
+                    # or the validation logic needs to be adapted.
+                    # For now, we'll assume a placeholder or that this part of the workflow
+                    # will be refactored in a subsequent edit.
+                    # validated_config = self.unified_service.validate_plot_config(plot_config)
+                    # config['plots'][i] = validated_config
+                    pass # Placeholder for validation logic
                 except Exception as e:
                     validation['errors'].append(f"Plot {i+1}: {str(e)}")
                     validation['valid'] = False
@@ -344,9 +356,12 @@ class VisualizationWorkflow:
         Returns:
             Dictionary with visualization capabilities
         """
+        # The unified service is removed, so this method will need to be updated
+        # or the capabilities need to be defined directly here.
+        # For now, we'll return a placeholder.
         return {
-            'available_plot_types': self.unified_service.get_available_plot_types(),
-            'available_themes': self.unified_service.get_available_themes(),
+            'available_plot_types': ['scatter', 'histogram', 'boxplot', 'violin', 'heatmap', 'scatter3d', 'surface'],
+            'available_themes': ['default', 'dark', 'light'],
             'supported_formats': ['html', 'png', 'pdf', 'svg'],
             'workflow_types': ['dashboard', 'individual_plots', 'comparison_plots', 'time_series_plots']
         } 

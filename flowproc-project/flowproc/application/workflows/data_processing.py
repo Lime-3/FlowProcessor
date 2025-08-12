@@ -12,7 +12,6 @@ import pandas as pd
 
 from ...domain.parsing.service import ParseService
 from ...domain.processing.core import UnifiedProcessingService, ProcessingConfig, ProcessingMode
-from ...domain.visualization.service import VisualizationService
 from ...domain.export.service import ExportService
 from ...infrastructure.monitoring.metrics import metrics_collector
 from ...core.exceptions import FlowProcError
@@ -32,7 +31,6 @@ class DataProcessingWorkflow:
         """Initialize the workflow."""
         self.parse_service = ParseService()
         self.unified_processing_service = UnifiedProcessingService()
-        self.visualization_service = VisualizationService()
         self.export_service = ExportService()
         
         # Register default parsing strategies
@@ -144,15 +142,23 @@ class DataProcessingWorkflow:
         
         for i, plot_config in enumerate(plot_configs):
             try:
-                fig = self.visualization_service.create_plot(
-                    data, 
-                    plot_config.get('type', 'scatter'), 
-                    plot_config
+                from ...domain.visualization.flow_cytometry_visualizer import plot
+                from ...domain.visualization.plotly_renderer import PlotlyRenderer
+                
+                # Create plot using current module
+                fig = plot(
+                    data=data,
+                    x=plot_config.get('x', 'Group'),
+                    y=plot_config.get('y', 'Freq. of Parent'),
+                    plot_type=plot_config.get('type', 'scatter'),
+                    width=plot_config.get('width', 1200),
+                    height=plot_config.get('height', 500)
                 )
                 
-                # Save plot
-                output_path = config.get('output_dir', '.') / f"plot_{i+1}.html"
-                self.visualization_service.save_plot(fig, str(output_path))
+                # Save plot using current renderer
+                output_path = Path(config.get('output_dir', '.')) / f"plot_{i+1}.html"
+                renderer = PlotlyRenderer()
+                renderer.export_to_html_optimized(fig, str(output_path), 'minimal')
                 plots.append(str(output_path))
                 
             except Exception as e:

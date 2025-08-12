@@ -13,10 +13,6 @@ from .domain.parsing import load_and_parse_df, extract_tissue, extract_group_ani
 from .domain.export import process_csv, process_directory
 from .domain.processing import map_replicates
 from .domain.processing.vectorized_aggregator import VectorizedAggregator, AggregationConfig
-# Visualization imports simplified - using simple_visualizer directly
-# from .domain.visualization.facade import create_visualization, visualize_data
-# from .domain.visualization.data_processor import DataProcessor
-# from .domain.visualization.unified_service import UnifiedVisualizationService
 from .core.constants import KEYWORDS
 
 # Reshape pair is not implemented yet
@@ -47,10 +43,6 @@ __all__ = [
     'reshape_pair',
     'VectorizedAggregator',
     'AggregationConfig',
-    # 'DataProcessor',  # Removed - using simple_visualizer directly
-    # 'UnifiedVisualizationService',  # Removed - using simple_visualizer directly
-    # 'visualize_data',  # Removed - using simple_visualizer directly
-    # 'create_visualization',  # Removed - using simple_visualizer directly
     'KEYWORDS',
     'get_resource_path',
     'get_data_path',

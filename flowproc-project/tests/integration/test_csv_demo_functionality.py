@@ -8,8 +8,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from flowproc.domain.parsing import load_and_parse_df, extract_group_animal, extract_tissue
-from flowproc.domain.visualization.facade import create_visualization
-from flowproc.domain.visualization.config import VisualizationConfig
+from flowproc.domain.visualization.flow_cytometry_visualizer import plot
 from flowproc.domain.export import process_csv
 
 
@@ -124,8 +123,8 @@ class TestCSVDemoFunctionality:
                         print(f"   📈 Testing visualization with metric: {metric}")
                         
                         # Mock visualization call
-                        config = VisualizationConfig()
-                        result = create_visualization(parsed_df, metric, config)
+                        # config = VisualizationConfig() # This line is removed as per the edit hint
+                        result = plot(parsed_df, metric) # Changed from create_visualization to plot
                         
                         assert result is not None, "Visualization should return a result"
                         print(f"   ✅ Visualization test successful")

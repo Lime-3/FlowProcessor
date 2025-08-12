@@ -12,7 +12,7 @@ import json
 # Add the flowproc directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from flowproc.domain.visualization.facade import create_visualization
+from flowproc.domain.visualization.flow_cytometry_visualizer import plot
 
 def analyze_html_content_detailed(html_content: str) -> dict:
     """Perform detailed analysis of HTML content."""
@@ -174,7 +174,7 @@ def main():
             output_html = Path(tmp_file.name)
         
         # Create visualization
-        fig = create_visualization(
+        fig = plot(
             data_source=csv_path,
             metric="Freq. of Parent",
             output_html=output_html,
