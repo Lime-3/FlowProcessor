@@ -58,23 +58,9 @@ class MainWindow(QMainWindow, StylingMixin, ValidationMixin):
         """Configure basic window properties."""
         self.setWindowTitle("Flow Cytometry Processor")
         
-        # Get screen dimensions for dynamic sizing
-        screen = QApplication.primaryScreen()
-        if screen:
-            screen_size = screen.size()
-            # Calculate appropriate window size for 15-inch screens
-            # Target: ~60% of screen width and ~70% of screen height
-            target_width = min(int(screen_size.width() * 0.6), 900)  # Max 900px width
-            target_height = min(int(screen_size.height() * 0.7), 650)  # Max 650px height
-            
-            # Set minimum size for usability
-            self.setMinimumSize(700, 500)
-            self.resize(target_width, target_height)
-        else:
-            # Fallback to conservative size
-            self.setMinimumSize(700, 500)
-            self.resize(800, 600)
-        
+        # Set initial size and allow resizing
+        self.setMinimumSize(700, 500)
+        self.resize(700, 550)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
         # Setup styling and icon

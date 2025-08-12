@@ -121,27 +121,23 @@ class UIBuilder:
         self.widgets['save_button'].setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.widgets['save_button'].setFixedHeight(30)
 
-        # Arrange sections in three columns
+        # Arrange sections horizontally in one row
         manual_row_layout = QHBoxLayout()
         
-        # Left column: Group section
-        left_layout = QVBoxLayout()
-        left_layout.addWidget(group_section)
+        # Group and replicate sections side by side
+        group_replicate_layout = QHBoxLayout()
+        group_replicate_layout.addWidget(group_section)
+        group_replicate_layout.addSpacing(10)
+        group_replicate_layout.addWidget(replicate_section)
         
-        # Middle column: Replicate section
-        middle_layout = QVBoxLayout()
-        middle_layout.addWidget(replicate_section)
-        
-        # Right column: Save button
+        # Right side: Save button
         right_layout = QVBoxLayout()
         right_layout.addStretch()
         right_layout.addWidget(self.widgets['save_button'])
         right_layout.addStretch()
         
-        manual_row_layout.addLayout(left_layout, stretch=1)
-        manual_row_layout.addSpacing(20)
-        manual_row_layout.addLayout(middle_layout, stretch=1)
-        manual_row_layout.addSpacing(20)
+        manual_row_layout.addLayout(group_replicate_layout, stretch=0)
+        manual_row_layout.addStretch()
         manual_row_layout.addLayout(right_layout, stretch=0)
         manual_layout.addLayout(manual_row_layout)
         options_layout.addWidget(self.widgets['manual_widget'])
