@@ -180,16 +180,12 @@ def _create_sheet_pair(wb, sheet_root, num_replicates, raw_cols, group_label_map
     ws_vals = wb.create_sheet(sheet_root[:31])
     ws_ids = wb.create_sheet(f"{sheet_root} IDs"[:31])
     
-    # Determine column offset and headers based on mode
+    # For timecourse mode, headers are handled in _write_timecourse_data
     if is_time_course:
-        col_offset = 3  # Group, Time, then data
-        # Merge Group and Time headers across rows 1-2
-        for ws in (ws_vals, ws_ids):
-            ws.merge_cells("A1:A2")
-            ws.merge_cells("B1:B2")
-            ws.cell(row=1, column=1, value="Group").alignment = Alignment(horizontal="center", vertical="center")
-            ws.cell(row=1, column=2, value="Time").alignment = Alignment(horizontal="center", vertical="center")
-    elif tissues_detected and has_time_data:
+        return ws_vals, ws_ids
+    
+    # Determine column offset and headers for non-timecourse modes
+    if tissues_detected and has_time_data:
         col_offset = 4  # Group, Time, Tissue, then data
         # Merge Group, Time, and Tissue headers across rows 1-2
         for ws in (ws_vals, ws_ids):
@@ -329,48 +325,85 @@ def _write_standard_data(df, sid_col, ws_vals, ws_ids, raw_cols, num_replicates,
                 ws_ids.cell(row=row_idx, column=col, value=sid)
 
 def _write_timecourse_data(df, sid_col, ws_vals, ws_ids, raw_cols, num_replicates, times, groups, group_label_map):
-    """Write data in time-course format."""
-    col_offset = 3  # Group, Time, then data
+    """Write data in time-course format with times in columns."""
+    # Structure: Row 1 = Population, Row 2 = Groups (no gaps), Row 3 = Time label + Replicates, Column A = Time points
+    # Empty column gap between different populations (truly empty, no "None" values)
     
-    # Build the row structure first
-    row_structure = []
-    for t in times or [None]:
-        time_str = _format_time(t)
-        for group in groups:
-            row_structure.append((time_str, t, group))
+    # Write "Time" label in Column A and merge across rows 1-3 for clean look
+    ws_vals.cell(row=1, column=1, value="Time")
+    ws_vals.merge_cells(start_row=1, start_column=1, end_row=3, end_column=1)
+    ws_ids.cell(row=1, column=1, value="Time")
+    ws_ids.merge_cells(start_row=1, start_column=1, end_row=3, end_column=1)
     
-    # Write the group and time columns
-    for row_idx, (time_str, t, group) in enumerate(row_structure, start=3):
-        ws_vals.cell(row=row_idx, column=1, value=group_label_map.get(int(group), f"Group {group}"))
-        ws_vals.cell(row=row_idx, column=2, value=time_str)
-        ws_ids.cell(row=row_idx, column=1, value=group_label_map.get(int(group), f"Group {group}"))
-        ws_ids.cell(row=row_idx, column=2, value=time_str)
+    # Write time labels in Column A (starting from row 4)
+    for row_idx, time_val in enumerate(times, start=4):
+        time_str = _format_time(time_val)
+        ws_vals.cell(row=row_idx, column=1, value=time_str)
+        ws_ids.cell(row=row_idx, column=1, value=time_str)
     
-    # Process each column separately
-    for col_idx, col in enumerate(raw_cols):
-        start_col = col_offset + col_idx * num_replicates
+    # Calculate total columns needed for this population
+    # Each group gets num_replicates columns, no gaps between groups
+    total_cols = len(groups) * num_replicates
+    
+    # For each population/metric, create the structure
+    for pop_idx, col_name in enumerate(raw_cols):
+        # Calculate starting column for this population
+        # Add 1 extra column gap between populations (except for the first one)
+        pop_start_col = 2 + (pop_idx * (total_cols + 1))
+        pop_end_col = pop_start_col + total_cols - 1
         
-        # Process each time/group combination
-        for row_idx, (time_str, t, group) in enumerate(row_structure, start=3):
-            # Get data for this specific time/group/column combination
-            if t is not None:
-                subset = df[(df["Time"] == t) & (df["Group"] == group)]
-            else:
-                subset = df[df["Group"] == group]
+        # Row 1: Population name (merge across ALL columns for this population)
+        ws_vals.merge_cells(start_row=1, start_column=pop_start_col, end_row=1, end_column=pop_end_col)
+        ws_vals.cell(row=1, column=pop_start_col, value=col_name)
+        ws_ids.merge_cells(start_row=1, start_column=pop_start_col, end_row=1, end_column=pop_end_col)
+        ws_ids.cell(row=1, column=pop_start_col, value=col_name)
+        
+        # Row 2: Group headers (each group gets its own merged section)
+        current_col = pop_start_col
+        for group_idx, group in enumerate(groups):
+            # Group header (merge across replicates)
+            group_start_col = current_col
+            group_end_col = current_col + num_replicates - 1
             
-            # Write replicate data
+            # Merge cells for this group across its replicate columns
+            ws_vals.merge_cells(start_row=2, start_column=group_start_col, end_row=2, end_column=group_end_col)
+            ws_vals.cell(row=2, column=group_start_col, value=f"Group {group}")
+            ws_ids.merge_cells(start_row=2, start_column=group_start_col, end_row=2, end_column=group_end_col)
+            ws_ids.cell(row=2, column=group_start_col, value=f"Group {group}")
+            
+            # Replicate headers under each group (in Row 3)
             for rep in range(1, num_replicates + 1):
-                rep_data = subset[subset["Replicate"] == rep]
-                col_pos = start_col + rep - 1
+                col_pos = group_start_col + rep - 1
+                ws_vals.cell(row=3, column=col_pos, value=f"Replicate {rep}")
+                ws_ids.cell(row=3, column=col_pos, value=f"Replicate {rep}")
+            
+            # Move to next group position (no gaps between groups)
+            current_col = group_end_col + 1
+        
+        # Data rows: Write actual values for each time point
+        for time_idx, time_val in enumerate(times):
+            data_row = 4 + time_idx
+            
+            # Write data for each group and replicate at this time point
+            current_col = pop_start_col
+            for group in groups:
+                for rep in range(1, num_replicates + 1):
+                    col_pos = current_col + rep - 1
+                    
+                    # Find the data for this specific group, replicate, and time
+                    subset = df[(df["Group"] == group) & (df["Replicate"] == rep) & (df["Time"] == time_val)]
+                    
+                    if not subset.empty and col_name in subset.columns:
+                        val = subset[col_name].iloc[0]
+                        sid = subset[sid_col].iloc[0]
+                        ws_vals.cell(row=data_row, column=col_pos, value=val if pd.notna(val) else None)
+                        ws_ids.cell(row=data_row, column=col_pos, value=sid)
+                    else:
+                        # Don't write anything for missing data - leave cell empty
+                        pass
                 
-                if not rep_data.empty and col in rep_data.columns:
-                    val = rep_data[col].iloc[0]
-                    sid = rep_data[sid_col].iloc[0]
-                    ws_vals.cell(row=row_idx, column=col_pos, value=val if pd.notna(val) else None)
-                    ws_ids.cell(row=row_idx, column=col_pos, value=sid)
-                else:
-                    ws_vals.cell(row=row_idx, column=col_pos, value=None)
-                    ws_ids.cell(row=row_idx, column=col_pos, value="")
+                # Move to next group position (no gaps between groups)
+                current_col = current_col + num_replicates
 
 def _format_time(t):
     """Format time value for display."""
