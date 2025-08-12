@@ -63,6 +63,10 @@ class ProcessingCoordinator(QObject):
             self.state_manager.is_processing = True
             self.processing_started.emit()
             
+            # Add note about dual processing if time course mode is not forced
+            if not params.get('time_course_mode', False):
+                self.main_window.on_status_updated("Note: Files with time data will be processed in both grouped and timecourse formats")
+            
             # Start processing with the provided parameters
             self.processing_manager.start_processing(
                 input_paths=params['input_paths'],
