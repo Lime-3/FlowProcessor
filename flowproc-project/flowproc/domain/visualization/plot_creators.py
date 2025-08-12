@@ -49,19 +49,40 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
     
     # Apply standardized legend configuration to ALL plot types
     color_col = kwargs.get('color')
-    width = kwargs.get('width')
-    height = kwargs.get('height')
-    fig = configure_legend(fig, df, color_col, is_subplot=False, width=width, height=height)
+    width = kwargs.get('width', 1200)  # Use default width if not specified
+    height = kwargs.get('height', 500)  # Use default height if not specified (reduced from 700 for better aspect ratio)
+    
+    # Determine appropriate legend title based on plot type
+    legend_title = "Groups" if color_col else "Populations"
+    
+    fig = configure_legend(
+        fig, df, color_col, is_subplot=False, width=width, height=height,
+        legend_title=legend_title, show_mean_sem_label=True
+    )
         
     # Update title, y-axis title and legend title
     if 'title' not in kwargs:
         metric_name = extract_metric_name(y_col)
+        logger.debug(f"Single metric plot - Creating title with metric: {metric_name}")
         comprehensive_title = create_comprehensive_plot_title(df, metric_name, [y_col], filter_options=filter_options)
+        logger.debug(f"Single metric plot - Comprehensive title created: {comprehensive_title}")
         fig.update_layout(
             title=comprehensive_title,
             yaxis_title=metric_name,
             legend_title="Mean ± SEM"
         )
+        
+        # Debug: Verify the title was applied
+        if hasattr(fig.layout, 'title') and hasattr(fig.layout.title, 'text'):
+            logger.info(f"Title applied successfully to single metric plot: '{fig.layout.title.text}'")
+        else:
+            logger.warning("Title not found in single metric plot layout after update")
+    
+    # Ensure consistent sizing
+    fig.update_layout(
+        width=width,
+        height=height
+    )
     
     # Ensure all x-axis ticks are shown with correct group numbers
     if 'Group' in df.columns:
@@ -114,14 +135,26 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
         fig = px.box(melted_df, x='Group', y='Frequency', color='Cell Type', **kwargs)
     elif plot_type == "line":
         fig = px.line(combined_df, x='Group', y='mean', color='Cell Type', error_y='sem', **kwargs)
-
+    elif plot_type == "histogram":
+        # For histograms, use original data melted by cell type
+        melted_df = df.melt(id_vars=['Group'], value_vars=freq_cols, 
+                           var_name='Cell Type', value_name='Frequency')
+        melted_df['Cell Type'] = melted_df['Cell Type'].apply(extract_cell_type_name)
+        fig = px.histogram(melted_df, x='Frequency', color='Cell Type', barmode='overlay', **kwargs)
     else:
         raise ValueError(f"Unknown plot type: {plot_type}")
     
     # Apply standardized legend configuration to ALL plot types
-    width = kwargs.get('width')
-    height = kwargs.get('height')
-    fig = configure_legend(fig, combined_df, 'Cell Type', is_subplot=False, width=width, height=height)
+    width = kwargs.get('width', 1200)  # Use default width if not specified
+    height = kwargs.get('height', 500)  # Use default height if not specified (reduced from 700 for better aspect ratio)
+    
+    # Determine appropriate legend title for cell type comparison
+    legend_title = "Cell Types"
+    
+    fig = configure_legend(
+        fig, combined_df, 'Cell Type', is_subplot=False, width=width, height=height,
+        legend_title=legend_title, show_mean_sem_label=True
+    )
         
     # Update title, y-axis, and legend
     if 'title' not in kwargs:
@@ -131,6 +164,12 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
             yaxis_title=base_metric,
             legend_title="Mean ± SEM"
         )
+    
+    # Ensure consistent sizing
+    fig.update_layout(
+        width=width,
+        height=height
+    )
     
     # Ensure all x-axis ticks are shown with correct group numbers
     if 'Group' in combined_df.columns:
@@ -151,46 +190,7 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
     return fig
 
 
-def create_time_course_single_plot(df: DataFrame, time_col: str, value_col: str, 
-                                 group_col: Optional[str], sample_size: Optional[int] = None, filter_options=None, **kwargs):
-    """
-    Create a single time course plot with optional grouping.
-    
-    Args:
-        df: DataFrame containing the data
-        time_col: Time column name
-        value_col: Value column to plot
-        group_col: Optional group column for color coding
-        sample_size: Optional sample size for large datasets
-        **kwargs: Additional keyword arguments
-        
-    Returns:
-        Plotly Figure object
-    """
-    # Sample data if specified
-    if sample_size and len(df) > sample_size:
-        df = df.sample(n=sample_size, random_state=42)
-    
-    # Create time course plot
-    if group_col and group_col in df.columns:
-        fig = px.line(df, x=time_col, y=value_col, color=group_col, **kwargs)
-    else:
-        fig = px.line(df, x=time_col, y=value_col, **kwargs)
-    
-    # Apply standardized legend configuration
-    width = kwargs.get('width')
-    height = kwargs.get('height')
-    fig = configure_legend(fig, df, group_col, is_subplot=False, width=width, height=height)
-    
-    # Update title
-    if 'title' not in kwargs:
-        metric_name = extract_metric_name(value_col)
-        comprehensive_title = create_comprehensive_plot_title(df, metric_name, [value_col], filter_options=filter_options)
-        if group_col:
-            comprehensive_title += f" by {group_col}"
-        fig.update_layout(title=comprehensive_title)
-    
-    return fig
+# create_time_course_single_plot function has been moved to time_plots.py as part of the unified timecourse system
 
 
 def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, filter_options=None, **kwargs):
@@ -222,9 +222,16 @@ def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, filter_opti
     
     # Apply standardized legend configuration
     color_col = kwargs.get('color')
-    width = kwargs.get('width')
-    height = kwargs.get('height')
-    fig = configure_legend(fig, df, color_col, is_subplot=False, width=width, height=height)
+    width = kwargs.get('width', 1200)  # Use default width if not specified
+    height = kwargs.get('height', 500)  # Use default height if not specified
+    
+    # Determine appropriate legend title based on plot type
+    legend_title = "Groups" if color_col else "Populations"
+    
+    fig = configure_legend(
+        fig, df, color_col, is_subplot=False, width=width, height=height,
+        legend_title=legend_title, show_mean_sem_label=True
+    )
     
     # Update title
     if 'title' not in kwargs:
@@ -235,4 +242,18 @@ def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, filter_opti
             comprehensive_title = f"{metric_name} vs {x}"
         fig.update_layout(title=comprehensive_title)
     
+    # Ensure consistent sizing
+    fig.update_layout(
+        width=width,
+        height=height
+    )
+    
     return fig 
+
+
+# Export available functions
+__all__ = [
+    'create_single_metric_plot',
+    'create_cell_type_comparison_plot', 
+    'create_basic_plot'
+] 

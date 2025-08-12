@@ -108,23 +108,42 @@ def limit_cell_types(value_cols: List[str], max_types: int = 8) -> List[str]:
     return value_cols
 
 
-def calculate_subplot_dimensions(num_items: int, max_items_per_row: int = 1) -> tuple:
+def calculate_subplot_dimensions(num_items: int, max_items_per_row: Optional[int] = None) -> tuple:
     """
     Calculate subplot dimensions for a given number of items.
     
     Args:
         num_items: Number of items to display
-        max_items_per_row: Maximum items per row (default 1 for single column)
+        max_items_per_row: Maximum items per row (if None, uses config default)
         
     Returns:
         Tuple of (rows, cols)
     """
+    from .plot_config import MAX_SUBPLOTS_PER_ROW
+    
+    if max_items_per_row is None:
+        max_items_per_row = MAX_SUBPLOTS_PER_ROW
+    
     if max_items_per_row == 1:
         return num_items, 1
     else:
-        rows = (num_items + max_items_per_row - 1) // max_items_per_row
-        cols = min(num_items, max_items_per_row)
-        return rows, cols
+        # Calculate optimal layout to minimize bunching
+        if num_items <= max_items_per_row:
+            # Single row if we have few items
+            return 1, num_items
+        else:
+            # Calculate rows and columns to minimize height while maintaining readability
+            rows = (num_items + max_items_per_row - 1) // max_items_per_row
+            cols = min(num_items, max_items_per_row)
+            
+            # For timecourse plots, prefer more columns to reduce vertical bunching
+            if num_items > 4:
+                # Try to balance rows and columns better
+                optimal_cols = min(max_items_per_row, (num_items + 1) // 2)
+                rows = (num_items + optimal_cols - 1) // optimal_cols
+                cols = optimal_cols
+            
+            return rows, cols
 
 
 def calculate_layout_for_long_labels(
@@ -213,7 +232,7 @@ def calculate_aspect_ratio_dimensions(
     base_width: int = DEFAULT_WIDTH
 ) -> Dict[str, int]:
     """
-    Calculate dimensions maintaining 2:1 width:height aspect ratio with content adjustments.
+    Calculate dimensions maintaining aspect ratio with content adjustments.
     
     Args:
         labels: List of x-axis labels
@@ -226,7 +245,7 @@ def calculate_aspect_ratio_dimensions(
     """
     from .plot_config import TARGET_ASPECT_RATIO
     
-    # Start with target 2:1 aspect ratio
+    # Start with target aspect ratio
     target_ratio = TARGET_ASPECT_RATIO
     
     # Adjust for content needs while maintaining aspect ratio
@@ -235,21 +254,21 @@ def calculate_aspect_ratio_dimensions(
     # Adjust for label length (longer labels need more height, so reduce ratio)
     max_label_length = max(len(str(label)) for label in labels) if labels else 0
     if max_label_length > 15:
-        content_adjustments += 0.3  # Reduce ratio to 1.7:1 for long labels
+        content_adjustments += 0.3  # Reduce ratio to 1.4:1 for long labels
     elif max_label_length > 10:
-        content_adjustments += 0.1  # Reduce ratio to 1.9:1 for medium labels
+        content_adjustments += 0.1  # Reduce ratio to 1.6:1 for medium labels
     
     # Adjust for legend items (more items need more height, so reduce ratio)
     if legend_items > 5:
-        content_adjustments += 0.2  # Reduce ratio for many legend items
+        content_adjustments += 0.3  # Reduce ratio for many legend items
     elif legend_items > 3:
-        content_adjustments += 0.1  # Slight reduction for moderate legend items
+        content_adjustments += 0.2  # Slight reduction for moderate legend items
     
     # Adjust for subplot count (more subplots need more height, so reduce ratio)
     if num_subplots > 3:
-        content_adjustments += 0.4  # Reduce ratio significantly for many subplots
+        content_adjustments += 0.5  # Reduce ratio significantly for many subplots
     elif num_subplots > 1:
-        content_adjustments += 0.2  # Reduce ratio for multiple subplots
+        content_adjustments += 0.3  # Reduce ratio for multiple subplots
     
     # Calculate final aspect ratio with content adjustments
     final_ratio = max(1.0, target_ratio - content_adjustments)  # Don't go below 1:1
@@ -258,9 +277,10 @@ def calculate_aspect_ratio_dimensions(
     width = base_width
     height = int(width / final_ratio)
     
-    # Ensure minimum dimensions
-    width = max(width, 600)
-    height = max(height, 300)
+    # Ensure minimum dimensions and maximum height to fit in viewport
+    width = max(width, 800)
+    height = max(height, 400)
+    height = min(height, 900)  # Cap height to prevent excessive scrolling
     
     return {
         'width': width,

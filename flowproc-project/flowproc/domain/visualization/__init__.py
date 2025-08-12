@@ -11,9 +11,11 @@ from .flow_cytometry_visualizer import (
     scatter,
     bar,
     box,
-    histogram,
-    time_plot
+    histogram
 )
+
+# Unified timecourse visualization system
+from .time_plots import create_timecourse_visualization
 
 # Utility functions
 from .column_utils import detect_flow_columns
@@ -35,7 +37,9 @@ __all__ = [
     'bar',
     'box',
     'histogram',
-    'time_plot',
+    
+    # Unified timecourse system
+    'create_timecourse_visualization',
     
     # Utilities
     'detect_flow_columns',

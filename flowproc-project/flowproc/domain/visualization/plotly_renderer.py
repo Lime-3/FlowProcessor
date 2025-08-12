@@ -43,7 +43,7 @@ class PlotlyRenderer:
             title=title, **kwargs
         )
         
-        # Calculate dimensions maintaining 2:1 aspect ratio
+        # Calculate dimensions maintaining aspect ratio
         labels = df[x_col].unique().tolist() if x_col in df.columns else []
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
         
@@ -51,7 +51,7 @@ class PlotlyRenderer:
         dimensions = calculate_aspect_ratio_dimensions(
             labels=labels,
             legend_items=legend_items,
-            base_width=1000
+            base_width=1200  # Use consistent base width
         )
         
         # Apply dimensions maintaining aspect ratio
@@ -65,13 +65,13 @@ class PlotlyRenderer:
         margin = self.default_layout['margin'].copy()
         if max(len(str(label)) for label in labels) > 15:
             margin['b'] = 80  # Increase bottom margin for long labels
-            margin['r'] = 250  # Increase right margin for legend
+            margin['r'] = 300  # Increase right margin for legend
         
         fig.update_layout(
             margin=margin,
             legend=dict(
-                x=0.5,
-                y=-0.25,
+                x=1.02,  # Position legend closer to plot
+                y=0.5,
                 yanchor='top',
                 xanchor='center'
             )
@@ -488,6 +488,13 @@ class PlotlyRenderer:
             full_html=True,
             config=config
         )
+        
+        # Debug: Check if title is preserved in HTML
+        logger.debug(f"HTML export - Figure title before export: {getattr(fig.layout, 'title', 'NO_TITLE')}")
+        if 'title' in html_content.lower():
+            logger.debug("HTML export - Title found in generated HTML")
+        else:
+            logger.warning("HTML export - Title not found in generated HTML")
         
         # For embedded viewers, ensure CDN loads properly
         if optimization_level in ['minimal', 'balanced'] and include_plotlyjs == 'cdn':
