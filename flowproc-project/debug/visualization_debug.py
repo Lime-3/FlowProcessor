@@ -13,7 +13,7 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from flowproc.domain.parsing import load_and_parse_df
-from flowproc.domain.visualization.data_processor import detect_data_characteristics
+from flowproc.domain.visualization.column_utils import detect_flow_columns
 from flowproc.core.constants import KEYWORDS
 
 # Set up logging
@@ -47,7 +47,7 @@ def test_data_analysis(df, sid_col: str) -> bool:
     
     try:
         start_time = time.time()
-        characteristics = detect_data_characteristics(df)
+        characteristics = detect_flow_columns(df)
         analysis_time = time.time() - start_time
         
         print(f"✅ Data analysis completed in {analysis_time:.2f} seconds")
@@ -102,7 +102,7 @@ def test_visualization_creation(csv_path: Path) -> bool:
     print(f"\n🔍 Testing visualization creation...")
     
     try:
-        from flowproc.domain.visualization.facade import create_visualization
+        from flowproc.domain.visualization.flow_cytometry_visualizer import plot
         import tempfile
         
         start_time = time.time()
@@ -111,13 +111,12 @@ def test_visualization_creation(csv_path: Path) -> bool:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.html') as tmp_file:
             output_html = Path(tmp_file.name)
         
-        # Create visualization
-        fig = create_visualization(
-            data_source=csv_path,
-            metric="Freq. of Parent",
-            output_html=output_html,
-            time_course_mode=False,
-            theme="default",
+        # Create visualization using current module
+        fig = plot(
+            data=csv_path,
+            y="Freq. of Parent",
+            plot_type="bar",
+            save_html=output_html,
             width=600,
             height=400
         )

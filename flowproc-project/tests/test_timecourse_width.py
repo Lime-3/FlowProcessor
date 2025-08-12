@@ -10,9 +10,7 @@ from pathlib import Path
 # Add the flowproc directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from flowproc.domain.visualization.unified_service import UnifiedVisualizationService
-from flowproc.domain.visualization.config import VisualizationConfig
-from flowproc.domain.visualization.models import ProcessedData
+from flowproc.domain.visualization.time_plots import create_timecourse_visualization
 from flowproc.domain.parsing import load_and_parse_df
 
 # Set up logging
@@ -45,35 +43,27 @@ def test_timecourse_width():
         # Load and parse data
         df, sid_col = load_and_parse_df(csv_path)
         
-        # Create processed data
-        processed_data = ProcessedData(
-            dataframes=[df],
-            metrics=['Freq. of Parent CD4'],
-            groups=['Group 1'],
-            tissues=['SP'],
-            replicate_count=2
-        )
-        
-        # Create configuration for timecourse
-        config = VisualizationConfig(
+        # Create visualization using current timecourse module
+        fig = create_timecourse_visualization(
+            data=df,
+            time_column='Time',
             metric='Freq. of Parent CD4',
             width=1200,  # Wide default for timecourse
-            height=600,
-            time_course_mode=True,
-            theme='default'
+            height=600
         )
-        
-        # Create visualization using unified service
-        service = UnifiedVisualizationService()
-        fig = service.create_flow_cytometry_visualization(processed_data, config.__dict__)
         
         # Check that the figure has the correct width
         assert fig.layout.width == 1200, f"Expected width 1200, got {fig.layout.width}"
         print(f"Timecourse plot width: {fig.layout.width}")
         
         # Test with different width
-        config.width = 800
-        fig2 = service.create_flow_cytometry_visualization(processed_data, config.__dict__)
+        fig2 = create_timecourse_visualization(
+            data=df,
+            time_column='Time',
+            metric='Freq. of Parent CD4',
+            width=800,
+            height=600
+        )
         assert fig2.layout.width == 800, f"Expected width 800, got {fig2.layout.width}"
         print(f"Timecourse plot width (800): {fig2.layout.width}")
         
@@ -116,25 +106,12 @@ def test_default_timecourse_dimensions():
         # Load and parse data
         df, sid_col = load_and_parse_df(csv_path)
         
-        # Create processed data
-        processed_data = ProcessedData(
-            dataframes=[df],
-            metrics=['Freq. of Parent CD4'],
-            groups=['Group 1'],
-            tissues=['SP'],
-            replicate_count=2
+        # Create visualization using current timecourse module with default dimensions
+        fig = create_timecourse_visualization(
+            data=df,
+            time_column='Time',
+            metric='Freq. of Parent CD4'
         )
-        
-        # Create configuration with default dimensions
-        config = VisualizationConfig(
-            metric='Freq. of Parent CD4',
-            time_course_mode=True,
-            theme='default'
-        )
-        
-        # Create visualization using unified service
-        service = UnifiedVisualizationService()
-        fig = service.create_flow_cytometry_visualization(processed_data, config.__dict__)
         
         # Check that default dimensions are reasonable for timecourse
         assert fig.layout.width >= 600, f"Default width too small: {fig.layout.width}"

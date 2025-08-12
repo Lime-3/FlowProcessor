@@ -279,7 +279,6 @@ Dependency injection container for FlowProcessor.
 
 from dependency_injector import containers, providers
 from flowproc.domain.parsing.service import ParsingService
-from flowproc.domain.visualization.service import VisualizationService
 from flowproc.domain.export.service import ExportService
 
 class Container(containers.DeclarativeContainer):
@@ -290,7 +289,6 @@ class Container(containers.DeclarativeContainer):
     
     # Services
     parsing_service = providers.Singleton(ParsingService)
-    visualization_service = providers.Singleton(VisualizationService)
     export_service = providers.Singleton(ExportService)
     
     # Configure service dependencies
@@ -298,13 +296,6 @@ class Container(containers.DeclarativeContainer):
         validators=providers.List(
             providers.Factory(DataValidator),
             providers.Factory(FormatValidator)
-        )
-    )
-    
-    visualization_service.override(
-        renderers=providers.List(
-            providers.Factory(PlotlyRenderer),
-            providers.Factory(MatplotlibRenderer)
         )
     )
 

@@ -17,8 +17,7 @@ sys.path.insert(0, str(project_root))
 
 # Import FlowProcessor modules
 from flowproc.domain.parsing import load_and_parse_df, extract_group_animal, extract_tissue
-from flowproc.domain.visualization.facade import visualize_data
-from flowproc.domain.visualization.config import VisualizationConfig
+from flowproc.domain.visualization.flow_cytometry_visualizer import plot
 from flowproc.domain.export import process_csv
 
 
@@ -101,20 +100,20 @@ def demo_csv_processing():
                         print(f"   📈 Creating visualization with metric: {metric}")
                         
                         # Create visualization config
-                        config = VisualizationConfig(
-                            metric=metric,
-                            time_course_mode=False,
-                            user_replicates=[1, 2],
-                            auto_parse_groups=True,
-                            user_group_labels=["Group A", "Group B"]
-                        )
+                        # config = VisualizationConfig(
+                        #     metric=metric,
+                        #     time_course_mode=False,
+                        #     user_replicates=[1, 2],
+                        #     auto_parse_groups=True,
+                        #     user_group_labels=["Group A", "Group B"]
+                        # )
                         
                         # Create temporary output directory
                         with tempfile.TemporaryDirectory() as temp_dir:
                             temp_path = Path(temp_dir)
                             
                             # Generate visualization
-                            fig = visualize_data(parsed_df, config, temp_path)
+                            fig = plot(parsed_df, metric)
                             if fig:
                                 print(f"   ✅ Visualization created successfully")
                             else:
