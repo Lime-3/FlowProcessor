@@ -245,13 +245,14 @@ class ProcessingCoordinator(QObject):
                     output_html = Path(tmp_file.name)
             
             # Use the flow cytometry visualizer with filtered data
-            from flowproc.domain.visualization.flow_cytometry_visualizer import plot, time_plot
+            from flowproc.domain.visualization.flow_cytometry_visualizer import plot
+            from flowproc.domain.visualization.time_plots import create_timecourse_visualization
             
             if options.time_course_mode:
-                fig = time_plot(
+                fig = create_timecourse_visualization(
                     data=filtered_df,  # Pass filtered DataFrame
-                    time_col='Time',
-                    value_col=options.y_axis,
+                    time_column='Time',
+                    metric=options.y_axis,
                     save_html=output_html,
                     filter_options=options
                 )

@@ -34,14 +34,15 @@ class VisualizationOptions:
     y_axis: Optional[str] = None
     time_course_mode: bool = False
     theme: str = "plotly"
-    width: int = 800
-    height: int = 600
+    width: int = 1200  # Updated to match new default
+    height: int = 500   # Updated to match new default for better standard mode aspect ratio
     show_individual_points: bool = False
     error_bars: bool = True
     interactive: bool = True
     # Filter options
     selected_tissues: Optional[list] = None
     selected_times: Optional[list] = None
+    selected_population: Optional[str] = None  # New: selected population for timecourse plots
 
 
 class VisualizationDialog(QDialog):
@@ -66,6 +67,7 @@ class VisualizationDialog(QDialog):
         self.time_course_checkbox: Optional[QCheckBox] = None
         self.tissue_filter: Optional[QListWidget] = None
         self.time_filter: Optional[QListWidget] = None
+        self.population_filter: Optional[QComboBox] = None  # New: population dropdown
         self.web_view: Optional[QWebEngineView] = None
         self.status_label: Optional[QLabel] = None
         
@@ -193,6 +195,21 @@ class VisualizationDialog(QDialog):
         self.time_filter_layout.addStretch()  # Push content to top
         main_row.addLayout(self.time_filter_layout)
         
+        # Population filter (only visible in timecourse mode)
+        self.population_filter_layout = QVBoxLayout()
+        self.population_filter_layout.setSpacing(5)  # Consistent spacing between label and control
+        self.population_filter_label = QLabel("Population Filter:")
+        self.population_filter_layout.addWidget(self.population_filter_label)
+        self.population_filter = QComboBox()
+        self.population_filter.currentTextChanged.connect(self._on_filter_changed)
+        self.population_filter_layout.addWidget(self.population_filter)
+        self.population_filter_layout.addStretch()  # Push content to the top
+        main_row.addLayout(self.population_filter_layout)
+        
+        # Initially hide population filter (only show in timecourse mode)
+        self.population_filter_label.setVisible(False)
+        self.population_filter.setVisible(False)
+        
         # Action Buttons - stacked vertically to the right of filters
         button_layout = QVBoxLayout()
         button_layout.addStretch()  # Push buttons to the top
@@ -286,6 +303,12 @@ class VisualizationDialog(QDialog):
             }
             QComboBox:hover {
                 border-color: #404040;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #191919;
+                border: 1px solid #303030;
+                selection-background-color: #0064FF;
+                color: #F0F0F0;
             }
             QCheckBox {
                 spacing: 8px;
@@ -410,6 +433,9 @@ class VisualizationDialog(QDialog):
         self.tissue_filter.clear()
         self.time_filter.clear()
         
+        # Populate population filter
+        self._populate_population_options(df)
+        
         # Populate tissue filter with unique tissue values
         has_real_tissue_data = False
         if 'Tissue' in df.columns:
@@ -477,8 +503,159 @@ class VisualizationDialog(QDialog):
         self.time_filter.setVisible(has_time_data)
         logger.info(f"Time filter visibility - has_time_data: {has_time_data}, visible: {has_time_data}")
     
+    def _populate_population_options(self, df: pd.DataFrame):
+        """Populate population filter with available populations from the data."""
+        if self.population_filter is None:
+            return
+        
+        # Clear existing items
+        self.population_filter.clear()
+        
+        # Get available populations from the data
+        # Look for columns that contain population information (not pure metrics)
+        from flowproc.core.constants import is_pure_metric_column
+        
+        available_populations = []
+        population_mapping = {}  # Map shortnames to full names for filtering
+        
+        # Check if we have a metric selected
+        if self.y_axis_combo and self.y_axis_combo.currentText():
+            metric = self.y_axis_combo.currentText()
+            
+            # Get all columns that match this metric type
+            from flowproc.domain.visualization.column_utils import get_matching_columns_for_metric
+            matching_cols = get_matching_columns_for_metric(df, metric)
+            
+            # Filter out pure metric columns to get population columns
+            for col in matching_cols:
+                if not is_pure_metric_column(col, metric):
+                    # This is a population column, extract the population name
+                    population_name = self._extract_population_name(col, metric)
+                    if population_name and population_name not in available_populations:
+                        # Create shortname for display
+                        from flowproc.domain.visualization.column_utils import create_population_shortname
+                        shortname = create_population_shortname(col)
+                        
+                        # Store mapping from shortname to full column name for filtering
+                        population_mapping[shortname] = col
+                        available_populations.append(shortname)
+        
+        # If no populations found from metric, try to detect from flow cytometry columns
+        if not available_populations:
+            from flowproc.domain.visualization.column_utils import detect_flow_columns
+            flow_cols = detect_flow_columns(df)
+            
+            if flow_cols['frequencies']:
+                for col in flow_cols['frequencies']:
+                    # Extract population name from column (remove metric part)
+                    population_name = self._extract_population_name_from_column(col)
+                    if population_name and population_name not in available_populations:
+                        # Create shortname for display
+                        from flowproc.domain.visualization.column_utils import create_population_shortname
+                        shortname = create_population_shortname(col)
+                        
+                        # Store mapping from shortname to full column name for filtering
+                        population_mapping[shortname] = col
+                        available_populations.append(shortname)
+        
+        # Add populations to dropdown
+        if available_populations:
+            # Sort populations for consistent ordering
+            available_populations.sort()
+            
+            # Add "All Populations" option for faceted plots
+            self.population_filter.addItem("All Populations")
+            
+            # Add individual populations using shortnames
+            for shortname in available_populations:
+                self.population_filter.addItem(shortname)
+            
+            # Set default selection to first population (not "All Populations")
+            if len(available_populations) > 0:
+                self.population_filter.setCurrentText(available_populations[0])
+            
+            # Store the mapping for later use in filtering
+            self._population_mapping = population_mapping
+            
+            logger.info(f"Populated population filter with {len(available_populations)} populations using shortnames: {available_populations}")
+            logger.debug(f"Population mapping: {population_mapping}")
+            
+            # Log a few examples of the mapping for verification
+            if population_mapping:
+                logger.info("Population filter shortname examples:")
+                for i, (shortname, full_name) in enumerate(list(population_mapping.items())[:3]):
+                    logger.info(f"  '{shortname}' -> '{full_name}'")
+        else:
+            # No populations found, add a default option
+            self.population_filter.addItem("No Populations Available")
+            logger.warning("No populations detected in the data")
+    
+    def _extract_population_name(self, column_name: str, metric: str) -> Optional[str]:
+        """Extract population name from a column that contains both metric and population info."""
+        # Remove the metric part to get the population
+        # Example: "CD4+ | Freq. of Parent (%)" -> "CD4+"
+        # Example: "Live/CD4+/GFP+ | Freq. of Parent (%)" -> "Live/CD4+/GFP+"
+        
+        # Look for common separators
+        separators = [' | ', ' |', '| ', ' - ', ' -', '- ']
+        for separator in separators:
+            if separator in column_name:
+                parts = column_name.split(separator)
+                if len(parts) >= 2:
+                    # First part is usually the population
+                    population_part = parts[0].strip()
+                    if population_part:
+                        return population_part
+        
+        # If no separator found, try to remove metric keywords from the end
+        metric_lower = metric.lower()
+        if column_name.lower().endswith(metric_lower):
+            population_part = column_name[:-len(metric)].strip()
+            if population_part:
+                return population_part
+        
+        # If still no match, return the column name as is
+        return column_name
+    
+    def _extract_population_name_from_column(self, column_name: str) -> Optional[str]:
+        """Extract population name from a column without knowing the metric."""
+        # This is a fallback method when we don't have a specific metric
+        # Look for common population patterns
+        
+        # Check for path separators (like "Live/CD4+/GFP+")
+        if '/' in column_name:
+            # Take the last part as the main population identifier
+            parts = column_name.split('/')
+            if parts:
+                return parts[-1].strip()
+        
+        # Check for common separators
+        separators = [' | ', ' |', '| ', ' - ', ' -', '- ']
+        for separator in separators:
+            if separator in column_name:
+                parts = column_name.split(separator)
+                if len(parts) >= 2:
+                    # First part is usually the population
+                    population_part = parts[0].strip()
+                    if population_part:
+                        return population_part
+        
+        # If no clear pattern, return the column name as is
+        return column_name
+    
     def _on_option_changed(self):
         """Handle option changes."""
+        # If y-axis changed and we're in timecourse mode, repopulate population options
+        if (self.time_course_checkbox and self.time_course_checkbox.isChecked() and 
+            self.csv_path and self.csv_path.exists()):
+            try:
+                from flowproc.domain.parsing import load_and_parse_df
+                df, _ = load_and_parse_df(self.csv_path)
+                if df is not None and not df.empty:
+                    self._populate_population_options(df)
+            except Exception as e:
+                logger.warning(f"Failed to repopulate population options: {e}")
+        
         self._generate_plot()
     
     def _on_filter_changed(self):
@@ -495,8 +672,28 @@ class VisualizationDialog(QDialog):
         if checked:
             self.plot_type_combo.setCurrentText("line")
             self.plot_type_combo.setEnabled(False)  # Disable plot type selection for time course
+            
+            # Show population filter for timecourse mode
+            if self.population_filter_label and self.population_filter:
+                self.population_filter_label.setVisible(True)
+                self.population_filter.setVisible(True)
+                
+                # Repopulate population options if we have data
+                if self.csv_path and self.csv_path.exists():
+                    try:
+                        from flowproc.domain.parsing import load_and_parse_df
+                        df, _ = load_and_parse_df(self.csv_path)
+                        if df is not None and not df.empty:
+                            self._populate_population_options(df)
+                    except Exception as e:
+                        logger.warning(f"Failed to repopulate population options: {e}")
         else:
             self.plot_type_combo.setEnabled(True)
+            
+            # Hide population filter when not in timecourse mode
+            if self.population_filter_label and self.population_filter:
+                self.population_filter_label.setVisible(False)
+                self.population_filter.setVisible(False)
         
         self._generate_plot()
     
@@ -535,12 +732,33 @@ class VisualizationDialog(QDialog):
         logger.info(f"Filter selection - time_filter visible: {self.time_filter and self.time_filter.isVisible()}, count: {self.time_filter.count() if self.time_filter else 0}")
         logger.info(f"Filter selection - selected tissues: {selected_tissues}, selected times: {selected_times}")
         
+        # Get selected population (only relevant in timecourse mode)
+        selected_population = None
+        if (self.population_filter and self.population_filter.isVisible() and 
+            self.population_filter.currentText() and 
+            self.population_filter.currentText() != "All Populations" and
+            self.population_filter.currentText() != "No Populations Available"):
+            # Get the shortname from the dropdown
+            shortname = self.population_filter.currentText()
+            
+            # Use the mapping to get the full column name for filtering
+            if hasattr(self, '_population_mapping') and shortname in self._population_mapping:
+                selected_population = self._population_mapping[shortname]
+                logger.debug(f"Population filter: shortname '{shortname}' maps to column '{selected_population}'")
+            else:
+                # Fallback to using the shortname directly if no mapping available
+                selected_population = shortname
+                logger.warning(f"No population mapping found for '{shortname}', using shortname directly")
+        
+        logger.info(f"Filter selection - selected population: {selected_population}")
+        
         return VisualizationOptions(
             plot_type=self.plot_type_combo.currentText() if self.plot_type_combo else "bar",
             y_axis=self.y_axis_combo.currentText() if self.y_axis_combo else None,
             time_course_mode=self.time_course_checkbox.isChecked() if self.time_course_checkbox else False,
             selected_tissues=selected_tissues,
-            selected_times=selected_times
+            selected_times=selected_times,
+            selected_population=selected_population
         )
     
     def _generate_plot(self):
@@ -585,6 +803,23 @@ class VisualizationDialog(QDialog):
             
             # Apply filters using coordinator's static method
             filtered_df = ProcessingCoordinator.apply_filters(df, options)
+            
+            # Additional debugging for filtered data
+            logger.info(f"Filtered data - rows: {len(filtered_df)}, columns: {list(filtered_df.columns)}")
+            logger.info(f"Filtered data sample:")
+            logger.info(f"  First few rows: {filtered_df.head(3).to_dict('records')}")
+            
+            # Check for time-related columns
+            time_cols = [col for col in filtered_df.columns if any(keyword in col.lower() for keyword in ['time', 'day', 'hour', 'week', 'minute'])]
+            logger.info(f"Time-related columns found: {time_cols}")
+            
+            # Check for value columns (numeric columns that might be metrics)
+            numeric_cols = filtered_df.select_dtypes(include=['number']).columns.tolist()
+            logger.info(f"Numeric columns (potential metrics): {numeric_cols}")
+            
+            # Check for group columns
+            group_cols = [col for col in filtered_df.columns if any(keyword in col.lower() for keyword in ['group', 'treatment', 'condition', 'sample'])]
+            logger.info(f"Group-related columns found: {group_cols}")
             
             # Provide detailed feedback about filtering
             filter_message = f"Filtered data: {len(filtered_df)} of {len(df)} rows"
@@ -655,30 +890,137 @@ class VisualizationDialog(QDialog):
                 return
             
             # Generate plot with filtered data
-            from flowproc.domain.visualization.flow_cytometry_visualizer import plot, time_plot
+            from flowproc.domain.visualization.flow_cytometry_visualizer import plot
+            from flowproc.domain.visualization.time_plots import create_timecourse_visualization
             
             if options.time_course_mode:
-                fig = time_plot(
+                # Create filter options including population filter
+                # Pass the options object directly since create_comprehensive_plot_title expects an object with attributes
+                filter_options = options
+                # Add population filter as a separate parameter since it's not part of the options object structure
+                population_filter = options.selected_population
+                
+                # Debug: Log filter options being passed
+                logger.info(f"Timecourse mode - filter_options: {filter_options}")
+                logger.info(f"Timecourse mode - selected_tissues: {filter_options.selected_tissues}")
+                logger.info(f"Timecourse mode - selected_times: {filter_options.selected_times}")
+                logger.info(f"Timecourse mode - population_filter: {population_filter}")
+                
+                # Additional debugging for attribute access
+                logger.info(f"Timecourse mode - filter_options type: {type(filter_options)}")
+                logger.info(f"Timecourse mode - hasattr selected_population: {hasattr(filter_options, 'selected_population')}")
+                logger.info(f"Timecourse mode - hasattr selected_tissues: {hasattr(filter_options, 'selected_tissues')}")
+                logger.info(f"Timecourse mode - hasattr selected_times: {hasattr(filter_options, 'selected_times')}")
+                
+                # Try to access attributes directly to see if there are any issues
+                try:
+                    logger.info(f"Timecourse mode - direct access selected_population: {getattr(filter_options, 'selected_population', 'NOT_FOUND')}")
+                    logger.info(f"Timecourse mode - direct access selected_tissues: {getattr(filter_options, 'selected_tissues', 'NOT_FOUND')}")
+                    logger.info(f"Timecourse mode - direct access selected_times: {getattr(filter_options, 'selected_times', 'NOT_FOUND')}")
+                except Exception as e:
+                    logger.error(f"Timecourse mode - Error accessing filter options attributes: {e}")
+                
+                # Detect the actual time column from the data
+                time_column = None
+                if 'Time' in filtered_df.columns:
+                    time_column = 'Time'
+                elif 'time' in filtered_df.columns:
+                    time_column = 'time'
+                else:
+                    # Look for any column that might be time-related
+                    time_candidates = [col for col in filtered_df.columns 
+                                    if any(keyword in col.lower() for keyword in ['time', 'day', 'hour', 'week', 'minute'])]
+                    if time_candidates:
+                        time_column = time_candidates[0]
+                        logger.info(f"Auto-detected time column: {time_column}")
+                    else:
+                        # Fallback to first numeric column that's not the value column
+                        numeric_cols = filtered_df.select_dtypes(include=['number']).columns
+                        if len(numeric_cols) > 1:
+                            time_column = numeric_cols[0]  # Use first numeric column as time
+                            logger.info(f"Using first numeric column as time: {time_column}")
+                        else:
+                            time_column = 'Time'  # Last resort
+                            logger.warning("No suitable time column found, using 'Time' as fallback")
+                
+                logger.info(f"Using time column: {time_column}")
+                
+                fig = create_timecourse_visualization(
                     data=filtered_df,
-                    time_col='Time',
-                    value_col=options.y_axis,
+                    time_column=time_column,  # Use detected time column
+                    metric=options.y_axis,
+                    population_filter=population_filter,  # Pass population filter
+                    filter_options=filter_options,  # Pass all filter options
+                    width=options.width,
+                    height=options.height,
                     save_html=self.temp_html_file
                 )
             else:
+                # Debug: Log filter options being passed for non-timecourse mode
+                logger.info(f"Standard mode - filter_options: {options}")
+                logger.info(f"Standard mode - selected_tissues: {options.selected_tissues}")
+                logger.info(f"Standard mode - selected_times: {options.selected_times}")
+                
+                # Additional debugging for attribute access in standard mode
+                logger.info(f"Standard mode - filter_options type: {type(options)}")
+                logger.info(f"Standard mode - hasattr selected_population: {hasattr(options, 'selected_population')}")
+                logger.info(f"Standard mode - hasattr selected_tissues: {hasattr(options, 'selected_tissues')}")
+                logger.info(f"Standard mode - hasattr selected_times: {hasattr(options, 'selected_times')}")
+                
+                # Try to access attributes directly to see if there are any issues
+                try:
+                    logger.info(f"Standard mode - direct access selected_population: {getattr(options, 'selected_population', 'NOT_FOUND')}")
+                    logger.info(f"Standard mode - direct access selected_tissues: {getattr(options, 'selected_tissues', 'NOT_FOUND')}")
+                    logger.info(f"Standard mode - direct access selected_times: {getattr(options, 'selected_times', 'NOT_FOUND')}")
+                except Exception as e:
+                    logger.error(f"Standard mode - Error accessing filter options attributes: {e}")
+                
                 fig = plot(
                     data=filtered_df,
                     x='Group',
                     y=options.y_axis,
                     plot_type=options.plot_type,
+                    filter_options=options,  # Pass filter options for title generation
+                    width=options.width,
+                    height=options.height,
                     save_html=self.temp_html_file
                 )
             
             result_path = self.temp_html_file
             
+            # Debug: Check the figure title
+            if fig and hasattr(fig, 'layout') and hasattr(fig.layout, 'title'):
+                if hasattr(fig.layout.title, 'text'):
+                    logger.info(f"Figure title: {fig.layout.title.text}")
+                else:
+                    logger.info("Figure has title but no text attribute")
+            else:
+                logger.info("Figure has no title or layout")
+            
             if fig and result_path:
+                # Debug: Check the generated HTML content
+                if self.temp_html_file.exists():
+                    try:
+                        with open(self.temp_html_file, 'r', encoding='utf-8') as f:
+                            html_content = f.read()
+                            logger.info(f"Generated HTML file size: {len(html_content)} characters")
+                            if 'title' in html_content.lower():
+                                title_start = html_content.find('<title>')
+                                title_end = html_content.find('</title>')
+                                if title_start != -1 and title_end != -1:
+                                    title_text = html_content[title_start + 7:title_end]
+                                    logger.info(f"HTML title found: {title_text}")
+                                else:
+                                    logger.info("No HTML title tags found")
+                            else:
+                                logger.info("No title content found in HTML")
+                    except Exception as e:
+                        logger.warning(f"Failed to read HTML content for debugging: {e}")
+                
                 # Load in web view
                 from PySide6.QtCore import QUrl
                 file_url = QUrl.fromLocalFile(str(self.temp_html_file))
+                logger.info(f"Loading web view with URL: {file_url}")
                 self.web_view.load(file_url)
                 
                 # Update status with filter information

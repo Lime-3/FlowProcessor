@@ -32,7 +32,9 @@ def configure_legend(
     height: Optional[int] = None,
     font_size: int = LEGEND_FONT_SIZE,
     bg_color: str = LEGEND_BG_COLOR,
-    legend_width: Optional[int] = None
+    legend_width: Optional[int] = None,
+    legend_title: Optional[str] = None,
+    show_mean_sem_label: bool = True
 ) -> Figure:
     """
     Configure legend for both global and subplot legends.
@@ -54,6 +56,8 @@ def configure_legend(
         font_size: Legend font size
         bg_color: Legend background color
         legend_width: Explicit legend width (calculated automatically if not provided)
+        legend_title: Title to display above the legend
+        show_mean_sem_label: Whether to show "Mean ± SEM" label at bottom of legend
         
     Returns:
         Updated figure with configured legend
@@ -64,11 +68,12 @@ def configure_legend(
     if is_subplot:
         return _configure_subplot_legend(
             fig, subplot_groups, subplot_traces, legend_x, legend_y, 
-            width, height, font_size, bg_color
+            width, height, font_size, bg_color, legend_title, show_mean_sem_label
         )
     else:
         return _configure_global_legend(
-            fig, df, color_col, width, height, font_size, bg_color, legend_width
+            fig, df, color_col, width, height, font_size, bg_color, 
+            legend_width, legend_title, show_mean_sem_label
         )
 
 
@@ -80,7 +85,9 @@ def _configure_global_legend(
     height: Optional[int] = None,
     font_size: int = LEGEND_FONT_SIZE,
     bg_color: str = LEGEND_BG_COLOR,
-    legend_width: Optional[int] = None
+    legend_width: Optional[int] = None,
+    legend_title: Optional[str] = None,
+    show_mean_sem_label: bool = True
 ) -> Figure:
     """
     Configure global legend for the entire figure.
@@ -94,6 +101,8 @@ def _configure_global_legend(
         font_size: Legend font size
         bg_color: Legend background color
         legend_width: Explicit legend width
+        legend_title: Title to display above the legend
+        show_mean_sem_label: Whether to show "Mean ± SEM" label at bottom of legend
         
     Returns:
         Updated figure with global legend configuration
@@ -119,10 +128,18 @@ def _configure_global_legend(
     if legend_width is None:
         legend_width = max(legend_items * LEGEND_ITEM_WIDTH + 50, 100)
     
-    # Calculate total width with defaults - ensure enough space for legend at x=1.05
+    # Calculate total width - ensure legend fits within the plot area
     plot_width = width if width is not None else DEFAULT_WIDTH
     legend_width = legend_width if legend_width is not None else 150
-    total_width = plot_width + legend_width + 50  # Extra space for legend positioned at x=1.05
+    
+    # Position legend at x=1.02 (closer to plot) and ensure it fits
+    # The legend should be positioned so it's visible without scrolling
+    legend_x = 1.02
+    legend_width_paper = legend_width / plot_width  # Convert to paper coordinates
+    
+    # Ensure legend doesn't extend beyond reasonable bounds
+    if legend_x + legend_width_paper > 1.15:  # Don't go too far right
+        legend_x = 1.15 - legend_width_paper
     
     # Preserve existing legend title if set
     existing_legend_title = None
@@ -131,15 +148,15 @@ def _configure_global_legend(
     
     # Apply layout with legend
     layout_updates = {
-        'width': total_width,
+        'width': plot_width,
         'showlegend': show_legend,
         'margin': MARGIN
     }
     
     # Only configure legend if we're showing it
     if show_legend:
-        layout_updates['legend'] = dict(
-            x=1.05,
+        legend_config = dict(
+            x=legend_x,
             y=0.5,
             yanchor="middle",
             xanchor="left",
@@ -156,9 +173,40 @@ def _configure_global_legend(
             itemclick="toggle",
             itemdoubleclick="toggleothers",
         )
+        
+        # Add legend title if provided
+        if legend_title:
+            legend_config['title'] = dict(
+                text=legend_title,
+                font=dict(size=font_size + 1, color="black")
+            )
+        
+        # Add mean +/- SEM label at bottom if requested
+        if show_mean_sem_label:
+            # Create a custom legend with mean +/- SEM label
+            # We'll add this as an annotation below the legend
+            # Calculate position below the legend based on legend height
+            legend_height = legend_items * 20 + 40  # Approximate legend height in pixels
+            legend_height_paper = legend_height / plot_width  # Convert to paper coordinates
+            
+            fig.add_annotation(
+                text="Mean ± SEM",
+                xref="paper",
+                yref="paper",
+                x=legend_x,  # Slightly to the right of legend
+                y=0.5 - legend_height_paper - 0.05,  # Dynamic positioning below legend
+                xanchor="left",
+                yanchor="top",
+                showarrow=False,
+                font=dict(size=font_size - 1, color="gray"),
+                align="left"
+            )
+        
+        layout_updates['legend'] = legend_config
     
     # Restore legend title if it existed and we're showing legend
-    if existing_legend_title and show_legend and 'legend' in layout_updates:
+    # Only restore if we didn't set a new legend title
+    if existing_legend_title and show_legend and 'legend' in layout_updates and not legend_title:
         layout_updates['legend']['title'] = existing_legend_title
     
     if height is not None:
@@ -178,7 +226,9 @@ def _configure_subplot_legend(
     width: int,
     height: Optional[int],
     font_size: int,
-    bg_color: str
+    bg_color: str,
+    legend_title: Optional[str] = None,
+    show_mean_sem_label: bool = True
 ) -> Figure:
     """
     Configure subplot legend using annotations.
@@ -193,6 +243,8 @@ def _configure_subplot_legend(
         height: Figure height
         font_size: Legend font size
         bg_color: Legend background color
+        legend_title: Title to display above the legend
+        show_mean_sem_label: Whether to show "Mean ± SEM" label at bottom of legend
         
     Returns:
         Updated figure with subplot legend annotation
@@ -203,7 +255,7 @@ def _configure_subplot_legend(
     
     # Create legend annotation
     annotation = _create_subplot_legend_annotation(
-        subplot_groups, subplot_traces, legend_x, legend_y, font_size, bg_color
+        subplot_groups, subplot_traces, legend_x, legend_y, font_size, bg_color, legend_title, show_mean_sem_label
     )
     
     if annotation:
@@ -236,7 +288,9 @@ def _create_subplot_legend_annotation(
     legend_x: float = LEGEND_X_POSITION, 
     legend_y: float = 0.5,
     font_size: int = LEGEND_FONT_SIZE,
-    bg_color: str = LEGEND_BG_COLOR
+    bg_color: str = LEGEND_BG_COLOR,
+    legend_title: Optional[str] = None,
+    show_mean_sem_label: bool = True
 ) -> Dict[str, Any]:
     """
     Create a legend annotation for subplots with colored symbols.
@@ -248,6 +302,8 @@ def _create_subplot_legend_annotation(
         legend_y: Y position for legend (paper coordinates)
         font_size: Font size for legend text
         bg_color: Background color for legend
+        legend_title: Title to display above the legend
+        show_mean_sem_label: Whether to show "Mean ± SEM" label at bottom of legend
         
     Returns:
         Dictionary containing annotation configuration
@@ -257,6 +313,12 @@ def _create_subplot_legend_annotation(
     
     # Create legend text with colored symbols
     legend_items = []
+    
+    # Add legend title if provided
+    if legend_title:
+        legend_items.append(f"<b>{legend_title}</b>")
+        legend_items.append("")  # Empty line for spacing
+    
     for j, (group, trace) in enumerate(zip(subplot_groups, subplot_traces)):
         color = (
             trace.line.color 
@@ -264,6 +326,12 @@ def _create_subplot_legend_annotation(
             else f"hsl({j * 360 // len(subplot_groups)}, 70%, 50%)"
         )
         legend_items.append(f'<span style="color: {color};">●</span> {group}')
+    
+    # Add mean +/- SEM label at bottom if requested
+    if show_mean_sem_label:
+        legend_items.append("")  # Empty line for spacing
+        legend_items.append('<span style="color: gray; font-size: 0.9em;">Mean ± SEM</span>')
+    
     legend_text = "<br>".join(legend_items)
     
     return dict(

@@ -4,6 +4,7 @@ Faceted plot creation functions for flow cytometry visualization.
 
 import logging
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from typing import List, Optional, Callable, Dict, Any
@@ -16,7 +17,7 @@ from .plot_config import (
 from .plot_utils import (
     format_time_title, validate_plot_data, limit_cell_types, calculate_subplot_dimensions, calculate_aspect_ratio_dimensions
 )
-from .column_utils import create_enhanced_title, extract_cell_type_name, get_base_columns, create_comprehensive_plot_title, extract_metric_name
+from .column_utils import create_enhanced_title, extract_cell_type_name, get_base_columns, create_comprehensive_plot_title, create_timecourse_plot_title, extract_metric_name
 from .data_aggregation import prepare_data_for_plotting
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,9 @@ def _create_faceted_plot(
     vertical_spacing: float = VERTICAL_SPACING,
     horizontal_spacing: float = HORIZONTAL_SPACING,
     max_cell_types: int = MAX_CELL_TYPES,
-    filter_options=None
+    filter_options=None,
+    aggregation: str = "raw",
+    group_col: Optional[str] = None
 ) -> Figure:
     """
     Base function for creating faceted plots with shared logic.
@@ -55,6 +58,9 @@ def _create_faceted_plot(
         vertical_spacing: Vertical spacing between subplots
         horizontal_spacing: Horizontal spacing between subplots
         max_cell_types: Maximum number of cell types to display
+        filter_options: Filtering options for data
+        aggregation: Data aggregation method ("mean_sem", "median_iqr", "raw")
+        group_col: Column to group by for aggregation (e.g., "Group")
         
     Returns:
         Plotly Figure object with subplots
@@ -117,43 +123,119 @@ def _create_faceted_plot(
                 plot_df = prepare_data_for_plotting(facet_data, base_columns, col)
                 
                 if not plot_df.empty:
-                    trace_name = trace_name_fn(col) if trace_name_fn else extract_cell_type_name(col)
-                    fig.add_trace(
-                        go.Scatter(
-                            x=plot_df[time_col],
-                            y=plot_df[col],
-                            mode='lines+markers',
-                            name=trace_name,
-                            showlegend=False,  # Disable individual trace legend
-                            legendgroup=f"subplot_{row}",
-                            **DEFAULT_TRACE_CONFIG
-                        ),
-                        row=row, col=col_idx
-                    )
+                    # Apply aggregation if requested
+                    if aggregation == "mean_sem" and group_col and group_col in plot_df.columns:
+                        # Aggregate by both group and time
+                        agg_df = plot_df.groupby([group_col, time_col])[col].agg(['mean', 'std', 'count']).reset_index()
+                        agg_df['sem'] = agg_df['std'] / np.sqrt(agg_df['count'])
+                        
+                        # Add traces for each group with error bars
+                        for group in agg_df[group_col].unique():
+                            group_data = agg_df[agg_df[group_col] == group]
+                            trace_name = f"{trace_name_fn(col) if trace_name_fn else extract_cell_type_name(col)} - {group}"
+                            
+                            # Add error bars
+                            error_y_data = dict(
+                                type='data',
+                                array=group_data['sem'],
+                                visible=True
+                            )
+                            
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=group_data[time_col],
+                                    y=group_data['mean'],
+                                    mode='lines+markers',
+                                    name=trace_name,
+                                    showlegend=False,  # Disable individual trace legend
+                                    legendgroup=f"subplot_{row}",
+                                    error_y=error_y_data,
+                                    **DEFAULT_TRACE_CONFIG
+                                ),
+                                row=row, col=col_idx
+                            )
+                    else:
+                        # Use raw data without error bars
+                        trace_name = trace_name_fn(col) if trace_name_fn else extract_cell_type_name(col)
+                        fig.add_trace(
+                            go.Scatter(
+                                x=plot_df[time_col],
+                                y=plot_df[col],
+                                mode='lines+markers',
+                                name=trace_name,
+                                showlegend=False,  # Disable individual trace legend
+                                legendgroup=f"subplot_{row}",
+                                **DEFAULT_TRACE_CONFIG
+                            ),
+                            row=row, col=col_idx
+                        )
         else:
-            # Facet by cell types
-            col = value_cols[i]
-            base_columns = get_base_columns(df, time_col)
-            plot_df = prepare_data_for_plotting(df, base_columns, col)
-            
-            for group in plot_df['Group'].unique():
-                group_data = plot_df[plot_df['Group'] == group]
-                if not group_data.empty:
-                    trace_name = trace_name_fn(group) if trace_name_fn else f"Group {group}"
-                    fig.add_trace(
-                        go.Scatter(
-                            x=group_data[time_col],
-                            y=group_data[col],
-                            mode='lines+markers',
-                            name=trace_name,
-                            showlegend=False,  # Disable individual trace legend
-                            legendgroup=f"subplot_{row}",
-                            **DEFAULT_TRACE_CONFIG
-                    ),
-                        row=row, col=col_idx
-                    )
+            # Facet by cell types - each cell type gets its own subplot
+            logger.info(f"Processing {len(value_cols)} cell types for faceted plot")
+            for i in range(len(value_cols)):  # Loop through ALL cell types
+                col = value_cols[i]
+                logger.info(f"Processing cell type {i+1}/{len(value_cols)}: {col}")
+                
+                base_columns = get_base_columns(df, time_col)
+                plot_df = prepare_data_for_plotting(df, base_columns, col)
+                
+                # Calculate which subplot this cell type should go in
+                subplot_row = (i // cols) + 1
+                subplot_col = (i % cols) + 1
+                
+                logger.info(f"Adding cell type '{col}' to subplot ({subplot_row}, {subplot_col})")
+                
+                for group in plot_df['Group'].unique():
+                    group_data = plot_df[plot_df['Group'] == group]
+                    if not group_data.empty:
+                        # Apply aggregation if requested
+                        if aggregation == "mean_sem" and group_col and group_col in plot_df.columns:
+                            # Aggregate by time for this group
+                            time_agg = group_data.groupby(time_col)[col].agg(['mean', 'std', 'count']).reset_index()
+                            time_agg['sem'] = time_agg['std'] / np.sqrt(time_agg['count'])
+                            
+                            # Add error bars
+                            error_y_data = dict(
+                                type='data',
+                                array=time_agg['sem'],
+                                visible=True
+                            )
+                            
+                            # Make trace names unique by including cell type information
+                            trace_name = f"{extract_cell_type_name(col)} (Group {group})"
+                            logger.info(f"Adding trace '{trace_name}' for group {group} with SEM error bars")
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=time_agg[time_col],
+                                    y=time_agg['mean'],
+                                    mode='lines+markers',
+                                    name=trace_name,
+                                    showlegend=False,  # Disable individual trace legend
+                                    legendgroup=f"subplot_{subplot_row}",  # Group by row for bottom legend
+                                    error_y=error_y_data,
+                                    **DEFAULT_TRACE_CONFIG
+                                ),
+                                row=subplot_row, col=subplot_col
+                            )
+                        else:
+                            # Use raw data without error bars
+                            # Make trace names unique by including cell type information
+                            trace_name = f"{extract_cell_type_name(col)} (Group {group})"
+                            logger.info(f"Adding trace '{trace_name}' for group {group}")
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=group_data[time_col],
+                                    y=group_data[col],
+                                    mode='lines+markers',
+                                    name=trace_name,
+                                    showlegend=False,  # Disable individual trace legend
+                                    legendgroup=f"subplot_{subplot_row}",  # Group by row for bottom legend
+                                    **DEFAULT_TRACE_CONFIG
+                                ),
+                                row=subplot_row, col=subplot_col
+                            )
     
-    # Calculate height maintaining 2:1 aspect ratio if not provided
+    # Calculate height maintaining aspect ratio if not provided
     if height is None:
         # Get labels for aspect ratio calculation
         if facet_by:
@@ -176,23 +258,50 @@ def _create_faceted_plot(
     
     # Enable legend for faceted plots - use the first value column as reference for color grouping
     color_col = 'Group' if 'Group' in df.columns else None
-    fig = configure_legend(fig, df, color_col, is_subplot=False, width=width, height=height)
+    
+    # Determine appropriate legend title based on plot type
+    if facet_by:
+        legend_title = "Groups"
+    else:
+        legend_title = "Cell Types"
+    
+    fig = configure_legend(
+        fig, df, color_col, is_subplot=False, width=width, height=height,
+        legend_title=legend_title, show_mean_sem_label=True
+    )
     
     # Update layout with enhanced title
     if not title or title in ["Time Course by Cell Type", "Time Course by Group", "Time Course by Tissue"]:
-        # Create comprehensive title if using default titles
+        # Create timecourse-specific title if using default timecourse titles
         if facet_by:
             metric_name = extract_metric_name(value_cols[0]) if value_cols else "Frequency"
-            enhanced_title = create_comprehensive_plot_title(df, metric_name, value_cols, filter_options=filter_options)
+            logger.debug(f"Faceted plot - Creating title for facet_by mode with metric: {metric_name}")
+            enhanced_title = create_timecourse_plot_title(df, metric_name, value_cols, filter_options=filter_options)
+            logger.debug(f"Faceted plot - Enhanced title created: {enhanced_title}")
         else:
             metric_name = extract_metric_name(value_cols[0]) if value_cols else "Frequency"
-            enhanced_title = create_comprehensive_plot_title(df, metric_name, value_cols, filter_options=filter_options)
+            logger.debug(f"Faceted plot - Creating title for cell type mode with metric: {metric_name}")
+            enhanced_title = create_timecourse_plot_title(df, metric_name, value_cols, filter_options=filter_options)
+            logger.debug(f"Faceted plot - Enhanced title created: {enhanced_title}")
         title = enhanced_title
+    
+    logger.debug(f"Faceted plot - Final title: {title}")
+    
+    # Debug: Log the title before applying it to the plot
+    logger.info(f"Applying title to faceted plot: '{title}'")
     
     fig.update_layout(
         title=title,
-        margin=MARGIN
+        margin=dict(l=50, r=300, t=80, b=50),  # Increased top margin for timecourse title spacing
+        width=width,
+        height=height
     )
+    
+    # Debug: Verify the title was applied
+    if hasattr(fig.layout, 'title') and hasattr(fig.layout.title, 'text'):
+        logger.info(f"Title applied successfully: '{fig.layout.title.text}'")
+    else:
+        logger.warning("Title not found in figure layout after update")
     
     # Update axes labels
     for i in range(1, rows + 1):
@@ -203,56 +312,73 @@ def _create_faceted_plot(
             fig.update_yaxes(title_text="Frequency (%)", row=i, col=1)
     
     # Create individual legends for each subplot
-    for i in range(1, rows + 1):
-        # Get traces for this subplot
-        subplot_traces = []
-        subplot_names = []
+    # Instead of individual legends, create a unified bottom legend with row distribution
+    all_traces = []
+    all_names = []
+    
+    # Collect all traces and names
+    for trace in fig.data:
+        if trace.name not in all_names:
+            all_traces.append(trace)
+            all_names.append(trace.name)
+    
+    if all_traces:
+        # Create a bottom legend with row distribution
+        # Group traces by their subplot position for better organization
+        legend_items = []
         
-        for trace in fig.data:
-            if hasattr(trace, 'legendgroup') and trace.legendgroup == f"subplot_{i}":
-                if trace.name not in subplot_names:
-                    subplot_traces.append(trace)
-                    subplot_names.append(trace.name)
+        # Debug: Show all traces and their legend groups
+        logger.info(f"All traces: {[trace.name for trace in all_traces]}")
+        for trace in all_traces:
+            logger.info(f"Trace '{trace.name}' has legendgroup: {getattr(trace, 'legendgroup', 'None')}")
         
-        if subplot_traces:
-            # Calculate legend position for this subplot
-            # Position legend to the right of each subplot
-            legend_x = 1.05  # Right of the plot
-            legend_y = 1.0 - (i - 0.5) / rows  # Center of this subplot row
+        # First, add row headers
+        for row in range(1, rows + 1):
+            row_traces = [trace for trace in all_traces if hasattr(trace, 'legendgroup') and f"subplot_{row}" in trace.legendgroup]
+            logger.info(f"Row {row} traces: {[trace.name for trace in row_traces]}")
             
-            # Create legend annotation for this subplot
-            legend_items = []
-            for j, trace in enumerate(subplot_traces):
-                # Get the actual color from the trace
-                color = "black"  # default
-                if hasattr(trace, 'line') and hasattr(trace.line, 'color') and trace.line.color:
-                    color = trace.line.color
-                elif hasattr(trace, 'marker') and hasattr(trace.marker, 'color') and trace.marker.color:
-                    color = trace.marker.color
-                else:
-                    # Generate a color if none is set
-                    color = f"hsl({j * 360 // len(subplot_traces)}, 70%, 50%)"
+            if row_traces:
+                # Add row header
+                legend_items.append(f"<b>Row {row}:</b>")
                 
-                legend_items.append(f'<span style="color: {color};">●</span> {trace.name}')
-            
-            legend_text = "<br>".join(legend_items)
-            
-            # Add legend annotation
-            fig.add_annotation(
-                text=legend_text,
-                xref="paper",
-                yref="paper",
-                x=legend_x,
-                y=legend_y,
-                xanchor="left",
-                yanchor="middle",
-                showarrow=False,
-                bgcolor='rgba(255,255,255,0.9)',
-                bordercolor='rgba(0,0,0,0.3)',
-                borderwidth=1,
-                font=dict(size=10, color="black"),
-                align="left"
-            )
+                # Add traces for this row
+                for trace in row_traces:
+                    # Get the actual color from the trace
+                    color = "black"  # default
+                    if hasattr(trace, 'line') and hasattr(trace.line, 'color') and trace.line.color:
+                        color = trace.line.color
+                    elif hasattr(trace, 'marker') and hasattr(trace.marker, 'color') and trace.marker.color:
+                        color = trace.marker.color
+                    else:
+                        # Generate a color if none is set
+                        color = f"hsl({len(legend_items) * 360 // max(len(all_traces), 1)}, 70%, 50%)"
+                    
+                    legend_items.append(f'<span style="color: {color};">●</span> {trace.name}')
+                
+                # Add spacing between rows
+                if row < rows:
+                    legend_items.append("")  # Empty line for spacing
+        
+        logger.info(f"Legend items: {legend_items}")
+        
+        legend_text = "<br>".join(legend_items)
+        
+        # Add bottom legend annotation
+        fig.add_annotation(
+            text=legend_text,
+            xref="paper",
+            yref="paper",
+            x=0.5,  # Center horizontally
+            y=-0.15,  # Below the plots
+            xanchor="center",
+            yanchor="top",
+            showarrow=False,
+            bgcolor='rgba(255,255,255,0.95)',
+            bordercolor='rgba(0,0,0,0.3)',
+            borderwidth=1,
+            font=dict(size=11, color="black"),
+            align="center"
+        )
     
     return fig
 
@@ -264,7 +390,9 @@ def create_cell_type_faceted_plot(
     width: int = DEFAULT_WIDTH,
     height: Optional[int] = None,
     max_cell_types: int = MAX_CELL_TYPES,
-    filter_options=None
+    filter_options=None,
+    aggregation: str = "raw",
+    group_col: Optional[str] = None
 ) -> Figure:
     """
     Create faceted plot with each subplot showing a different cell type in vertically stacked single columns.
@@ -276,6 +404,9 @@ def create_cell_type_faceted_plot(
         width: Figure width
         height: Figure height (calculated automatically if not provided)
         max_cell_types: Maximum number of cell types to display
+        filter_options: Filtering options for data
+        aggregation: Data aggregation method ("mean_sem", "median_iqr", "raw")
+        group_col: Column to group by for aggregation (e.g., "Group")
         
     Returns:
         Plotly Figure object with subplots
@@ -288,7 +419,9 @@ def create_cell_type_faceted_plot(
         width=width,
         height=height,
         max_cell_types=max_cell_types,
-        filter_options=filter_options
+        filter_options=filter_options,
+        aggregation=aggregation,
+        group_col=group_col
     )
 
 
@@ -299,7 +432,10 @@ def create_group_faceted_plot(
     facet_by: str,
     width: int = DEFAULT_WIDTH,
     height: Optional[int] = None,
-    max_cell_types: int = MAX_CELL_TYPES
+    max_cell_types: int = MAX_CELL_TYPES,
+    filter_options=None,
+    aggregation: str = "raw",
+    group_col: Optional[str] = None
 ) -> Figure:
     """
     Create faceted plot with each subplot showing a different group/tissue in vertically stacked single columns.
@@ -312,6 +448,9 @@ def create_group_faceted_plot(
         width: Figure width
         height: Figure height (calculated automatically if not provided)
         max_cell_types: Maximum number of cell types to display
+        filter_options: Filtering options for data
+        aggregation: Data aggregation method ("mean_sem", "median_iqr", "raw")
+        group_col: Column to group by for aggregation (e.g., "Group")
         
     Returns:
         Plotly Figure object with subplots
@@ -325,7 +464,10 @@ def create_group_faceted_plot(
         trace_name_fn=extract_cell_type_name,
         width=width,
         height=height,
-        max_cell_types=max_cell_types
+        max_cell_types=max_cell_types,
+        filter_options=filter_options,
+        aggregation=aggregation,
+        group_col=group_col
     )
 
 

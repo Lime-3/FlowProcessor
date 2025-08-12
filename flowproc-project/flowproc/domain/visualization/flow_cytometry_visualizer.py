@@ -12,9 +12,10 @@ import pandas as pd
 from pathlib import Path
 from typing import Optional, List, Union
 
-from .column_utils import detect_flow_columns
+from .column_utils import detect_flow_columns, analyze_data_size, extract_metric_name, create_comprehensive_plot_title
 from .plot_creators import create_single_metric_plot, create_cell_type_comparison_plot, create_basic_plot
-from .time_plots import time_plot, time_plot_faceted
+# Legacy timecourse functions removed - use create_timecourse_visualization from time_plots module directly
+from .faceted_plots import create_cell_type_faceted_plot
 from .legend_config import configure_legend
 
 logger = logging.getLogger(__name__)
@@ -98,78 +99,82 @@ def plot(data: Union[str, DataFrame],
                 y = flow_cols['medians'][0]
             elif flow_cols['means']:
                 y = flow_cols['means'][0]
-            elif flow_cols['counts']:
-                y = flow_cols['counts'][0]
-            elif flow_cols['geometric_means']:
-                y = flow_cols['geometric_means'][0]
-            elif flow_cols['cvs']:
-                y = flow_cols['cvs'][0]
-            elif flow_cols['mads']:
-                y = flow_cols['mads'][0]
             else:
-                # Fallback to any column that's not metadata
-                metadata_cols = ['SampleID', 'Group', 'Animal', 'Well', 'Time', 'Replicate', 'Tissue']
-                non_metadata_cols = [col for col in df.columns if col not in metadata_cols]
-                if non_metadata_cols:
-                    y = non_metadata_cols[0]
-                else:
-                    y = df.columns[1] if len(df.columns) > 1 else df.columns[0]
+                y = df.columns[1] if len(df.columns) > 1 else "Value"
     
-    # For flow cytometry data, aggregate by Group and show Mean+/-SEM
-    if x == 'Group' and 'Group' in df.columns:
-        # Check if y is a metric type (like "Freq. of Parent") or a specific column
-        from .column_utils import detect_available_metric_types, get_matching_columns_for_metric
+    # Ensure consistent sizing
+    if 'width' not in kwargs:
+        kwargs['width'] = 1200
+    if 'height' not in kwargs:
+        # For standard mode plots (groups on x-axis, populations in legend), use shorter height
+        # This provides better aspect ratio and fits better in the window
+        kwargs['height'] = 500  # Reduced from 700 to 500 for better standard mode aspect ratio
+    
+    # Create plot based on type
+    # Check if y is a metric type (like "Freq. of Parent") or a specific column
+    from .column_utils import detect_available_metric_types, get_matching_columns_for_metric
+    metric_types = detect_available_metric_types(df)
+    
+    if y in metric_types:
+        # Find all columns matching this metric type
+        matching_cols = get_matching_columns_for_metric(df, y)
         
-        available_metric_types = detect_available_metric_types(df)
-        if y in available_metric_types:
-            # Find all columns matching this metric type using the new dynamic function
-            matching_cols = get_matching_columns_for_metric(df, y)
-            
-            # Debug logging
-            logger.debug(f"Looking for metric type '{y}', found matching columns: {matching_cols}")
-            
-            if matching_cols:
-                # Always use cell type comparison plot for consistent multi-subpopulation display
-                fig = create_cell_type_comparison_plot(df, matching_cols, plot_type, **kwargs)
-            else:
-                # No matching columns found - try to find any frequency column as fallback
-                logger.warning(f"No columns found matching metric type '{y}'. Available columns: {list(df.columns)}")
-                freq_cols = [col for col in df.columns if 'freq' in col.lower()]
-                if freq_cols:
-                    logger.info(f"Using fallback frequency columns: {freq_cols}")
-                    fig = create_cell_type_comparison_plot(df, freq_cols, plot_type, **kwargs)
+        # Debug logging
+        logger.debug(f"Looking for metric type '{y}', found matching columns: {matching_cols}")
+        
+        if matching_cols:
+            if len(matching_cols) > 1:
+                # Multiple columns found - use cell type comparison plot for standard mode
+                # This will show groups on x-axis and populations in legend
+                logger.info(f"Multiple columns found for metric type '{y}', using cell type comparison plot")
+                from .plot_creators import create_cell_type_comparison_plot
+                
+                if plot_type == "scatter":
+                    fig = create_cell_type_comparison_plot(df, matching_cols, "scatter", filter_options=filter_options, **kwargs)
+                elif plot_type == "bar":
+                    fig = create_cell_type_comparison_plot(df, matching_cols, "bar", filter_options=filter_options, **kwargs)
+                elif plot_type == "box":
+                    fig = create_cell_type_comparison_plot(df, matching_cols, "box", filter_options=filter_options, **kwargs)
+                elif plot_type == "line":
+                    fig = create_cell_type_comparison_plot(df, matching_cols, "line", filter_options=filter_options, **kwargs)
+                elif plot_type == "histogram":
+                    fig = create_cell_type_comparison_plot(df, matching_cols, "histogram", filter_options=filter_options, **kwargs)
                 else:
-                    # Last resort - use all non-metadata columns
-                    metadata_cols = ['SampleID', 'Group', 'Animal', 'Well', 'Time', 'Replicate', 'Tissue']
-                    non_metadata_cols = [col for col in df.columns if col not in metadata_cols]
-                    if non_metadata_cols:
-                        logger.info(f"Using fallback columns: {non_metadata_cols}")
-                        fig = create_cell_type_comparison_plot(df, non_metadata_cols, plot_type, **kwargs)
-                    else:
-                        raise ValueError(f"No suitable columns found for metric type '{y}'. Available: {list(df.columns)}")
-        else:
-            # Specific column - find all similar columns for consistent display
-            if y not in df.columns:
-                raise ValueError(f"Column '{y}' not found. Available: {list(df.columns)}")
-            
-            # Try to find related columns for multi-subpopulation display
-            related_cols = [col for col in df.columns if any(keyword in col.lower() for keyword in ['freq', 'mean', 'median', 'count']) and col != y]
-            if related_cols:
-                all_cols = [y] + related_cols
-                logger.info(f"Found related columns for '{y}': {all_cols}")
-                fig = create_cell_type_comparison_plot(df, all_cols, plot_type, **kwargs)
+                    raise ValueError(f"Unknown plot type: {plot_type}")
+                
+                # Save if requested
+                if save_html:
+                    from .plotly_renderer import PlotlyRenderer
+                    renderer = PlotlyRenderer()
+                    renderer.export_to_html_optimized(fig, save_html, 'minimal')
+                    logger.info(f"Saved cell type comparison plot to {save_html}")
+                
+                return fig
             else:
-                # Single column fallback - still use comparison plot for consistency
-                fig = create_cell_type_comparison_plot(df, [y], plot_type, **kwargs)
-        
-        # Apply standardized legend configuration to Group plots as well
-        color_col = kwargs.get('color')
-        width = kwargs.get('width')
-        height = kwargs.get('height')
-        fig = configure_legend(fig, df, color_col, is_subplot=False, width=width, height=height)
+                # Single column found - use single metric plot
+                y = matching_cols[0]
+                logger.info(f"Single column found for metric type '{y}', using single metric plot: {y}")
+        else:
+            # Fallback to first available frequency column
+            if flow_cols['frequencies']:
+                y = flow_cols['frequencies'][0]
+                logger.warning(f"No columns found for metric type '{y}', using fallback: {y}")
+            else:
+                raise ValueError(f"No columns found for metric type '{y}' and no fallback columns available")
+    
+    # Create plot based on type (for single column or specific column)
+    if plot_type == "scatter":
+        fig = create_single_metric_plot(df, y, "scatter", filter_options=filter_options, **kwargs)
+    elif plot_type == "bar":
+        fig = create_single_metric_plot(df, y, "bar", filter_options=filter_options, **kwargs)
+    elif plot_type == "box":
+        fig = create_single_metric_plot(df, y, "box", filter_options=filter_options, **kwargs)
+    elif plot_type == "line":
+        fig = create_single_metric_plot(df, y, "line", filter_options=filter_options, **kwargs)
+    elif plot_type == "histogram":
+        fig = create_basic_plot(df, x, y, "histogram", filter_options=filter_options, **kwargs)
     else:
-        # For non-Group plots, use original data
-        fig = create_basic_plot(df, x, y, plot_type, filter_options=filter_options, **kwargs)
+        raise ValueError(f"Unknown plot type: {plot_type}")
     
     # Save if requested
     if save_html:
@@ -182,88 +187,103 @@ def plot(data: Union[str, DataFrame],
     return fig
 
 
-def compare_groups(data: Union[str, DataFrame],
-                  groups: Optional[List[str]] = None,
+def compare_groups(data, groups: Optional[List[str]] = None,
                   metric: Optional[str] = None,
                   plot_type: str = "box",
                   save_html: Optional[str] = None,
+                  filter_options=None,
                   **kwargs):
     """
-    Compare multiple groups for a specific metric.
+    Compare groups using a specific metric.
     
     Args:
         data: CSV file path or DataFrame
-        groups: List of group names to compare (auto-detected if None)
-        metric: Metric column to compare (auto-detected if None)
-        plot_type: 'box', 'bar', or 'scatter'
+        groups: List of groups to compare (auto-detected if None)
+        metric: Metric to compare (auto-detected if None)
+        plot_type: Type of plot ('scatter', 'bar', 'box', 'line')
         save_html: Optional path to save HTML file
+        filter_options: Optional filter options
+        **kwargs: Additional plotly parameters
     
     Returns:
         Plotly Figure object
-    
-    Examples:
-        >>> fig = compare_groups("data.csv")
-        >>> fig.show()
     """
     # Load data if string path provided
     if isinstance(data, (str, Path)):
-        # Use the proper parsing logic to detect Group column
         from flowproc.domain.parsing import load_and_parse_df
         df, _ = load_and_parse_df(Path(data))
     else:
         df = data
     
-    # Auto-detect metric if not provided
+    # Auto-detect groups and metric
+    if groups is None:
+        if 'Group' in df.columns:
+            groups = sorted(df['Group'].unique())
+        else:
+            groups = ['Group 1', 'Group 2']  # Default fallback
+    
     if metric is None:
         flow_cols = detect_flow_columns(df)
-        metric = flow_cols['frequencies'][0] if flow_cols['frequencies'] else df.columns[0]
+        if flow_cols['frequencies']:
+            metric = flow_cols['frequencies'][0]
+        elif flow_cols['medians']:
+            metric = flow_cols['medians'][0]
+        else:
+            metric = df.columns[1] if len(df.columns) > 1 else df.columns[0]
     
-    # For flow cytometry data, each row is typically a sample
-    # Create sample groups if not provided
-    if groups is None:
-        df = df.copy()
-        df['Sample_Group'] = [f'Sample_{i+1}' for i in range(len(df))]
-        group_col = 'Sample_Group'
-    else:
-        # Filter to specified groups if provided
-        df_filtered = df[df['Group'].isin(groups)]
-        if df_filtered.empty:
-            raise ValueError(f"No data found for groups: {groups}")
-        df = df_filtered
-        group_col = 'Group'
+    # Ensure consistent sizing
+    if 'width' not in kwargs:
+        kwargs['width'] = 1200
+    if 'height' not in kwargs:
+        # Use shorter height for better aspect ratio in standard mode
+        kwargs['height'] = 500  # Reduced from 700 to 500 for better standard mode aspect ratio
+    
+    # Check if metric is a metric type (like "Freq. of Parent") or a specific column
+    from .column_utils import detect_available_metric_types, get_matching_columns_for_metric
+    metric_types = detect_available_metric_types(df)
+    
+    if metric in metric_types:
+        # Find all columns matching this metric type
+        matching_cols = get_matching_columns_for_metric(df, metric)
+        
+        # Debug logging
+        logger.debug(f"Looking for metric type '{metric}', found matching columns: {matching_cols}")
+        
+        if matching_cols:
+            # Use the first matching column for single metric plots
+            metric = matching_cols[0]
+            logger.info(f"Using column '{metric}' for metric type '{metric}'")
+        else:
+            # Fallback to first available frequency column
+            flow_cols = detect_flow_columns(df)
+            if flow_cols['frequencies']:
+                metric = flow_cols['frequencies'][0]
+                logger.warning(f"No columns found for metric type '{metric}', using fallback: {metric}")
+            else:
+                raise ValueError(f"No columns found for metric type '{metric}' and no fallback columns available")
     
     # Create comparison plot
     if plot_type == "box":
-        fig = create_basic_plot(df, group_col, metric, "box", filter_options=filter_options, **kwargs)
+        fig = create_basic_plot(df, 'Group', metric, "box", filter_options=filter_options, **kwargs)
     elif plot_type == "bar":
-        fig = create_basic_plot(df, group_col, metric, "bar", filter_options=filter_options, **kwargs)
+        fig = create_basic_plot(df, 'Group', metric, "bar", filter_options=filter_options, **kwargs)
     elif plot_type == "scatter":
-        fig = create_basic_plot(df, group_col, metric, "scatter", filter_options=filter_options, **kwargs)
+        fig = create_basic_plot(df, 'Group', metric, "scatter", filter_options=filter_options, **kwargs)
     else:
-        raise ValueError(f"Unknown plot type: {plot_type}")
+        raise ValueError(f"Unsupported plot type for group comparison: {plot_type}")
     
-    # Apply standardized legend configuration  
-    width = kwargs.get('width')
-    height = kwargs.get('height')
-    fig = configure_legend(fig, df, None, is_subplot=False, width=width, height=height)
-    
-    # Create comprehensive title with metric, tissue, and timepoint info
-    from .column_utils import create_comprehensive_plot_title
-    comprehensive_title = create_comprehensive_plot_title(df, metric, filter_options=filter_options)
-    
-    fig.update_layout(
-        title=comprehensive_title,
-        xaxis_title="Group",
-        yaxis_title=metric
-    )
+    # Update title
+    if 'title' not in kwargs:
+        metric_name = extract_metric_name(metric)
+        comprehensive_title = create_comprehensive_plot_title(df, metric_name, filter_options=filter_options)
+        fig.update_layout(title=f"{comprehensive_title} by Group")
     
     # Save if requested
     if save_html:
-        # Use enhanced HTML generation with CDN loading
         from .plotly_renderer import PlotlyRenderer
         renderer = PlotlyRenderer()
         renderer.export_to_html_optimized(fig, save_html, 'minimal')
-        logger.info(f"Saved comparison plot to {save_html}")
+        logger.info(f"Saved group comparison plot to {save_html}")
     
     return fig
 
@@ -289,12 +309,12 @@ def histogram(data, x=None, **kwargs):
     return plot(data, x=x, y=x, plot_type="histogram", **kwargs)
 
 
-# Time plot functions already imported at top
+# Legacy time_plot and time_plot_faceted functions have been removed
+# Use create_timecourse_visualization from time_plots module instead
+
 
 __all__ = [
     'plot',
-    'time_plot', 
-    'time_plot_faceted',
     'compare_groups',
     'scatter',
     'bar', 

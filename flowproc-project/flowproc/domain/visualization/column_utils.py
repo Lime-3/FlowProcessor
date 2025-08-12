@@ -249,6 +249,89 @@ def create_enhanced_title(df: DataFrame, column_name: str, time_col: str = 'Time
     return metric if metric else extract_cell_type_name(column_name)
 
 
+def create_timecourse_plot_title(df: DataFrame, metric_type: str = None, cell_types: List[str] = None, time_col: str = 'Time', filter_options=None) -> str:
+    """
+    Create a comprehensive plot title specifically for timecourse plots that includes 
+    population filter information in the title (since timecourse plots use legends differently).
+    
+    Args:
+        df: DataFrame containing the data (unused, kept for compatibility)
+        metric_type: Type of metric being plotted (e.g., "Freq. of Parent")
+        cell_types: List of cell types being plotted (unused, kept for compatibility)
+        time_col: Name of the time column (unused, kept for compatibility)
+        filter_options: Optional filter options containing selected tissues, times, and population filter
+        
+    Returns:
+        Title string with metric and filter information including population filter
+    """
+    # Start with the base metric name
+    title = metric_type if metric_type else "Flow Cytometry Analysis"
+    
+    # Add filter information if available
+    if filter_options:
+        filter_parts = []
+        
+        # Debug: Log the filter_options object and its type
+        logger.debug(f"Filter options type: {type(filter_options)}")
+        logger.debug(f"Filter options: {filter_options}")
+        
+        # Add population filter information (specific to timecourse plots)
+        try:
+            if hasattr(filter_options, 'selected_population') and filter_options.selected_population:
+                # Use short population name for cleaner title
+                short_population = create_population_shortname(filter_options.selected_population)
+                filter_parts.append(f"Population: {short_population}")
+                logger.debug(f"Added population filter: {short_population}")
+            else:
+                logger.debug(f"Population filter not found or empty. hasattr: {hasattr(filter_options, 'selected_population')}, value: {getattr(filter_options, 'selected_population', 'NOT_FOUND')}")
+        except Exception as e:
+            logger.warning(f"Error accessing population filter: {e}")
+        
+        # Add tissue filter information
+        try:
+            if hasattr(filter_options, 'selected_tissues') and filter_options.selected_tissues:
+                if len(filter_options.selected_tissues) == 1:
+                    filter_parts.append(f"Tissue: {filter_options.selected_tissues[0]}")
+                    logger.debug(f"Added single tissue filter: {filter_options.selected_tissues[0]}")
+                else:
+                    filter_parts.append(f"Tissues: {', '.join(filter_options.selected_tissues)}")
+                    logger.debug(f"Added multiple tissue filters: {filter_options.selected_tissues}")
+            else:
+                logger.debug(f"Tissue filter not found or empty. hasattr: {hasattr(filter_options, 'selected_tissues')}, value: {getattr(filter_options, 'selected_tissues', 'NOT_FOUND')}")
+        except Exception as e:
+            logger.warning(f"Error accessing tissue filter: {e}")
+        
+        # Add time filter information
+        try:
+            if hasattr(filter_options, 'selected_times') and filter_options.selected_times:
+                if len(filter_options.selected_times) == 1:
+                    filter_parts.append(f"Time: {filter_options.selected_times[0]}")
+                    logger.debug(f"Added single time filter: {filter_options.selected_times[0]}")
+                else:
+                    filter_parts.append(f"Times: {', '.join(map(str, filter_options.selected_times))}")
+                    logger.debug(f"Added multiple time filters: {filter_options.selected_times}")
+            else:
+                logger.debug(f"Time filter not found or empty. hasattr: {hasattr(filter_options, 'selected_times')}, value: {getattr(filter_options, 'selected_times', 'NOT_FOUND')}")
+        except Exception as e:
+            logger.warning(f"Error accessing time filter: {e}")
+        
+        # Append filter information to title with line break for better readability
+        if filter_parts:
+            title += f"<br>({'; '.join(filter_parts)})"
+            logger.debug(f"Final title with filters: {title}")
+        else:
+            logger.debug("No filter parts added to title")
+    else:
+        logger.debug("No filter_options provided")
+    
+    # Ensure we always return a valid title
+    if not title or title.strip() == "":
+        title = "Flow Cytometry Analysis"
+        logger.warning("Empty title detected, using fallback title")
+    
+    return title
+
+
 def create_comprehensive_plot_title(df: DataFrame, metric_type: str = None, cell_types: List[str] = None, time_col: str = 'Time', filter_options=None) -> str:
     """
     Create a comprehensive plot title that includes metric name and filter information.
@@ -258,7 +341,7 @@ def create_comprehensive_plot_title(df: DataFrame, metric_type: str = None, cell
         metric_type: Type of metric being plotted (e.g., "Freq. of Parent")
         cell_types: List of cell types being plotted (unused, kept for compatibility)
         time_col: Name of the time column (unused, kept for compatibility)
-        filter_options: Optional filter options containing selected tissues and times
+        filter_options: Optional filter options containing selected tissues, times, and population filter
         
     Returns:
         Title string with metric and filter information
@@ -270,23 +353,61 @@ def create_comprehensive_plot_title(df: DataFrame, metric_type: str = None, cell
     if filter_options:
         filter_parts = []
         
-        # Add tissue filter information
-        if hasattr(filter_options, 'selected_tissues') and filter_options.selected_tissues:
-            if len(filter_options.selected_tissues) == 1:
-                filter_parts.append(f"Tissue: {filter_options.selected_tissues[0]}")
+        # Debug: Log the filter_options object and its type
+        logger.debug(f"Comprehensive title - Filter options type: {type(filter_options)}")
+        logger.debug(f"Comprehensive title - Filter options: {filter_options}")
+        
+        # Add population filter information
+        try:
+            if hasattr(filter_options, 'selected_population') and filter_options.selected_population:
+                filter_parts.append(f"Population: {filter_options.selected_population}")
+                logger.debug(f"Comprehensive title - Added population filter: {filter_options.selected_population}")
             else:
-                filter_parts.append(f"Tissues: {', '.join(filter_options.selected_tissues)}")
+                logger.debug(f"Comprehensive title - Population filter not found or empty. hasattr: {hasattr(filter_options, 'selected_population')}, value: {getattr(filter_options, 'selected_population', 'NOT_FOUND')}")
+        except Exception as e:
+            logger.warning(f"Comprehensive title - Error accessing population filter: {e}")
+        
+        # Add tissue filter information
+        try:
+            if hasattr(filter_options, 'selected_tissues') and filter_options.selected_tissues:
+                if len(filter_options.selected_tissues) == 1:
+                    filter_parts.append(f"Tissue: {filter_options.selected_tissues[0]}")
+                    logger.debug(f"Comprehensive title - Added single tissue filter: {filter_options.selected_tissues[0]}")
+                else:
+                    filter_parts.append(f"Tissues: {', '.join(filter_options.selected_tissues)}")
+                    logger.debug(f"Comprehensive title - Added multiple tissue filters: {filter_options.selected_tissues}")
+            else:
+                logger.debug(f"Comprehensive title - Tissue filter not found or empty. hasattr: {hasattr(filter_options, 'selected_tissues')}, value: {getattr(filter_options, 'selected_tissues', 'NOT_FOUND')}")
+        except Exception as e:
+            logger.warning(f"Comprehensive title - Error accessing tissue filter: {e}")
         
         # Add time filter information
-        if hasattr(filter_options, 'selected_times') and filter_options.selected_times:
-            if len(filter_options.selected_times) == 1:
-                filter_parts.append(f"Time: {filter_options.selected_times[0]}")
+        try:
+            if hasattr(filter_options, 'selected_times') and filter_options.selected_times:
+                if len(filter_options.selected_times) == 1:
+                    filter_parts.append(f"Time: {filter_options.selected_times[0]}")
+                    logger.debug(f"Comprehensive title - Added single time filter: {filter_options.selected_times[0]}")
+                else:
+                    filter_parts.append(f"Times: {', '.join(map(str, filter_options.selected_times))}")
+                    logger.debug(f"Comprehensive title - Added multiple time filters: {filter_options.selected_times}")
             else:
-                filter_parts.append(f"Times: {', '.join(map(str, filter_options.selected_times))}")
+                logger.debug(f"Comprehensive title - Time filter not found or empty. hasattr: {hasattr(filter_options, 'selected_times')}, value: {getattr(filter_options, 'selected_times', 'NOT_FOUND')}")
+        except Exception as e:
+            logger.warning(f"Comprehensive title - Error accessing time filter: {e}")
         
         # Append filter information to title
         if filter_parts:
             title += f" ({'; '.join(filter_parts)})"
+            logger.debug(f"Comprehensive title - Final title with filters: {title}")
+        else:
+            logger.debug("Comprehensive title - No filter parts added to title")
+    else:
+        logger.debug("Comprehensive title - No filter_options provided")
+    
+    # Ensure we always return a valid title
+    if not title or title.strip() == "":
+        title = "Flow Cytometry Analysis"
+        logger.warning("Comprehensive title - Empty title detected, using fallback title")
     
     return title
 
@@ -465,3 +586,102 @@ def get_matching_columns_for_metric(df: DataFrame, metric_type: str) -> List[str
         matching_cols = [col for col in df.columns if metric_type.lower() in col.lower()]
     
     return matching_cols 
+
+
+def create_population_shortname(column_name: str) -> str:
+    """
+    Create a shortname for population filters, similar to legend shortnames.
+    
+    This function extracts a concise, readable name from full column names
+    for use in population filter dropdowns and UI elements.
+    
+    Args:
+        column_name: Full column name (e.g., "Live/CD4+/GFP+ | Freq. of Parent (%)")
+        
+    Returns:
+        Short population name (e.g., "CD4+")
+    """
+    # First try to extract using the existing cell type extraction logic
+    shortname = extract_cell_type_name(column_name)
+    
+    # If we got a meaningful shortname, return it
+    if shortname and shortname != column_name:
+        return shortname
+    
+    # Fallback: try to extract population from common patterns
+    # Look for common separators
+    separators = [' | ', ' |', '| ', ' - ', ' -', '- ']
+    for separator in separators:
+        if separator in column_name:
+            parts = column_name.split(separator)
+            if len(parts) >= 2:
+                # First part is usually the population
+                population_part = parts[0].strip()
+                if population_part:
+                    # Clean up the population part
+                    if '/' in population_part:
+                        # Take the most meaningful part (usually the last one)
+                        path_parts = population_part.split('/')
+                        # Skip common prefixes like "Live", "Singlets"
+                        meaningful_parts = []
+                        for part in path_parts:
+                            if part and part not in ['Live', 'Singlets', 'FSC', 'SSC', 'Scatter']:
+                                meaningful_parts.append(part)
+                        
+                        if meaningful_parts:
+                            # Prioritize cell type markers over GFP markers
+                            # Look for specific cell type identifiers first
+                            cell_type_markers = ['CD4', 'CD8', 'CD3', 'CD19', 'CD45', 'T Cells', 'B Cells', 'Non-T Cells', 'Monocytes', 'Neutrophils']
+                            
+                            # Check if we have both cell type and GFP markers
+                            has_cell_type = any(marker in str(part) for part in meaningful_parts for marker in cell_type_markers)
+                            has_gfp = any('GFP' in str(part) for part in meaningful_parts)
+                            
+                            if has_cell_type and has_gfp:
+                                # Prioritize cell type markers
+                                for part in meaningful_parts:
+                                    if any(marker in str(part) for marker in cell_type_markers):
+                                        return part
+                                # If no cell type found, fall back to last meaningful part
+                                return meaningful_parts[-1]
+                            else:
+                                # Return the most specific part (usually the last one)
+                                return meaningful_parts[-1]
+                        else:
+                            # If no meaningful parts, return the last non-empty part
+                            for part in reversed(path_parts):
+                                if part:
+                                    return part
+                    else:
+                        return population_part
+    
+    # If no clear pattern found, return a cleaned version of the column name
+    # Remove common metric suffixes
+    metric_suffixes = [
+        ' | Freq. of Parent (%)',
+        ' | Freq. of Live (%)',
+        ' | Freq. of Singlets (%)',
+        ' | Count',
+        ' | Median',
+        ' | Mean'
+    ]
+    
+    cleaned_name = column_name
+    for suffix in metric_suffixes:
+        if cleaned_name.endswith(suffix):
+            cleaned_name = cleaned_name[:-len(suffix)]
+            break
+    
+    # If the cleaned name is still too long, try to extract the most meaningful part
+    if len(cleaned_name) > 20:
+        if '/' in cleaned_name:
+            parts = cleaned_name.split('/')
+            # Look for the most specific cell type identifier
+            for part in reversed(parts):
+                if part and part not in ['Live', 'Singlets', 'FSC', 'SSC', 'Scatter']:
+                    return part
+        
+        # If still too long, truncate
+        return cleaned_name[:20] + "..."
+    
+    return cleaned_name 

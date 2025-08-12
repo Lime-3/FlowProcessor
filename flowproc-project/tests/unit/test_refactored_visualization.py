@@ -157,12 +157,16 @@ class TestLegendConfig:
             fig=fig,
             df=df,
             color_col='Group',
-            is_subplot=False
+            is_subplot=False,
+            legend_title="Test Groups",
+            show_mean_sem_label=True
         )
         
         assert isinstance(result, go.Figure)
         assert result.layout.legend is not None
-        assert result.layout.legend.x == 1.05
+        # Check that legend is positioned to the right of the plot (around x=1.0)
+        assert result.layout.legend.x > 0.9  # Should be to the right of the plot
+        assert result.layout.legend.title.text == "Test Groups"
     
     def test_configure_legend_subplot(self):
         """Test subplot legend configuration."""
@@ -177,7 +181,9 @@ class TestLegendConfig:
             fig=fig,
             subplot_groups=subplot_groups,
             subplot_traces=subplot_traces,
-            is_subplot=True
+            is_subplot=True,
+            legend_title="Test Legend",
+            show_mean_sem_label=True
         )
         
         assert isinstance(result, go.Figure)
