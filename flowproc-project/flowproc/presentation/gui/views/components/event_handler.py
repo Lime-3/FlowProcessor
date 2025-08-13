@@ -236,11 +236,8 @@ class EventHandler(QObject):
             )
             return
         
-        # Open the visualization dialog (prefer legacy shim for testability)
-        try:
-            from ..dialogs.visualization_display_dialog import VisualizationDisplayDialog as _VizDialog
-        except Exception:
-            from ..dialogs.visualization_dialog import VisualizationDialog as _VizDialog
+        # Open the visualization dialog (modern implementation)
+        from ..dialogs.visualization_dialog import VisualizationDialog as _VizDialog
         
         try:
             self.state_manager.update_status("Opening visualization...")

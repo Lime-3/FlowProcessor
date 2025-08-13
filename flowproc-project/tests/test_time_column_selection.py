@@ -12,10 +12,10 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 import pandas as pd
-from flowproc.presentation.gui.views.dialogs.visualization_display_dialog import (
-    VisualizationDisplayDialog
+from flowproc.presentation.gui.views.dialogs.visualization_dialog import (
+    VisualizationDialog
 )
-from flowproc.presentation.gui.views.dialogs.visualization_options_dialog import (
+from flowproc.presentation.gui.views.dialogs.visualization_options import (
     VisualizationOptions
 )
 from PySide6.QtWidgets import QApplication
@@ -54,24 +54,24 @@ def test_time_column_selection():
             app = QApplication([])
         
         # Create dialog
-        dialog = VisualizationDisplayDialog(csv_path=csv_path)
+        dialog = VisualizationDialog(csv_path=csv_path)
         
         # Wait a bit for the dialog to initialize
         app.processEvents()
         
         # Check initial state
-        print(f"Initial plot_by_times: {dialog.plot_by_times_checkbox.isChecked()}")
+        print(f"Initial plot_by_times: {dialog.time_course_checkbox.isChecked()}")
         print(f"Initial plot_type: {dialog.plot_type_combo.currentText()}")
         
         # Verify that timecourse mode is not enabled
-        assert not dialog.plot_by_times_checkbox.isChecked(), "Timecourse mode should not be automatically enabled"
+        assert not dialog.time_course_checkbox.isChecked(), "Timecourse mode should not be automatically enabled"
         
         # Test changing plot type
         dialog.plot_type_combo.setCurrentText('scatter')
         print(f"After changing to scatter: {dialog.plot_type_combo.currentText()}")
         
         # Get current options
-        options = dialog._get_current_options()
+        options = dialog.get_current_options()
         print(f"Options plot_type: {options.plot_type}")
         print(f"Options y_axis: {options.y_axis}")
         print(f"Options time_course_mode: {options.time_course_mode}")

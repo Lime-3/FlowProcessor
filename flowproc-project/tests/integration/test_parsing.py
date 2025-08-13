@@ -159,7 +159,7 @@ BM_1.-3,200
 """
     csv_file = tmp_path / "negative.csv"
     csv_file.write_text(content)
-    with pytest.raises(ValueError, match="Invalid group/animal"):
+    with pytest.raises(ValueError):
         load_and_parse_df(csv_file)
 
 def test_is_likely_id_column() -> None:

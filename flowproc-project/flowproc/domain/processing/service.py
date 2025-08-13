@@ -28,7 +28,6 @@ class DataProcessingService:
     def process_data(self, df: pd.DataFrame, config: Dict[str, Any]) -> pd.DataFrame:
         """Process data according to the provided configuration."""
         try:
-            # Convert legacy config to unified config
             unified_config = ProcessingConfig(
                 mode=ProcessingMode.GENERIC,
                 group_by=config.get('group_by', []),

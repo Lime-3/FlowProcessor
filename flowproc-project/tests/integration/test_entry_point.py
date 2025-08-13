@@ -1,11 +1,21 @@
 import subprocess
+import sys
 import time
 import pytest
 
 @pytest.mark.integration  # Custom mark, registered in pyproject.toml
 def test_flowproc_command():
     """Test that the flowproc command launches the GUI without immediate errors."""
-    p = subprocess.Popen(["python", "-m", "flowproc"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # Skip test if PySide6 is not installed in the current interpreter or a child subprocess
+    try:
+        import PySide6  # noqa: F401
+    except Exception:
+        pytest.skip("PySide6 not installed; skipping GUI entry-point test")
+    # Verify that the child process interpreter can import PySide6 as well
+    check = subprocess.run([sys.executable, "-c", "import PySide6"], capture_output=True)
+    if check.returncode != 0:
+        pytest.skip("PySide6 not available in child interpreter; skipping GUI entry-point test")
+    p = subprocess.Popen([sys.executable, "-m", "flowproc"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     max_wait_time = 5  # Maximum wait time in seconds
     start_time = time.time()
     out, err = b"", b""

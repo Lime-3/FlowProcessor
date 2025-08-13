@@ -33,8 +33,8 @@ def validate_sample_id_for_negative_values(sample_id: str, strict: bool = False)
     
     # Check for negative group (e.g., SP_-1.2) or negative animal (e.g., SP_1.-2)
     if NEGATIVE_GROUP_ANIMAL_PATTERN.search(sample_id):
-        if strict:
-            raise ValueError("Invalid group/animal")
+        # Modern behavior: treat as invalid format without raising in strict mode here;
+        # downstream parsers will surface a uniform ParseError.
         logger.warning(f"Negative values detected in: {sample_id}")
         return False
     

@@ -161,6 +161,10 @@ def plot(data: Union[str, DataFrame],
             else:
                 raise ValueError(f"No columns found for metric type '{y}' and no fallback columns available")
     
+    # Validate that y exists in DataFrame columns for single-column modes
+    if y not in df.columns:
+        raise ValueError(f"Invalid metric '{y}'")
+
     # Create plot based on type (for single column or specific column)
     if plot_type == "scatter":
         fig = create_single_metric_plot(df, y, "scatter", filter_options=filter_options, **kwargs)

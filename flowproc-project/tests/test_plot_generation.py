@@ -12,16 +12,17 @@ from PySide6.QtCore import QTimer
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from flowproc.presentation.gui.views.dialogs.visualization_display_dialog import (
-    VisualizationDisplayDialog
+from flowproc.presentation.gui.views.dialogs.visualization_dialog import (
+    VisualizationDialog
 )
-from flowproc.presentation.gui.views.dialogs.visualization_options_dialog import (
+from flowproc.presentation.gui.views.dialogs.visualization_options import (
     VisualizationOptions
 )
 
 def test_plot_generation():
     """Test plot generation with the new filter interface."""
-    app = QApplication(sys.argv)
+    # Reuse existing app if one already exists to avoid singleton errors
+    app = QApplication.instance() or QApplication(sys.argv)
     
     # Use a test CSV file
     test_csv = project_root / "tests" / "data" / "AT25-AS293.csv"
@@ -33,7 +34,7 @@ def test_plot_generation():
     print(f"Testing plot generation with: {test_csv}")
     
     # Create the dialog
-    dialog = VisualizationDisplayDialog(csv_path=test_csv)
+    dialog = VisualizationDialog(csv_path=test_csv)
     
     # Show the dialog
     dialog.show()
@@ -43,8 +44,8 @@ def test_plot_generation():
         print("Triggering plot generation...")
         try:
             # Get current options and generate plot
-            options = dialog._get_current_options()
-            print(f"Current options: plot_by_groups={options.plot_by_groups}, plot_by_times={options.plot_by_times}")
+            options = dialog.get_current_options()
+            print(f"Current options: time_course_mode={options.time_course_mode}")
             dialog._generate_plot()
             print("Plot generation completed")
         except Exception as e:

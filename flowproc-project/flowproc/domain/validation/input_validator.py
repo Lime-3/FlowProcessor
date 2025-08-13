@@ -397,7 +397,7 @@ class InputValidator:
             result.add_warning("Cannot determine available disk space")
 
 
-# Convenience functions for backward compatibility
+# Convenience functions
 def validate_input_paths(paths: List[str], config: Optional[InputValidationConfig] = None) -> InputValidationResult:
     """Validate input paths using the unified validator."""
     validator = InputValidator(config)

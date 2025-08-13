@@ -87,7 +87,7 @@ class ValidationResult:
             self.is_valid = False
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary format for backward compatibility."""
+        """Convert to a simple dictionary format."""
         return {
             'valid': self.is_valid,
             'errors': [str(issue) for issue in self.errors],

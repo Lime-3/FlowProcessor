@@ -409,20 +409,17 @@ class PlotlyRenderer:
     
     def export_to_html(self, fig: go.Figure, filepath: str, 
                       include_plotlyjs: bool = True, full_html: bool = True) -> None:
-        """Export figure to HTML file with CDN-loaded Plotly.js support."""
-        # Use CDN by default for better performance
-        plotlyjs_mode = 'cdn' if include_plotlyjs else False
-        
+        """Export figure to HTML file embedding Plotly.js for offline use."""
         fig.write_html(
             filepath,
-            include_plotlyjs=plotlyjs_mode,
+            include_plotlyjs=True,
             full_html=full_html,
             config=dict(
                 editable=True,
                 edits=dict(
-                    axisTitleText=True,  # Editable axis labels
-                    titleText=True,      # Editable chart title
-                    legendText=True      # Editable legend items
+                    axisTitleText=True,
+                    titleText=True,
+                    legendText=True
                 )
             )
         )
@@ -440,9 +437,8 @@ class PlotlyRenderer:
                 - balanced: ~500KB, CDN loading, full features  
                 - full: ~4MB, embedded library, offline compatible
         """
+        # Always embed Plotly.js for offline use regardless of optimization level
         if optimization_level == 'minimal':
-            # For embedded viewer - use embedded Plotly for reliability
-            include_plotlyjs = True  # Embed for reliability
             config = dict(
                 displayModeBar=False,
                 editable=False,
@@ -450,8 +446,6 @@ class PlotlyRenderer:
                 displaylogo=False
             )
         elif optimization_level == 'balanced':
-            # For external browser - balanced features
-            include_plotlyjs = 'cdn'  # Use CDN
             config = dict(
                 displayModeBar=True,
                 editable=True,
@@ -459,8 +453,6 @@ class PlotlyRenderer:
                 displaylogo=False
             )
         else:  # 'full'
-            # For offline use - full features
-            include_plotlyjs = True  # Embed for offline use
             config = dict(
                 displayModeBar=True,
                 editable=True,
@@ -470,7 +462,7 @@ class PlotlyRenderer:
         
         # Generate the HTML
         html_content = fig.to_html(
-            include_plotlyjs=include_plotlyjs,
+            include_plotlyjs=True,
             full_html=True,
             config=config
         )
@@ -482,60 +474,7 @@ class PlotlyRenderer:
         else:
             logger.warning("HTML export - Title not found in generated HTML")
         
-        # For embedded viewers, ensure CDN loads properly
-        if optimization_level in ['minimal', 'balanced'] and include_plotlyjs == 'cdn':
-            # Add explicit CDN link and fallback
-            cdn_script = '''
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<script>
-    // Fallback if CDN fails
-    if (typeof Plotly === 'undefined') {
-        console.log('CDN failed, trying alternative CDN...');
-        var script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js';
-        document.head.appendChild(script);
-    }
-</script>
-'''
-            # Insert CDN script before the plotly div
-            if '<div id="' in html_content:
-                # Find the plotly div and insert CDN script before it
-                div_start = html_content.find('<div id="')
-                if div_start != -1:
-                    html_content = html_content[:div_start] + cdn_script + html_content[div_start:]
-        
-        # For minimal mode, always add CDN script since include_plotlyjs=False
-        if optimization_level == 'minimal':
-            cdn_script = '''
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<script>
-    // Enhanced fallback for embedded viewers
-    if (typeof Plotly === 'undefined') {
-        console.log('Primary CDN failed, trying alternative CDN...');
-        var script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js';
-        script.onload = function() {
-            console.log('Alternative CDN loaded successfully');
-            // Re-render any existing plots
-            if (typeof Plotly !== 'undefined' && document.getElementById('plotly-div')) {
-                Plotly.newPlot('plotly-div', data, layout, config);
-            }
-        };
-        script.onerror = function() {
-            console.log('Alternative CDN also failed, trying third option...');
-            var script2 = document.createElement('script');
-            script2.src = 'https://unpkg.com/plotly.js@2.27.0/dist/plotly.min.js';
-            document.head.appendChild(script2);
-        };
-        document.head.appendChild(script);
-    }
-</script>
-'''
-            # Insert CDN script in the head section
-            if '<head>' in html_content:
-                head_end = html_content.find('</head>')
-                if head_end != -1:
-                    html_content = html_content[:head_end] + cdn_script + html_content[head_end:]
+        # No CDN injection; HTML is fully self-contained for offline use
         
         # Write the enhanced HTML
         with open(filepath, 'w', encoding='utf-8') as f:

@@ -34,8 +34,8 @@ def test_layout_calculation_improvements():
         legend_items=2,
         title="Test Title with Long Labels",
         legend_labels=["Group A", "Group B"],
-        base_width=600,
-        base_height=300
+        default_width=600,
+        default_height=300
     )
     
     assert isinstance(layout, dict)

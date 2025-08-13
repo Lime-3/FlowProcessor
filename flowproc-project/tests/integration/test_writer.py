@@ -199,8 +199,10 @@ def test_process_csv_timecourse(static_day4_csv: Path, output_xlsx: Path, caplog
     """Test time-course mode with AT25-AS278_Day4.csv, verifying time logging."""
     caplog.set_level(logging.DEBUG)
     process_csv(static_day4_csv, output_xlsx, time_course_mode=True, user_groups=[1])
+    # Timecourse writes to *_Timecourse.xlsx when multiple timepoints are detected
+    timecourse_xlsx = output_xlsx.parent / f"{output_xlsx.stem}_Timecourse.xlsx"
     _assert_excel_structure(
-        output_xlsx,
+        timecourse_xlsx,
         sheet_name="Freq. of Parent",
         expected_groups=["Group 1"],
         expected_times=["2:00", "5:00"],
@@ -363,8 +365,9 @@ def test_process_real_day4_csv(static_real_day4_csv: Path, output_xlsx: Path, ca
     """Test processing real AT25-AS278_Day4.csv in time-course mode."""
     caplog.set_level(logging.DEBUG)
     process_csv(static_real_day4_csv, output_xlsx, time_course_mode=True, user_groups=[1, 2])
+    timecourse_xlsx = output_xlsx.parent / f"{output_xlsx.stem}_Timecourse.xlsx"
     _assert_excel_structure(
-        output_xlsx,
+        timecourse_xlsx,
         sheet_name="Freq. of Parent",
         expected_groups=["Group 1"],  # Updated: Only Group 1 is actually processed
         expected_times=["2:00", "5:00"],
