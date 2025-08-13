@@ -55,16 +55,25 @@ def process_csv(input_file, output_file, time_course_mode=False, user_replicates
     
     # Check if we have time data
     has_time_data = 'Time' in df.columns and df['Time'].notna().any()
-    times = sorted(t for t in df["Time"].unique() if pd.notna(t)) if has_time_data else [None]
-    is_timecourse = len(times) > 1 or (len(times) == 1 and times[0] is not None)
+    times = sorted(t for t in df["Time"].unique() if pd.notna(t)) if has_time_data else []
+    # Treat as timecourse only if there are multiple distinct timepoints
+    is_timecourse = len(times) > 1
     
     # Determine processing modes
-    # If time_course_mode is explicitly set, respect that choice
-    # If not set but time data is detected, process in both modes
-    process_grouped = not time_course_mode or (not time_course_mode and not is_timecourse)
-    process_timecourse = time_course_mode or (not time_course_mode and is_timecourse)
+    # Default: grouped only; if multiple timepoints detected, also generate timecourse
+    # If user explicitly selected time_course_mode=True but we do not have multiple timepoints,
+    # fall back to grouped-only to avoid creating redundant timecourse files.
+    if time_course_mode:
+        process_timecourse = is_timecourse
+        process_grouped = not is_timecourse  # fallback to grouped when no true timecourse
+    else:
+        process_grouped = True
+        process_timecourse = is_timecourse
     
-    logger.info(f"Time data detected: {has_time_data}, Processing modes - Grouped: {process_grouped}, Timecourse: {process_timecourse}")
+    logger.info(
+        f"Time data detected: {has_time_data} (unique={len(times)}), "
+        f"Processing modes - Grouped: {process_grouped}, Timecourse: {process_timecourse}"
+    )
     
     # Process in grouped mode if needed
     if process_grouped:
