@@ -87,8 +87,7 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
         logger.debug(f"Single metric plot - Comprehensive title created: {comprehensive_title}")
         fig.update_layout(
             title=comprehensive_title,
-            yaxis_title=metric_name,
-            legend_title="Mean ± SEM"
+            yaxis_title=metric_name
         )
         
         # Debug: Verify the title was applied
@@ -225,8 +224,7 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
         logger.debug(f"Setting title: {comprehensive_title}")
         fig.update_layout(
             title=comprehensive_title,
-            yaxis_title=base_metric,
-            legend_title="Mean ± SEM"
+            yaxis_title=base_metric
         )
     
     # Ensure consistent sizing
