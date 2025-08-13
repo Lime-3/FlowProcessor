@@ -107,3 +107,19 @@ ENV/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Additional cleanup entries
+# Debug and analysis files
+debug/
+**/analysis/
+**/*IMPLEMENTATION.md
+**/*SUMMARY.md
+**/dependency_*.json
+**/dependency_*.dot
+**/service_dependencies.png
+
+# Test data files in root
+*.csv
+
+# Temporary documentation
+**/test_*.py
