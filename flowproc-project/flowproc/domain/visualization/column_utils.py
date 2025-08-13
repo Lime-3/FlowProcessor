@@ -70,15 +70,81 @@ def detect_flow_columns(df: DataFrame) -> Dict[str, List[str]]:
 
 def extract_cell_type_name(column_name: str) -> str:
     """
-    Extract the display cell type (population) from a FlowJo-exported column name.
+    Extract a robust display name for the population from a FlowJo column.
 
-    Standard approach: take the leaf population label from the gating path,
-    i.e., the final token after '/' and before the '|' metric separator.
-    Example:
-      "FlowAIGoodEvents/Singlets/Live/T cells/CD4+/CD4+GFP+ | Freq. of Parent (%)"
-      -> "CD4+GFP+"
+    Default: use the leaf population label from the gating path (token after '/').
+    Special case: if the leaf is a generic GFP marker (e.g., "GFP-A+", "GFP+"),
+    prepend the immediate parent to avoid collisions across different branches,
+    yielding labels like "CD4 GFP-A+" or "CD8 GFP-A+".
     """
-    return extract_population_leaf(column_name)
+    if not isinstance(column_name, str):
+        return str(column_name)
+
+    # Take gating path before metric separator
+    path_part = column_name.split('|', 1)[0].strip().strip('/ ')
+    if not path_part:
+        return column_name
+
+    parts = [p.strip() for p in path_part.split('/') if p.strip()]
+    if not parts:
+        return column_name
+
+    leaf = parts[-1]
+    leaf_norm = leaf.replace(' ', '').lower()
+
+    # If the leaf is a generic GFP label (starts with GFP, e.g., "GFP-A+", "GFP+"),
+    # include its parent for context. Do NOT do this for specific leaves like "CD4+GFP+".
+    if (leaf_norm.startswith('gfp') or leaf_norm in {'gfp-a+', 'gfp+', 'gfp-a-', 'gfp-'}) and len(parts) >= 2:
+        parent = parts[-2]
+        return f"{parent} {leaf}".strip()
+
+    return leaf
+
+
+def build_unique_cell_type_labels(column_names: List[str]) -> Dict[str, str]:
+    """
+    Build stable, human-readable labels for a list of flow columns using only
+    path ('/') and metric ('|') separators. Disambiguate duplicates by
+    prefixing the parent path segment.
+
+    Rules:
+    - Base label is the leaf token of the gating path (before '|').
+    - If multiple columns share the same leaf across different paths,
+      use "<parent> <leaf>" for those duplicates where a parent exists.
+    - If the parent string already appears in the leaf (to avoid duplication
+      like "CD4+ CD4+GFP+"), keep just the leaf.
+    """
+    labels: Dict[str, str] = {}
+    leaves: Dict[str, List[str]] = {}
+
+    def split_path(name: str) -> List[str]:
+        if not isinstance(name, str):
+            return [str(name)]
+        path = name.split('|', 1)[0].strip().strip('/ ')
+        parts = [p.strip() for p in path.split('/') if p.strip()]
+        return parts if parts else [name]
+
+    # First pass: collect leaves
+    for name in column_names:
+        parts = split_path(name)
+        leaf = parts[-1]
+        leaves.setdefault(leaf, []).append(name)
+
+    # Second pass: assign labels with disambiguation when needed
+    for name in column_names:
+        parts = split_path(name)
+        leaf = parts[-1]
+        if len(leaves.get(leaf, [])) > 1 and len(parts) >= 2:
+            parent = parts[-2]
+            # Avoid repeating parent if already present in the leaf
+            if parent and parent not in leaf:
+                labels[name] = f"{parent} {leaf}".strip()
+            else:
+                labels[name] = leaf
+        else:
+            labels[name] = leaf
+
+    return labels
 
 
 def extract_population_leaf(column_name: str) -> str:

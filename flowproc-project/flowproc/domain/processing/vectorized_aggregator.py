@@ -5,15 +5,15 @@ Replaces nested loops with pandas groupby and vectorized operations.
 """
 import logging
 import gc
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Any
 import numpy as np
 import pandas as pd
-from functools import lru_cache
+from functools import lru_cache  # noqa: F401 (kept for potential future caching)
 from dataclasses import dataclass, field
 import time
 
 from ..parsing.tissue_parser import extract_tissue
-from ..parsing.group_animal_parser import extract_group_animal
+from ..parsing.group_animal_parser import extract_group_animal  # noqa: F401 (imported for completeness; not used directly)
 from ...core.constants import Constants, KEYWORDS
 
 logger = logging.getLogger(__name__)
@@ -97,60 +97,28 @@ class VectorizedAggregator:
         
     def _clean_subpopulation_name(self, col_name: str) -> str:
         """
-        Clean subpopulation name by removing metric part.
-        
-        Args:
-            col_name: Original column name (e.g., "CD4+ | Freq. of Parent (%)")
-            
-        Returns:
-            Cleaned subpopulation name (e.g., "CD4+")
+        Clean subpopulation name while preserving enough path context to avoid
+        collisions (e.g., CD4 GFP-A+ vs CD8 GFP-A+).
         """
-        # Split by common separators and take the first part
-        separators = [' | ', ' |', '| ', ' - ', ' -', '- ', ' | Freq.', ' | Count', ' | Median', ' | Mean']
-        
-        for sep in separators:
-            if sep in col_name:
-                cleaned = col_name.split(sep)[0].strip()
-                # Further clean by removing the full path and keeping only the meaningful parts
-                if '/' in cleaned:
-                    # Split by '/' and take meaningful parts
-                    parts = [part.strip() for part in cleaned.split('/') if part.strip()]
-                    if parts:
-                        # Look for cell type identifiers in the path
-                        cell_types = []
-                        for part in parts:
-                            if any(keyword in part for keyword in ['CD4', 'CD8', 'T Cells', 'Non-T Cells', 'B Cells', 'NK Cells']):
-                                cell_types.append(part)
-                        
-                        # If we found cell types, combine with the last marker
-                        if cell_types:
-                            last_part = parts[-1]
-                            if '+' in last_part or '-' in last_part or 'GFP' in last_part or 'CD' in last_part:
-                                # Combine cell type with marker
-                                cell_type = cell_types[-1]  # Use the last cell type found
-                                return f"{cell_type} {last_part}"
-                        
-                        # If no cell types found, try to find meaningful parts from the end
-                        for part in reversed(parts):
-                            if any(keyword in part for keyword in ['GFP', 'CD', '+', '-', 'Live', 'Dead', 'Cells']):
-                                return part
-                        # Fallback to last part
-                        return parts[-1]
-                return cleaned
-        
-        # If no separator found, try to extract meaningful part from the original name
-        if '/' in col_name:
-            parts = [part.strip() for part in col_name.split('/') if part.strip()]
-            if parts:
-                # Look for meaningful parts from the end
-                for part in reversed(parts):
-                    if any(keyword in part for keyword in ['GFP', 'CD', '+', '-', 'Live', 'Dead', 'Cells']):
-                        return part
-                # Fallback to last part
-                return parts[-1]
-        
-        # If no separator found, return the original name
-        return col_name
+        try:
+            # Take the gating path portion before the metric separator
+            path_part = col_name.split('|', 1)[0].strip()
+            parts = [p.strip() for p in path_part.split('/') if p.strip()]
+            if not parts:
+                return col_name
+
+            leaf = parts[-1]
+            # If the leaf is a generic GFP marker, prepend the previous node for context
+            leaf_norm = leaf.replace(' ', '').lower()
+            if leaf_norm.startswith('gfp') or leaf_norm in {'gfp-a+', 'gfp+', 'gfp-a-', 'gfp-'}:
+                if len(parts) >= 2:
+                    prev = parts[-2]
+                    return f"{prev} {leaf}".strip()
+                return leaf
+
+            return leaf
+        except Exception:
+            return col_name
         
     def __del__(self):
         """Destructor to ensure cleanup on object deletion."""
@@ -292,7 +260,6 @@ class VectorizedAggregator:
             AggregationResult with processed DataFrames and metadata
         """
         start_time = time.time()
-        initial_memory = self.df.memory_usage(deep=True).sum() / 1e6  # MB
         
         # Auto-detect configuration if not provided
         if config is None:
@@ -447,7 +414,7 @@ def benchmark_aggregation(
     for _ in range(iterations):
         start = time.time()
         aggregator = VectorizedAggregator(df, sid_col)
-        result = aggregator.aggregate_all_metrics()
+        _ = aggregator.aggregate_all_metrics()
         vectorized_times.append(time.time() - start)
         
     results['vectorized_mean'] = np.mean(vectorized_times)
