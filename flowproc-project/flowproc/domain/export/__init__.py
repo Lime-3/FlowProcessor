@@ -121,20 +121,8 @@ def process_csv(input_file, output_file, time_course_mode=False, user_replicates
         wb_timecourse.save(timecourse_output)
         logger.info(f"Saved timecourse output to {timecourse_output}")
     
-    # If only one mode was processed, save a copy with a proper .xlsx extension
-    # to avoid creating extensionless placeholder files like "*_Processed"
-    if process_grouped and not process_timecourse:
-        import shutil
-        target = output_file.with_suffix('.xlsx')
-        shutil.copy2(grouped_output, target)
-        logger.info(f"Saved output to {target}")
-    elif process_timecourse and not process_grouped:
-        import shutil
-        target = output_file.with_suffix('.xlsx')
-        shutil.copy2(timecourse_output, target)
-        logger.info(f"Saved output to {target}")
-    # If both modes were processed, the original output_file parameter is ignored
-    # and both _Grouped.xlsx and _Timecourse.xlsx files are created
+    # Only produce the explicit outputs. Do not create a generic "*_Processed.xlsx" copy.
+    # If both modes were processed, both _Grouped.xlsx and _Timecourse.xlsx exist.
 
 def process_directory(input_dir, output_dir, recursive=True, pattern="*.csv",
                      status_callback=None, time_course_mode=False, user_replicates=None,
