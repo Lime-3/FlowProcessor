@@ -7,7 +7,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from typing import Optional, List, Callable, Dict, Any, Union
+from typing import Optional, List, Callable, Dict, Union
 from pathlib import Path
 import numpy as np
 
@@ -15,12 +15,12 @@ from .legend_config import configure_legend
 from .data_aggregation import aggregate_by_group_with_sem, aggregate_multiple_metrics_by_group
 from .column_utils import extract_cell_type_name, extract_metric_name, create_comprehensive_plot_title
 from .plot_config import (
-    DEFAULT_WIDTH, DEFAULT_HEIGHT, MARGIN, VERTICAL_SPACING, HORIZONTAL_SPACING,
-    MAX_CELL_TYPES, SUBPLOT_HEIGHT_PER_ROW, DEFAULT_TRACE_CONFIG
+    DEFAULT_WIDTH, MARGIN, VERTICAL_SPACING, HORIZONTAL_SPACING,
+    MAX_CELL_TYPES
 )
 from .plot_utils import (
     format_time_title, validate_plot_data, limit_cell_types, calculate_subplot_dimensions, 
-    calculate_aspect_ratio_dimensions
+    calculate_aspect_ratio_dimensions, get_group_label_map, calculate_layout_for_long_labels
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,10 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
     Returns:
         Plotly Figure object
     """
+    # Extract internal-only option so it isn't passed to Plotly
+    user_group_labels = kwargs.pop('user_group_labels', None)
+    kwargs.pop('fixed_layout', None)
+
     # Aggregate data by Group
     agg_df = aggregate_by_group_with_sem(df, y_col)
     
@@ -96,24 +100,49 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
     # Ensure consistent sizing
     fig.update_layout(
         width=width,
-        height=height
+        height=height,
+        autosize=False
     )
     
-    # Ensure all x-axis ticks are shown with correct group numbers
+    # Ensure all x-axis ticks are shown with customized labels if available
     if 'Group' in df.columns:
-        # Convert group values to numeric if they're strings representing numbers
         unique_groups = df['Group'].unique()
         try:
-            # Try to convert to numeric and sort
             numeric_groups = sorted([float(g) if isinstance(g, str) else g for g in unique_groups])
-            # Convert back to original type (int if whole numbers)
-            unique_groups = [int(g) if g.is_integer() else g for g in numeric_groups]
-        except (ValueError, AttributeError):
-            # If conversion fails, use regular sorting
-            unique_groups = sorted(unique_groups)
-        
-        # Use the actual group values for both positions and labels
-        fig.update_xaxes(tickmode='array', tickvals=unique_groups, ticktext=unique_groups)
+            tickvals = [int(g) if hasattr(g, 'is_integer') and g.is_integer() else g for g in numeric_groups]
+        except Exception:
+            tickvals = sorted(unique_groups)
+
+        group_label_map = get_group_label_map(df, user_group_labels)
+        ticktext = [group_label_map.get(g, g) for g in tickvals]
+        fig.update_xaxes(tickmode='array', tickvals=tickvals, ticktext=ticktext)
+
+        # Adjust layout for long labels to avoid vertical squish (preserve width and legend placement)
+        try:
+            if user_group_labels:
+                legend_labels = [trace.name for trace in fig.data] if fig.data else []
+                layout_adj = calculate_layout_for_long_labels(
+                    labels=[str(t) for t in ticktext],
+                    legend_items=len(legend_labels),
+                    title=str(getattr(fig.layout.title, 'text', '') or ''),
+                    legend_labels=[str(name) for name in legend_labels],
+                    default_width=width,
+                    default_height=height
+                )
+                # Preserve plot area size; expand only bottom margin and total height for labels
+                current_margin = dict(fig.layout.margin) if fig.layout.margin else MARGIN.copy()
+                proposed_margin = layout_adj.get('margin', MARGIN).copy()
+                proposed_margin['r'] = max(proposed_margin.get('r', 0), current_margin.get('r', 0), MARGIN.get('r', 0))
+                new_bottom = max(proposed_margin.get('b', 0), current_margin.get('b', 0))
+                delta_bottom = max(0, new_bottom - current_margin.get('b', 0))
+                fig.update_layout(
+                    width=width,
+                    height=height + delta_bottom,
+                    margin=dict(l=current_margin.get('l', 50), r=proposed_margin['r'], t=current_margin.get('t', 50), b=new_bottom)
+                )
+                fig.update_xaxes(tickangle=layout_adj.get('xaxis_tickangle', 0))
+        except Exception:
+            pass
     
     return fig
 
@@ -135,6 +164,10 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
     logger.debug(f"Input DataFrame shape: {df.shape}")
     logger.debug(f"Input DataFrame columns: {list(df.columns)}")
     
+    # Extract internal-only option so it isn't passed to Plotly
+    user_group_labels = kwargs.pop('user_group_labels', None)
+    kwargs.pop('fixed_layout', None)
+
     # Prepare data for plotting all cell types together
     combined_df = aggregate_multiple_metrics_by_group(df, freq_cols)
     logger.debug(f"Aggregated data shape: {combined_df.shape}")
@@ -170,8 +203,8 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
         logger.debug(f"Created histogram plot with {len(fig.data)} traces")
     else:
         raise ValueError(f"Unknown plot type: {plot_type}")
-    
-    logger.debug(f"Figure created successfully, applying legend configuration")
+
+    logger.debug("Figure created successfully, applying legend configuration")
     
     # Apply standardized legend configuration to ALL plot types
     width = kwargs.get('width', 1200)  # Use default width if not specified
@@ -184,7 +217,7 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
         fig, combined_df, 'Cell Type', is_subplot=False, width=width, height=height,
         legend_title=legend_title, show_mean_sem_label=True
     )
-    logger.debug(f"Legend configuration applied")
+    logger.debug("Legend configuration applied")
         
     # Update title, y-axis, and legend
     if 'title' not in kwargs:
@@ -199,24 +232,48 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
     # Ensure consistent sizing
     fig.update_layout(
         width=width,
-        height=height
+        height=height,
+        autosize=False
     )
     
-    # Ensure all x-axis ticks are shown with correct group numbers
+    # Ensure all x-axis ticks are shown with customized labels if available
     if 'Group' in combined_df.columns:
-        # Convert group values to numeric if they're strings representing numbers
         unique_groups = combined_df['Group'].unique()
         try:
-            # Try to convert to numeric and sort
             numeric_groups = sorted([float(g) if isinstance(g, str) else g for g in unique_groups])
-            # Convert back to original type (int if whole numbers)
-            unique_groups = [int(g) if g.is_integer() else g for g in numeric_groups]
-        except (ValueError, AttributeError):
-            # If conversion fails, use regular sorting
-            unique_groups = sorted(unique_groups)
-        
-        # Use the actual group values for both positions and labels
-        fig.update_xaxes(tickmode='array', tickvals=unique_groups, ticktext=unique_groups)
+            tickvals = [int(g) if hasattr(g, 'is_integer') and g.is_integer() else g for g in numeric_groups]
+        except Exception:
+            tickvals = sorted(unique_groups)
+
+        group_label_map = get_group_label_map(combined_df, user_group_labels)
+        ticktext = [group_label_map.get(g, g) for g in tickvals]
+        fig.update_xaxes(tickmode='array', tickvals=tickvals, ticktext=ticktext)
+
+        # Adjust layout for long labels to avoid vertical squish (preserve width and legend placement)
+        try:
+            if user_group_labels:
+                legend_labels = [trace.name for trace in fig.data] if fig.data else []
+                layout_adj = calculate_layout_for_long_labels(
+                    labels=[str(t) for t in ticktext],
+                    legend_items=len(legend_labels),
+                    title=str(getattr(fig.layout.title, 'text', '') or ''),
+                    legend_labels=[str(name) for name in legend_labels],
+                    default_width=width,
+                    default_height=height
+                )
+                current_margin = dict(fig.layout.margin) if fig.layout.margin else MARGIN.copy()
+                proposed_margin = layout_adj.get('margin', MARGIN).copy()
+                proposed_margin['r'] = max(proposed_margin.get('r', 0), current_margin.get('r', 0), MARGIN.get('r', 0))
+                new_bottom = max(proposed_margin.get('b', 0), current_margin.get('b', 0))
+                delta_bottom = max(0, new_bottom - current_margin.get('b', 0))
+                fig.update_layout(
+                    width=width,
+                    height=height + delta_bottom,
+                    margin=dict(l=current_margin.get('l', 50), r=proposed_margin['r'], t=current_margin.get('t', 50), b=new_bottom)
+                )
+                fig.update_xaxes(tickangle=layout_adj.get('xaxis_tickangle', 0))
+        except Exception:
+            pass
     
     logger.debug(f"Final figure layout: width={fig.layout.width}, height={fig.layout.height}")
     logger.debug(f"Final figure has {len(fig.data)} traces")
@@ -241,6 +298,10 @@ def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, filter_opti
     Returns:
         Plotly Figure object
     """
+    # Extract internal-only option so it isn't passed to Plotly
+    user_group_labels = kwargs.pop('user_group_labels', None)
+    kwargs.pop('fixed_layout', None)
+
     # Create plot based on type
     if plot_type == "scatter":
         fig = px.scatter(df, x=x, y=y, **kwargs)
@@ -286,8 +347,48 @@ def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, filter_opti
     # Ensure consistent sizing
     fig.update_layout(
         width=width,
-        height=height
+        height=height,
+        autosize=False
     )
+    
+    # Map group tick labels if plotting by Group on x-axis
+    if x == 'Group' and 'Group' in df.columns:
+        unique_groups = df['Group'].unique()
+        try:
+            numeric_groups = sorted([float(g) if isinstance(g, str) else g for g in unique_groups])
+            tickvals = [int(g) if hasattr(g, 'is_integer') and g.is_integer() else g for g in numeric_groups]
+        except Exception:
+            tickvals = sorted(unique_groups)
+
+        group_label_map = get_group_label_map(df, user_group_labels)
+        ticktext = [group_label_map.get(g, g) for g in tickvals]
+        fig.update_xaxes(tickmode='array', tickvals=tickvals, ticktext=ticktext)
+
+        # Adjust layout for long labels to avoid vertical squish (preserve width and legend placement)
+        try:
+            if user_group_labels:
+                legend_labels = [trace.name for trace in fig.data] if fig.data else []
+                layout_adj = calculate_layout_for_long_labels(
+                    labels=[str(t) for t in ticktext],
+                    legend_items=len(legend_labels),
+                    title=str(getattr(fig.layout.title, 'text', '') or ''),
+                    legend_labels=[str(name) for name in legend_labels],
+                    default_width=width,
+                    default_height=height
+                )
+                current_margin = dict(fig.layout.margin) if fig.layout.margin else MARGIN.copy()
+                proposed_margin = layout_adj.get('margin', MARGIN).copy()
+                proposed_margin['r'] = max(proposed_margin.get('r', 0), current_margin.get('r', 0), MARGIN.get('r', 0))
+                new_bottom = max(proposed_margin.get('b', 0), current_margin.get('b', 0))
+                delta_bottom = max(0, new_bottom - current_margin.get('b', 0))
+                fig.update_layout(
+                    width=width,
+                    height=height + delta_bottom,
+                    margin=dict(l=current_margin.get('l', 50), r=proposed_margin['r'], t=current_margin.get('t', 50), b=new_bottom)
+                )
+                fig.update_xaxes(tickangle=layout_adj.get('xaxis_tickangle', 0))
+        except Exception:
+            pass
     
     return fig
 
@@ -840,10 +941,10 @@ def _create_single_timecourse(
         else:
             if error_y and error_y in plot_df.columns:
                 fig = px.line(plot_df, x=time_col, y=y_col, error_y=error_y, **kwargs)
-                logger.info(f"Created line plot without grouping and SEM error bars")
+                logger.info("Created line plot without grouping and SEM error bars")
             else:
                 fig = px.line(plot_df, x=time_col, y=y_col, **kwargs)
-                logger.info(f"Created line plot without grouping (no error bars)")
+                logger.info("Created line plot without grouping (no error bars)")
     elif plot_type == "scatter":
         if group_col and group_col in plot_df.columns:
             if error_y and error_y in plot_df.columns:
@@ -1033,8 +1134,8 @@ def _create_overlay_timecourse(
                 ))
     
     # Apply legend configuration
-    width = kwargs.get('width', 1200)
-    height = kwargs.get('height', 500)
+    width = kwargs.get('width', 1000)
+    height = kwargs.get('height', 480)
     
     # Determine appropriate legend title based on plot type
     if group_col:
@@ -1049,7 +1150,7 @@ def _create_overlay_timecourse(
     
     # Update title and labels
     if 'title' not in kwargs:
-        logger.debug(f"Overlay timecourse - Creating title for multiple metrics")
+        logger.debug("Overlay timecourse - Creating title for multiple metrics")
         from .column_utils import create_timecourse_plot_title
         title = create_timecourse_plot_title(df, "Multiple Metrics", value_cols, filter_options=filter_options)
         logger.debug(f"Overlay timecourse - Title created: {title}")

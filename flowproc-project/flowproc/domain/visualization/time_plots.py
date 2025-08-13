@@ -24,6 +24,7 @@ from .column_utils import (
     create_population_shortname
 )
 from .legend_config import configure_legend
+from .plot_utils import get_group_label_map
 from .data_aggregation import aggregate_by_group_with_sem
 
 logger = logging.getLogger(__name__)
@@ -301,6 +302,8 @@ def _create_single_metric_timecourse(
     **kwargs
 ) -> go.Figure:
     """Create timecourse plot for a single metric."""
+    # Extract internal-only option so it isn't passed to Plotly
+    user_group_labels = kwargs.pop('user_group_labels', None)
     # Debug logging
     logger.info(f"Creating single metric timecourse for column: {value_col}")
     logger.info(f"Data shape: {df.shape}")
@@ -434,6 +437,8 @@ def _create_overlay_timecourse(
     **kwargs
 ) -> go.Figure:
     """Create timecourse plot with multiple metrics overlaid."""
+    # Extract internal-only option so it isn't passed to Plotly
+    user_group_labels = kwargs.pop('user_group_labels', None)
     fig = go.Figure()
     
     # Apply aggregation if requested
@@ -561,6 +566,20 @@ def _create_overlay_timecourse(
         xaxis_title="Time",
         yaxis_title="Value"
     )
+
+    # If grouping is present, ensure tick labels use custom labels where available
+    if group_col and group_col in df.columns:
+        unique_groups = df[group_col].unique()
+        try:
+            numeric_groups = sorted([float(g) if isinstance(g, str) else g for g in unique_groups])
+            tickvals = [int(g) if hasattr(g, 'is_integer') and g.is_integer() else g for g in numeric_groups]
+        except Exception:
+            tickvals = sorted(unique_groups)
+        label_map = get_group_label_map(df, user_group_labels)
+        ticktext = [label_map.get(g, g) for g in tickvals]
+        # Only update if time axis is x and groups are used as color (legend)
+        # For timecourse, groups are legend items; we don't set x-axis ticks to group names.
+        # However, for completeness, when a grouped categorical axis exists in variants, we keep this logic.
     
     return fig
 
