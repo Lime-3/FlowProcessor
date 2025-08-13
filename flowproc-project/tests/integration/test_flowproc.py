@@ -213,10 +213,9 @@ def test_multi_tissue_bar_separate_plots(tmp_csv_multi_tissue, tmp_path, monkeyp
     assert len(fig.data) > 0  # Should have at least one trace
 
 def test_invalid_metric(sample_df):
-    with pytest.raises(ValueError, match="Invalid metric 'invalid'"):
-        # This test needs to be rewritten for current modules
-        # For now, we'll just test that the error is raised
-        print("⚠️  Invalid metric test needs to be rewritten for current modules")
+    # Updated: ensure plot() raises ValueError for an unknown metric type string
+    with pytest.raises(ValueError):
+        plot(sample_df, x='Group', y='definitely-not-a-metric', plot_type='bar')
 
 
 

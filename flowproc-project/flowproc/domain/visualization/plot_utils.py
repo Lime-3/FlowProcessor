@@ -157,14 +157,11 @@ def calculate_subplot_dimensions(num_items: int, max_items_per_row: Optional[int
         Tuple of (rows, cols)
     """
     from .plot_config import MAX_SUBPLOTS_PER_ROW
-    
-    # Legacy behavior used in tests: single column layout when caller does not
-    # specify max_items_per_row (i.e., keep rows=num_items, cols=1)
-    if max_items_per_row is None:
-        return num_items, 1
-    # When explicit max_items_per_row provided, arrange in rows of that many
-    rows = (num_items + max_items_per_row - 1) // max_items_per_row
-    cols = min(num_items, max_items_per_row)
+
+    # Modern default: when not specified, use configured MAX_SUBPLOTS_PER_ROW
+    effective_max = max_items_per_row if max_items_per_row is not None else MAX_SUBPLOTS_PER_ROW
+    rows = (num_items + effective_max - 1) // effective_max
+    cols = min(num_items, effective_max)
     return rows, cols
 
 
@@ -175,9 +172,6 @@ def calculate_layout_for_long_labels(
     legend_labels: List[str], 
     default_width: Optional[int] = None, 
     default_height: Optional[int] = None,
-    # Backward-compat synonyms used by tests
-    base_width: Optional[int] = None,
-    base_height: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Calculate layout adjustments for plots with long labels.
@@ -193,17 +187,9 @@ def calculate_layout_for_long_labels(
     Returns:
         Dictionary with layout adjustments
     """
-    # Resolve width/height inputs from either default_* or base_* synonyms
-    resolved_width = (
-        default_width if default_width is not None else (
-            base_width if base_width is not None else DEFAULT_WIDTH
-        )
-    )
-    resolved_height = (
-        default_height if default_height is not None else (
-            base_height if base_height is not None else DEFAULT_HEIGHT
-        )
-    )
+    # Resolve width/height inputs using defaults when not provided
+    resolved_width = default_width if default_width is not None else DEFAULT_WIDTH
+    resolved_height = default_height if default_height is not None else DEFAULT_HEIGHT
 
     # Calculate maximum label length
     max_label_length = max(len(str(label)) for label in labels) if labels else 0

@@ -77,7 +77,11 @@ def process_csv(input_file, output_file, time_course_mode=False, user_replicates
     
     # Process in grouped mode if needed
     if process_grouped:
-        grouped_output = output_file.parent / f"{output_file.stem}_Grouped.xlsx"
+        # Backward-compatible: if caller provided an .xlsx path, use it directly for grouped output
+        grouped_output = (
+            output_file if output_file.suffix.lower() == ".xlsx"
+            else output_file.parent / f"{output_file.stem}_Grouped.xlsx"
+        )
         logger.info(f"Processing in grouped mode: {grouped_output}")
         
         # Create workbook for grouped mode

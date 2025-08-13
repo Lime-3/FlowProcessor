@@ -142,8 +142,9 @@ def extract_group_animal(text: str):
     from ...core.constants import Constants
     from .validation_utils import validate_sample_id_for_negative_values
     
-    # Validate for negative values
-    validate_sample_id_for_negative_values(text, strict=True)
+    # Validate for negative values; do not raise here to allow uniform error handling upstream
+    if not validate_sample_id_for_negative_values(text, strict=False):
+        raise ValueError("Invalid group/animal")
     
     # Parse group/animal
     group_animal = GroupAnimalParser().parse(text)
