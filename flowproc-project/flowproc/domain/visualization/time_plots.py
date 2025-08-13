@@ -26,6 +26,7 @@ from .column_utils import (
 from .legend_config import configure_legend
 from .plot_utils import get_group_label_map
 from .data_aggregation import aggregate_by_group_with_sem
+from .plot_factory import build_plot_from_df
 
 logger = logging.getLogger(__name__)
 
@@ -327,44 +328,10 @@ def _create_single_metric_timecourse(
         error_y = None
         logger.info(f"Using raw data, shape: {plot_df.shape}")
     
-    # Create plot based on type with error bars
-    if plot_type == "line":
-        if group_col and group_col in plot_df.columns:
-            if error_y and error_y in plot_df.columns:
-                fig = px.line(plot_df, x=time_col, y=y_col, color=group_col, error_y=error_y, **kwargs)
-                logger.info(f"Created line plot with grouping by {group_col} and SEM error bars")
-            else:
-                fig = px.line(plot_df, x=time_col, y=y_col, color=group_col, **kwargs)
-                logger.info(f"Created line plot with grouping by {group_col} (no error bars)")
-        else:
-            if error_y and error_y in plot_df.columns:
-                fig = px.line(plot_df, x=time_col, y=y_col, error_y=error_y, **kwargs)
-                logger.info(f"Created line plot without grouping and SEM error bars")
-            else:
-                fig = px.line(plot_df, x=time_col, y=y_col, **kwargs)
-                logger.info(f"Created line plot without grouping (no error bars)")
-    elif plot_type == "scatter":
-        if group_col and group_col in plot_df.columns:
-            if error_y and error_y in plot_df.columns:
-                fig = px.scatter(plot_df, x=time_col, y=y_col, color=group_col, error_y=error_y, **kwargs)
-            else:
-                fig = px.scatter(plot_df, x=time_col, y=y_col, color=group_col, **kwargs)
-        else:
-            if error_y and error_y in plot_df.columns:
-                fig = px.scatter(plot_df, x=time_col, y=y_col, error_y=error_y, **kwargs)
-            else:
-                fig = px.scatter(plot_df, x=time_col, y=y_col, error_y=error_y, **kwargs)
-    elif plot_type == "area":
-        if group_col and group_col in plot_df.columns:
-            if error_y and error_y in plot_df.columns:
-                fig = px.area(plot_df, x=time_col, y=y_col, color=group_col, error_y=error_y, **kwargs)
-            else:
-                fig = px.area(plot_df, x=time_col, y=y_col, color=group_col, **kwargs)
-        else:
-            if error_y and error_y in plot_df.columns:
-                fig = px.area(plot_df, x=time_col, y=y_col, error_y=error_y, **kwargs)
-            else:
-                fig = px.area(plot_df, x=time_col, y=y_col, error_y=error_y, **kwargs)
+    # Create plot based on type via centralized factory
+    if plot_type in ("line", "scatter", "area"):
+        fig = build_plot_from_df(plot_type, plot_df, x=time_col, y=y_col, color=group_col, error_y=error_y, **kwargs)
+        logger.info(f"Created {plot_type} plot (group_col={group_col}, error_y={error_y})")
     else:
         raise ValueError(f"Unsupported plot type: {plot_type}")
     
