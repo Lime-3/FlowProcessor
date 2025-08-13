@@ -9,7 +9,6 @@ import logging
 import tempfile
 from pathlib import Path
 from typing import Optional
-from dataclasses import dataclass
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, 
@@ -23,27 +22,18 @@ import pandas as pd
 
 from flowproc.domain.parsing import load_and_parse_df
 # Import moved to where it's used to avoid circular imports
-from flowproc.domain.visualization.plot_config import DEFAULT_WIDTH, DEFAULT_HEIGHT
+from .visualization_options import VisualizationOptions
+from .visualization_filters import (
+    detect_population_options,
+    build_tissue_entries,
+    build_time_entries,
+    detect_time_column,
+)
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class VisualizationOptions:
-    """Container for visualization options."""
-    plot_type: str = "bar"
-    y_axis: Optional[str] = None
-    time_course_mode: bool = False
-    theme: str = "plotly"
-    width: int = DEFAULT_WIDTH + 300
-    height: int = DEFAULT_HEIGHT + 100
-    show_individual_points: bool = True
-    error_bars: bool = True
-    interactive: bool = True
-    # Filter options
-    selected_tissues: Optional[list] = None
-    selected_times: Optional[list] = None
-    selected_population: Optional[str] = None  # New: selected population for timecourse plots
+ 
 
 
 class VisualizationDialog(QDialog):
@@ -439,33 +429,13 @@ class VisualizationDialog(QDialog):
         
         # Populate tissue filter with unique tissue values
         has_real_tissue_data = False
-        if 'Tissue' in df.columns:
-            unique_tissues = df['Tissue'].dropna().unique()
-            # Check if we have any real tissues (not just UNK)
-            real_tissues = [t for t in unique_tissues if t != 'UNK']
-            has_real_tissue_data = len(real_tissues) > 0
-            
-            if has_real_tissue_data:
-                # Use tissue parser to get full names
-                from flowproc.domain.parsing.tissue_parser import TissueParser
-                tissue_parser = TissueParser()
-                
-                for tissue_code in sorted(unique_tissues):
-                    # Get count for this tissue
-                    tissue_count = len(df[df['Tissue'] == tissue_code])
-                    
-                    if tissue_code == 'UNK':
-                        # Include UNK but mark it clearly
-                        display_text = f"UNK (Unknown) [{tissue_count} samples]"
-                    else:
-                        full_name = tissue_parser.get_full_name(tissue_code)
-                        display_text = f"{tissue_code} ({full_name}) [{tissue_count} samples]"
-                        
-                    item = QListWidgetItem(display_text)
-                    item.setData(Qt.ItemDataRole.UserRole, tissue_code)  # Store the tissue code
-                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)  # Enable checkbox
-                    item.setCheckState(Qt.CheckState.Checked)  # Auto-select all tissues by default
-                    self.tissue_filter.addItem(item)
+        entries, has_real_tissue_data = build_tissue_entries(df)
+        for entry in entries:
+            item = QListWidgetItem(entry['display'])
+            item.setData(Qt.ItemDataRole.UserRole, entry['value'])
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if entry.get('checked', True) else Qt.CheckState.Unchecked)
+            self.tissue_filter.addItem(item)
         
         # Hide tissue filter section if no real tissue data is available
         self.tissue_filter_label.setVisible(has_real_tissue_data)
@@ -473,31 +443,14 @@ class VisualizationDialog(QDialog):
         
         # Populate time filter with unique time values  
         has_time_data = False
-        if 'Time' in df.columns:
-            unique_times = df['Time'].dropna().unique()
-            if len(unique_times) > 0:
-                has_time_data = True
-                # Use time parser to format time values
-                from flowproc.domain.parsing.time_service import TimeService
-                time_service = TimeService()
-                
-                logger.info(f"Populating time filter with {len(unique_times)} time points: {unique_times}")
-                
-                for time_hours in sorted(unique_times):
-                    if pd.notna(time_hours):
-                        # Get count for this time point
-                        time_count = len(df[df['Time'] == time_hours])
-                        
-                        formatted_time = time_service.format(time_hours, format_style='auto')
-                        display_text = f"{formatted_time} ({time_hours}h) [{time_count} samples]"
-                        
-                        item = QListWidgetItem(display_text)
-                        item.setData(Qt.ItemDataRole.UserRole, time_hours)  # Store the time value
-                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)  # Enable checkbox
-                        item.setCheckState(Qt.CheckState.Checked)  # Auto-select all time points by default
-                        self.time_filter.addItem(item)
-                        
-                        logger.info(f"Added time filter item: {time_hours}h -> {display_text} (checked: {item.checkState()})")
+        time_entries, has_time_data = build_time_entries(df)
+        logger.info(f"Populating time filter with {len(time_entries)} time points")
+        for entry in time_entries:
+            item = QListWidgetItem(entry['display'])
+            item.setData(Qt.ItemDataRole.UserRole, entry['value'])
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if entry.get('checked', True) else Qt.CheckState.Unchecked)
+            self.time_filter.addItem(item)
         
         # Hide time filter section if no time data is available
         self.time_filter_label.setVisible(has_time_data)
@@ -512,52 +465,11 @@ class VisualizationDialog(QDialog):
         # Clear existing items
         self.population_filter.clear()
         
-        # Get available populations from the data
-        # Look for columns that contain population information (not pure metrics)
-        from flowproc.core.constants import is_pure_metric_column
-        
-        available_populations = []
-        population_mapping = {}  # Map shortnames to full names for filtering
-        
-        # Check if we have a metric selected
+        metric = None
         if self.y_axis_combo and self.y_axis_combo.currentText():
             metric = self.y_axis_combo.currentText()
-            
-            # Get all columns that match this metric type
-            from flowproc.domain.visualization.column_utils import get_matching_columns_for_metric
-            matching_cols = get_matching_columns_for_metric(df, metric)
-            
-            # Filter out pure metric columns to get population columns
-            for col in matching_cols:
-                if not is_pure_metric_column(col, metric):
-                    # This is a population column, extract the population name
-                    population_name = self._extract_population_name(col, metric)
-                    if population_name and population_name not in available_populations:
-                        # Create shortname for display
-                        from flowproc.domain.visualization.column_utils import create_population_shortname
-                        shortname = create_population_shortname(col)
-                        
-                        # Store mapping from shortname to full column name for filtering
-                        population_mapping[shortname] = col
-                        available_populations.append(shortname)
-        
-        # If no populations found from metric, try to detect from flow cytometry columns
-        if not available_populations:
-            from flowproc.domain.visualization.column_utils import detect_flow_columns
-            flow_cols = detect_flow_columns(df)
-            
-            if flow_cols['frequencies']:
-                for col in flow_cols['frequencies']:
-                    # Extract population name from column (remove metric part)
-                    population_name = self._extract_population_name_from_column(col)
-                    if population_name and population_name not in available_populations:
-                        # Create shortname for display
-                        from flowproc.domain.visualization.column_utils import create_population_shortname
-                        shortname = create_population_shortname(col)
-                        
-                        # Store mapping from shortname to full column name for filtering
-                        population_mapping[shortname] = col
-                        available_populations.append(shortname)
+
+        available_populations, population_mapping = detect_population_options(df, metric)
         
         # Add populations to dropdown
         if available_populations:
@@ -591,58 +503,7 @@ class VisualizationDialog(QDialog):
             self.population_filter.addItem("No Populations Available")
             logger.warning("No populations detected in the data")
     
-    def _extract_population_name(self, column_name: str, metric: str) -> Optional[str]:
-        """Extract population name from a column that contains both metric and population info."""
-        # Remove the metric part to get the population
-        # Example: "CD4+ | Freq. of Parent (%)" -> "CD4+"
-        # Example: "Live/CD4+/GFP+ | Freq. of Parent (%)" -> "Live/CD4+/GFP+"
-        
-        # Look for common separators
-        separators = [' | ', ' |', '| ', ' - ', ' -', '- ']
-        for separator in separators:
-            if separator in column_name:
-                parts = column_name.split(separator)
-                if len(parts) >= 2:
-                    # First part is usually the population
-                    population_part = parts[0].strip()
-                    if population_part:
-                        return population_part
-        
-        # If no separator found, try to remove metric keywords from the end
-        metric_lower = metric.lower()
-        if column_name.lower().endswith(metric_lower):
-            population_part = column_name[:-len(metric)].strip()
-            if population_part:
-                return population_part
-        
-        # If still no match, return the column name as is
-        return column_name
-    
-    def _extract_population_name_from_column(self, column_name: str) -> Optional[str]:
-        """Extract population name from a column without knowing the metric."""
-        # This is a fallback method when we don't have a specific metric
-        # Look for common population patterns
-        
-        # Check for path separators (like "Live/CD4+/GFP+")
-        if '/' in column_name:
-            # Take the last part as the main population identifier
-            parts = column_name.split('/')
-            if parts:
-                return parts[-1].strip()
-        
-        # Check for common separators
-        separators = [' | ', ' |', '| ', ' - ', ' -', '- ']
-        for separator in separators:
-            if separator in column_name:
-                parts = column_name.split(separator)
-                if len(parts) >= 2:
-                    # First part is usually the population
-                    population_part = parts[0].strip()
-                    if population_part:
-                        return population_part
-        
-        # If no clear pattern, return the column name as is
-        return column_name
+    # Population name helpers now live in visualization_filters module
     
     def _on_option_changed(self):
         """Handle option changes."""
@@ -918,27 +779,9 @@ class VisualizationDialog(QDialog):
                     logger.error(f"Timecourse mode - Error accessing filter options attributes: {e}")
                 
                 # Detect the actual time column from the data
-                time_column = None
-                if 'Time' in filtered_df.columns:
-                    time_column = 'Time'
-                elif 'time' in filtered_df.columns:
-                    time_column = 'time'
-                else:
-                    # Look for any column that might be time-related
-                    time_candidates = [col for col in filtered_df.columns 
-                                    if any(keyword in col.lower() for keyword in ['time', 'day', 'hour', 'week', 'minute'])]
-                    if time_candidates:
-                        time_column = time_candidates[0]
-                        logger.info(f"Auto-detected time column: {time_column}")
-                    else:
-                        # Fallback to first numeric column that's not the value column
-                        numeric_cols = filtered_df.select_dtypes(include=['number']).columns
-                        if len(numeric_cols) > 1:
-                            time_column = numeric_cols[0]  # Use first numeric column as time
-                            logger.info(f"Using first numeric column as time: {time_column}")
-                        else:
-                            time_column = 'Time'  # Last resort
-                            logger.warning("No suitable time column found, using 'Time' as fallback")
+                time_column = detect_time_column(filtered_df)
+                if time_column not in filtered_df.columns:
+                    logger.warning(f"Detected time column '{time_column}' not present in filtered data columns.")
                 
                 logger.info(f"Using time column: {time_column}")
                 
