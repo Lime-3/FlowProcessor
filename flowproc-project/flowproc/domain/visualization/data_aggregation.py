@@ -61,10 +61,13 @@ def aggregate_multiple_metrics_by_group(df: DataFrame, freq_cols: List[str], gro
     # This creates cleaner plots with cell types as the main distinction
     tissues_detected = False  # Disable tissue separation for now to fix plotting issues
     
+    # Build stable labels once for all columns using only '/' and '|'
+    from .column_utils import build_unique_cell_type_labels, enhance_cell_type_name
+    label_map = build_unique_cell_type_labels(freq_cols)
+
     for col in freq_cols:
-        # Extract cell type name from column
-        from .column_utils import extract_cell_type_name, enhance_cell_type_name
-        basic_cell_type = extract_cell_type_name(col)
+        # Extract label and then enhance if context requires (e.g., GFP tag already present)
+        basic_cell_type = label_map.get(col, col)
         cell_type = enhance_cell_type_name(basic_cell_type, col)
         
         if tissues_detected:

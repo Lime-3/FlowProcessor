@@ -187,7 +187,9 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
         # For box plots, use original data
         melted_df = df.melt(id_vars=['Group'], value_vars=freq_cols, 
                            var_name='Cell Type', value_name='Frequency')
-        melted_df['Cell Type'] = melted_df['Cell Type'].apply(extract_cell_type_name)
+        from .column_utils import build_unique_cell_type_labels
+        label_map = build_unique_cell_type_labels(freq_cols)
+        melted_df['Cell Type'] = melted_df['Cell Type'].map(label_map).fillna(melted_df['Cell Type'])
         fig = px.box(melted_df, x='Group', y='Frequency', color='Cell Type', **kwargs)
         logger.debug(f"Created box plot with {len(fig.data)} traces")
     elif plot_type == "line":
@@ -197,7 +199,9 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
         # For histograms, use original data melted by cell type
         melted_df = df.melt(id_vars=['Group'], value_vars=freq_cols, 
                            var_name='Cell Type', value_name='Frequency')
-        melted_df['Cell Type'] = melted_df['Cell Type'].apply(extract_cell_type_name)
+        from .column_utils import build_unique_cell_type_labels
+        label_map = build_unique_cell_type_labels(freq_cols)
+        melted_df['Cell Type'] = melted_df['Cell Type'].map(label_map).fillna(melted_df['Cell Type'])
         fig = px.histogram(melted_df, x='Frequency', color='Cell Type', barmode='overlay', **kwargs)
         logger.debug(f"Created histogram plot with {len(fig.data)} traces")
     else:
