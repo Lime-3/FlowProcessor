@@ -13,14 +13,14 @@ import numpy as np
 from .legend_config import configure_legend
 from .plot_factory import build_plot_from_df
 from .data_aggregation import aggregate_by_group_with_sem, aggregate_multiple_metrics_by_group
-from .column_utils import extract_cell_type_name, extract_metric_name, create_comprehensive_plot_title
+from .column_utils import extract_cell_type_name, extract_metric_name, create_comprehensive_plot_title, resolve_metric_selection
 from .plot_config import (
     DEFAULT_WIDTH, DEFAULT_HEIGHT, MARGIN, VERTICAL_SPACING, HORIZONTAL_SPACING,
     MAX_CELL_TYPES
 )
 from .plot_utils import (
     format_time_title, validate_plot_data, limit_cell_types, calculate_subplot_dimensions, 
-    calculate_aspect_ratio_dimensions, get_group_label_map, calculate_layout_for_long_labels
+    calculate_aspect_ratio_dimensions, select_legend_title, apply_common_layout, apply_group_tick_labels
 )
 from ..aggregation import timecourse_group_stats, timecourse_group_stats_multi
 
@@ -69,13 +69,17 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
     color_col = kwargs.get('color')
     width = kwargs.get('width', DEFAULT_WIDTH)
     height = kwargs.get('height', DEFAULT_HEIGHT)
-    
-    # Determine appropriate legend title based on plot type
-    legend_title = "Groups" if color_col else "Populations"
-    
-    fig = configure_legend(
-        fig, df, color_col, is_subplot=False, width=width, height=height,
-        legend_title=legend_title, show_mean_sem_label=True
+
+    legend_title = select_legend_title(color_col=color_col, context='single')
+
+    fig = apply_common_layout(
+        fig=fig,
+        df=df,
+        color_col=color_col,
+        width=width,
+        height=height,
+        legend_title=legend_title,
+        show_mean_sem_label=True
     )
         
     # Update title, y-axis title and legend title
@@ -95,52 +99,8 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
         else:
             logger.warning("Title not found in single metric plot layout after update")
     
-    # Ensure consistent sizing
-    fig.update_layout(
-        width=width,
-        height=height,
-        autosize=False
-    )
-    
     # Ensure all x-axis ticks are shown with customized labels if available
-    if 'Group' in df.columns:
-        unique_groups = df['Group'].unique()
-        try:
-            numeric_groups = sorted([float(g) if isinstance(g, str) else g for g in unique_groups])
-            tickvals = [int(g) if hasattr(g, 'is_integer') and g.is_integer() else g for g in numeric_groups]
-        except Exception:
-            tickvals = sorted(unique_groups)
-
-        group_label_map = get_group_label_map(df, user_group_labels)
-        ticktext = [group_label_map.get(g, g) for g in tickvals]
-        fig.update_xaxes(tickmode='array', tickvals=tickvals, ticktext=ticktext)
-
-        # Adjust layout for long labels to avoid vertical squish (preserve width and legend placement)
-        try:
-            if user_group_labels:
-                legend_labels = [trace.name for trace in fig.data] if fig.data else []
-                layout_adj = calculate_layout_for_long_labels(
-                    labels=[str(t) for t in ticktext],
-                    legend_items=len(legend_labels),
-                    title=str(getattr(fig.layout.title, 'text', '') or ''),
-                    legend_labels=[str(name) for name in legend_labels],
-                    default_width=width,
-                    default_height=height
-                )
-                # Preserve plot area size; expand only bottom margin and total height for labels
-                current_margin = dict(fig.layout.margin) if fig.layout.margin else MARGIN.copy()
-                proposed_margin = layout_adj.get('margin', MARGIN).copy()
-                proposed_margin['r'] = max(proposed_margin.get('r', 0), current_margin.get('r', 0), MARGIN.get('r', 0))
-                new_bottom = max(proposed_margin.get('b', 0), current_margin.get('b', 0))
-                delta_bottom = max(0, new_bottom - current_margin.get('b', 0))
-                fig.update_layout(
-                    width=width,
-                    height=height + delta_bottom,
-                    margin=dict(l=current_margin.get('l', 50), r=proposed_margin['r'], t=current_margin.get('t', 50), b=new_bottom)
-                )
-                fig.update_xaxes(tickangle=layout_adj.get('xaxis_tickangle', 0))
-        except Exception:
-            pass
+    fig = apply_group_tick_labels(fig, df, user_group_labels, width, height)
     
     return fig
 
@@ -209,13 +169,17 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
     # Apply standardized legend configuration to ALL plot types
     width = kwargs.get('width', DEFAULT_WIDTH)
     height = kwargs.get('height', DEFAULT_HEIGHT)
-    
-    # Determine appropriate legend title for cell type comparison
-    legend_title = "Cell Types"
-    
-    fig = configure_legend(
-        fig, combined_df, 'Cell Type', is_subplot=False, width=width, height=height,
-        legend_title=legend_title, show_mean_sem_label=True
+
+    legend_title = select_legend_title(context='comparison')
+
+    fig = apply_common_layout(
+        fig=fig,
+        df=combined_df,
+        color_col='Cell Type',
+        width=width,
+        height=height,
+        legend_title=legend_title,
+        show_mean_sem_label=True
     )
     logger.debug("Legend configuration applied")
         
@@ -228,51 +192,8 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
             yaxis_title=base_metric
         )
     
-    # Ensure consistent sizing
-    fig.update_layout(
-        width=width,
-        height=height,
-        autosize=False
-    )
-    
     # Ensure all x-axis ticks are shown with customized labels if available
-    if 'Group' in combined_df.columns:
-        unique_groups = combined_df['Group'].unique()
-        try:
-            numeric_groups = sorted([float(g) if isinstance(g, str) else g for g in unique_groups])
-            tickvals = [int(g) if hasattr(g, 'is_integer') and g.is_integer() else g for g in numeric_groups]
-        except Exception:
-            tickvals = sorted(unique_groups)
-
-        group_label_map = get_group_label_map(combined_df, user_group_labels)
-        ticktext = [group_label_map.get(g, g) for g in tickvals]
-        fig.update_xaxes(tickmode='array', tickvals=tickvals, ticktext=ticktext)
-
-        # Adjust layout for long labels to avoid vertical squish (preserve width and legend placement)
-        try:
-            if user_group_labels:
-                legend_labels = [trace.name for trace in fig.data] if fig.data else []
-                layout_adj = calculate_layout_for_long_labels(
-                    labels=[str(t) for t in ticktext],
-                    legend_items=len(legend_labels),
-                    title=str(getattr(fig.layout.title, 'text', '') or ''),
-                    legend_labels=[str(name) for name in legend_labels],
-                    default_width=width,
-                    default_height=height
-                )
-                current_margin = dict(fig.layout.margin) if fig.layout.margin else MARGIN.copy()
-                proposed_margin = layout_adj.get('margin', MARGIN).copy()
-                proposed_margin['r'] = max(proposed_margin.get('r', 0), current_margin.get('r', 0), MARGIN.get('r', 0))
-                new_bottom = max(proposed_margin.get('b', 0), current_margin.get('b', 0))
-                delta_bottom = max(0, new_bottom - current_margin.get('b', 0))
-                fig.update_layout(
-                    width=width,
-                    height=height + delta_bottom,
-                    margin=dict(l=current_margin.get('l', 50), r=proposed_margin['r'], t=current_margin.get('t', 50), b=new_bottom)
-                )
-                fig.update_xaxes(tickangle=layout_adj.get('xaxis_tickangle', 0))
-        except Exception:
-            pass
+    fig = apply_group_tick_labels(fig, combined_df, user_group_labels, width, height)
     
     logger.debug(f"Final figure layout: width={fig.layout.width}, height={fig.layout.height}")
     logger.debug(f"Final figure has {len(fig.data)} traces")
@@ -315,13 +236,17 @@ def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, filter_opti
     color_col = kwargs.get('color')
     width = kwargs.get('width', DEFAULT_WIDTH)
     height = kwargs.get('height', DEFAULT_HEIGHT)
-    
-    # Determine appropriate legend title based on plot type
-    legend_title = "Groups" if color_col else "Populations"
-    
-    fig = configure_legend(
-        fig, df, color_col, is_subplot=False, width=width, height=height,
-        legend_title=legend_title, show_mean_sem_label=True
+
+    legend_title = select_legend_title(color_col=color_col, context='single')
+
+    fig = apply_common_layout(
+        fig=fig,
+        df=df,
+        color_col=color_col,
+        width=width,
+        height=height,
+        legend_title=legend_title,
+        show_mean_sem_label=True
     )
     
     # Update title
@@ -338,51 +263,9 @@ def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, filter_opti
                 comprehensive_title = f"{metric_name} vs {x}"
         fig.update_layout(title=comprehensive_title)
     
-    # Ensure consistent sizing
-    fig.update_layout(
-        width=width,
-        height=height,
-        autosize=False
-    )
-    
     # Map group tick labels if plotting by Group on x-axis
     if x == 'Group' and 'Group' in df.columns:
-        unique_groups = df['Group'].unique()
-        try:
-            numeric_groups = sorted([float(g) if isinstance(g, str) else g for g in unique_groups])
-            tickvals = [int(g) if hasattr(g, 'is_integer') and g.is_integer() else g for g in numeric_groups]
-        except Exception:
-            tickvals = sorted(unique_groups)
-
-        group_label_map = get_group_label_map(df, user_group_labels)
-        ticktext = [group_label_map.get(g, g) for g in tickvals]
-        fig.update_xaxes(tickmode='array', tickvals=tickvals, ticktext=ticktext)
-
-        # Adjust layout for long labels to avoid vertical squish (preserve width and legend placement)
-        try:
-            if user_group_labels:
-                legend_labels = [trace.name for trace in fig.data] if fig.data else []
-                layout_adj = calculate_layout_for_long_labels(
-                    labels=[str(t) for t in ticktext],
-                    legend_items=len(legend_labels),
-                    title=str(getattr(fig.layout.title, 'text', '') or ''),
-                    legend_labels=[str(name) for name in legend_labels],
-                    default_width=width,
-                    default_height=height
-                )
-                current_margin = dict(fig.layout.margin) if fig.layout.margin else MARGIN.copy()
-                proposed_margin = layout_adj.get('margin', MARGIN).copy()
-                proposed_margin['r'] = max(proposed_margin.get('r', 0), current_margin.get('r', 0), MARGIN.get('r', 0))
-                new_bottom = max(proposed_margin.get('b', 0), current_margin.get('b', 0))
-                delta_bottom = max(0, new_bottom - current_margin.get('b', 0))
-                fig.update_layout(
-                    width=width,
-                    height=height + delta_bottom,
-                    margin=dict(l=current_margin.get('l', 50), r=proposed_margin['r'], t=current_margin.get('t', 50), b=new_bottom)
-                )
-                fig.update_xaxes(tickangle=layout_adj.get('xaxis_tickangle', 0))
-        except Exception:
-            pass
+        fig = apply_group_tick_labels(fig, df, user_group_labels, width, height)
     
     return fig
 
@@ -1291,53 +1174,21 @@ def plot(data: Union[str, DataFrame],
             else:
                 y = df.columns[1] if len(df.columns) > 1 else df.columns[0]
     
-    # Handle case where y is a metric type (like "Freq. of Parent") rather than a column name
+    # Handle case where y is a metric type (like "Freq. of Parent").
     if y and y not in df.columns:
-        from .column_utils import detect_available_metric_types, get_matching_columns_for_metric
-        metric_types = detect_available_metric_types(df)
-        
-        logger.debug(f"y parameter '{y}' not found in columns, checking if it's a metric type")
-        logger.debug(f"Available metric types: {metric_types}")
-        
-        if y in metric_types:
-            # Find all columns matching this metric type
-            matching_cols = get_matching_columns_for_metric(df, y)
-            logger.debug(f"Looking for metric type '{y}', found matching columns: {matching_cols}")
-            
-            if matching_cols:
-                if len(matching_cols) == 1:
-                    # Single column found - use it directly
-                    y = matching_cols[0]
-                    logger.info(f"Using single column '{y}' for metric type '{y}'")
-                else:
-                    # Multiple columns found - use cell type comparison plot
-                    logger.info(f"Multiple columns found for metric type '{y}', using cell type comparison plot with {len(matching_cols)} columns")
-                    logger.debug(f"Columns to plot: {matching_cols}")
-                    result_fig = create_cell_type_comparison_plot(df, matching_cols, plot_type, filter_options=filter_options, **kwargs)
-                    logger.debug(f"Cell type comparison plot created successfully, figure has {len(result_fig.data)} traces")
-                    
-                    # Save HTML if requested (since we're returning early, we need to handle this here)
-                    if save_html:
-                        from .plotly_renderer import PlotlyRenderer
-                        renderer = PlotlyRenderer()
-                        renderer.export_to_html_optimized(result_fig, save_html, 'minimal')
-                        logger.info(f"Saved cell type comparison plot to {save_html}")
-                    
-                    return result_fig
-            else:
-                # No columns found for this metric type - fallback to auto-detection
-                logger.warning(f"No columns found for metric type '{y}', falling back to auto-detection")
-                from .column_utils import detect_flow_columns
-                flow_cols = detect_flow_columns(df)
-                if flow_cols['frequencies']:
-                    y = flow_cols['frequencies'][0]
-                else:
-                    raise ValueError(f"No columns found for metric type '{y}' and no fallback columns available")
+        single_col, multi_cols = resolve_metric_selection(df, y)
+        logger.debug(f"Resolved metric selection for y='{y}': single={single_col}, multi={multi_cols}")
+        if multi_cols:
+            result_fig = create_cell_type_comparison_plot(df, multi_cols, plot_type, filter_options=filter_options, **kwargs)
+            if save_html:
+                from .plotly_renderer import PlotlyRenderer
+                renderer = PlotlyRenderer()
+                renderer.export_to_html_optimized(result_fig, save_html, 'minimal')
+                logger.info(f"Saved cell type comparison plot to {save_html}")
+            return result_fig
+        if single_col:
+            y = single_col
         else:
-            # y is not a metric type and not a column - this is an error
-            logger.error(f"Column '{y}' not found in data and not recognized as a metric type")
-            logger.error(f"Available columns: {list(df.columns)}")
-            logger.error(f"Available metric types: {metric_types}")
             raise ValueError(f"Column '{y}' not found in data and not recognized as a metric type")
     
     # Ensure consistent sizing
@@ -1414,29 +1265,21 @@ def compare_groups(data: Union[str, DataFrame],
     if 'height' not in kwargs:
         kwargs['height'] = DEFAULT_HEIGHT
     
-    # Check if metric is a metric type (like "Freq. of Parent") or a specific column
-    from .column_utils import detect_available_metric_types, get_matching_columns_for_metric
-    metric_types = detect_available_metric_types(df)
-    
-    if metric in metric_types:
-        # Find all columns matching this metric type
-        matching_cols = get_matching_columns_for_metric(df, metric)
-        
-        # Debug logging
-        logger.debug(f"Looking for metric type '{metric}', found matching columns: {matching_cols}")
-        
-        if matching_cols:
-            # Use the first matching column for single metric plots
-            metric = matching_cols[0]
-            logger.info(f"Using column '{metric}' for metric type '{metric}'")
-        else:
-            # Fallback to first available frequency column
-            flow_cols = detect_flow_columns(df)
-            if flow_cols['frequencies']:
-                metric = flow_cols['frequencies'][0]
-                logger.warning(f"No columns found for metric type '{metric}', using fallback: {metric}")
-            else:
-                raise ValueError(f"No columns found for metric type '{metric}' and no fallback columns available")
+    # Resolve metric selection using unified helper
+    single_col, multi_cols = resolve_metric_selection(df, metric)
+    if multi_cols:
+        # Use cell type comparison with multiple columns; choose box by default for distributions
+        result_fig = create_cell_type_comparison_plot(df, multi_cols, plot_type, filter_options=filter_options, **kwargs)
+        if save_html:
+            from .plotly_renderer import PlotlyRenderer
+            renderer = PlotlyRenderer()
+            renderer.export_to_html_optimized(result_fig, save_html, 'minimal')
+            logger.info(f"Saved group comparison plot to {save_html}")
+        return result_fig
+    if single_col:
+        metric = single_col
+    else:
+        raise ValueError(f"No columns found for metric '{metric}' and no fallback columns available")
     
     # Create comparison plot
     if plot_type == "box":
@@ -1451,7 +1294,7 @@ def compare_groups(data: Union[str, DataFrame],
     # Update title
     if 'title' not in kwargs:
         metric_name = extract_metric_name(metric)
-        comprehensive_title = create_comprehensive_plot_title(df, metric_name, filter_options=filter_options)
+        comprehensive_title = create_comprehensive_plot_title(df, metric_name, [metric], filter_options=filter_options)
         fig.update_layout(title=f"{comprehensive_title} by Group")
     
     # Save if requested

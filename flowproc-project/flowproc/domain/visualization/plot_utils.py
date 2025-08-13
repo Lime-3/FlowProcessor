@@ -381,3 +381,129 @@ def calculate_optimal_legend_position(
         'margin': margin,
         'legend': legend_config
     } 
+
+
+def select_legend_title(
+    color_col: Optional[str] = None,
+    group_col: Optional[str] = None,
+    context: Optional[str] = None
+) -> str:
+    """
+    Determine a consistent legend title.
+
+    Args:
+        color_col: Column used for color grouping in non-timecourse plots
+        group_col: Group column used in timecourse plots
+        context: Optional context hint: 'single', 'comparison', 'overlay', 'faceted_cell', 'faceted_group'
+
+    Returns:
+        Legend title string
+    """
+    # Explicit contexts override generic logic
+    if context == 'faceted_cell':
+        return "Cell Types"
+    if context == 'faceted_group':
+        return "Groups"
+    if context == 'overlay':
+        return "Groups" if group_col else "Metrics"
+
+    # Generic fallbacks
+    if group_col or (color_col and color_col.lower() in {"group", "treatment", "condition"}):
+        return "Groups"
+    if context == 'comparison':
+        return "Cell Types"
+    return "Populations"
+
+
+def apply_common_layout(
+    fig,
+    df: DataFrame,
+    color_col: Optional[str],
+    width: int,
+    height: int,
+    legend_title: str,
+    show_mean_sem_label: bool = True
+):
+    """
+    Apply standardized legend configuration and fixed sizing.
+
+    This consolidates repeated patterns across plot creators.
+    """
+    # Lazy import to avoid circular import during module load
+    from .legend_config import configure_legend
+
+    fig = configure_legend(
+        fig, df, color_col, is_subplot=False, width=width, height=height,
+        legend_title=legend_title, show_mean_sem_label=show_mean_sem_label
+    )
+
+    fig.update_layout(
+        width=width,
+        height=height,
+        autosize=False
+    )
+
+    return fig
+
+
+def apply_group_tick_labels(
+    fig,
+    df: DataFrame,
+    user_group_labels: Optional[list],
+    width: int,
+    height: int
+):
+    """
+    Map x-axis ticks for 'Group' and adjust layout for long labels, preserving plot area.
+    Mirrors the previously duplicated logic in multiple creators.
+    """
+    if 'Group' not in df.columns:
+        return fig
+
+    unique_groups = df['Group'].unique()
+    try:
+        numeric_groups = sorted([float(g) if isinstance(g, str) else g for g in unique_groups])
+        tickvals = [int(g) if hasattr(g, 'is_integer') and g.is_integer() else g for g in numeric_groups]
+    except Exception:
+        tickvals = sorted(unique_groups)
+
+    group_label_map = get_group_label_map(df, user_group_labels)
+    ticktext = [group_label_map.get(g, g) for g in tickvals]
+    fig.update_xaxes(tickmode='array', tickvals=tickvals, ticktext=ticktext)
+
+    # Adjust layout for long labels while preserving width and legend placement
+    try:
+        if user_group_labels:
+            legend_labels = [trace.name for trace in fig.data] if fig.data else []
+            layout_adj = calculate_layout_for_long_labels(
+                labels=[str(t) for t in ticktext],
+                legend_items=len(legend_labels),
+                title=str(getattr(fig.layout.title, 'text', '') or ''),
+                legend_labels=[str(name) for name in legend_labels],
+                default_width=width,
+                default_height=height
+            )
+            current_margin = dict(fig.layout.margin) if fig.layout.margin else MARGIN.copy()
+            proposed_margin = layout_adj.get('margin', MARGIN).copy()
+            proposed_margin['r'] = max(
+                proposed_margin.get('r', 0),
+                current_margin.get('r', 0),
+                MARGIN.get('r', 0)
+            )
+            new_bottom = max(proposed_margin.get('b', 0), current_margin.get('b', 0))
+            delta_bottom = max(0, new_bottom - current_margin.get('b', 0))
+            fig.update_layout(
+                width=width,
+                height=height + delta_bottom,
+                margin=dict(
+                    l=current_margin.get('l', 50),
+                    r=proposed_margin['r'],
+                    t=current_margin.get('t', 50),
+                    b=new_bottom
+                )
+            )
+            fig.update_xaxes(tickangle=layout_adj.get('xaxis_tickangle', 0))
+    except Exception:
+        pass
+
+    return fig
