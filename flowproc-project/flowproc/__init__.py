@@ -14,6 +14,7 @@ from .domain.export import process_csv, process_directory
 from .domain.processing import map_replicates
 from .domain.processing.vectorized_aggregator import VectorizedAggregator, AggregationConfig
 from .core.constants import KEYWORDS
+from .core.protocols import DataProcessor
 
 # Reshape pair is not implemented yet
 reshape_pair = None
@@ -44,6 +45,7 @@ __all__ = [
     'VectorizedAggregator',
     'AggregationConfig',
     'KEYWORDS',
+    'DataProcessor',
     'get_resource_path',
     'get_data_path',
     'get_package_root',

@@ -29,8 +29,8 @@ class TestPlotConfig:
     
     def test_default_dimensions(self):
         """Test default dimension constants."""
-        assert DEFAULT_WIDTH == 1200
-        assert DEFAULT_HEIGHT == 800
+        assert DEFAULT_WIDTH == 800
+        assert DEFAULT_HEIGHT == 350
         assert MARGIN == {'l': 50, 'r': 200, 't': 50, 'b': 50}
     
     def test_spacing_constants(self):

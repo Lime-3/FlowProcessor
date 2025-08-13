@@ -72,12 +72,22 @@ def build_plot_from_df(
         # Histogram ignores y and only needs x
         if x is None:
             raise ValueError("Histogram requires an 'x' column")
-        return constructor(df, x=x, **call_kwargs)
+        fig = constructor(df, x=x, **call_kwargs)
+        return fig
 
     # Other plot types
     if x is None or y is None:
         raise ValueError(f"Plot type '{plot_type}' requires both 'x' and 'y' columns")
-    return constructor(df, x=x, y=y, **call_kwargs)
+    fig = constructor(df, x=x, y=y, **call_kwargs)
+
+    # Centralize bar defaults: group bars when a color grouping is present
+    if plot_type.lower() == 'bar' and color is not None and 'barmode' not in kwargs:
+        try:
+            fig.update_layout(barmode='group')
+        except Exception:
+            pass
+
+    return fig
 
 
 __all__ = [

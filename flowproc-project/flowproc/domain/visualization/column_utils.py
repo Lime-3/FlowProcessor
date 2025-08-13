@@ -4,7 +4,7 @@ Column detection and utility functions for flow cytometry visualization.
 
 import logging
 import pandas as pd
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -569,3 +569,53 @@ def create_population_shortname(column_name: str) -> str:
       ".../Monocytes/GFP+ Non-Classical Monocytes | Median (...)" -> "GFP+ Non-Classical Monocytes"
     """
     return extract_population_leaf(column_name)
+
+
+def resolve_metric_selection(
+    df: DataFrame,
+    metric: Optional[str]
+) -> Tuple[Optional[str], Optional[List[str]]]:
+    """
+    Resolve a metric selection to either a single column name or a list of
+    matching columns when a metric type is provided.
+
+    Returns a tuple (single_column, multiple_columns). Exactly one of the two
+    will be non-None when resolution succeeds; both None indicates failure.
+    """
+    from .column_utils import detect_available_metric_types, get_matching_columns_for_metric, detect_flow_columns
+
+    if not metric:
+        # Fallback to flow-detected frequency, median, or mean
+        flow_cols = detect_flow_columns(df)
+        if flow_cols['frequencies']:
+            return flow_cols['frequencies'][0], None
+        if flow_cols['medians']:
+            return flow_cols['medians'][0], None
+        if flow_cols['means']:
+            return flow_cols['means'][0], None
+        # Last resort: first non-Group column if present
+        candidate_cols = [c for c in df.columns if c.lower() != 'group']
+        if len(candidate_cols) >= 1:
+            return candidate_cols[0], None
+        return None, None
+
+    # If the metric is an explicit column
+    if metric in df.columns:
+        return metric, None
+
+    # Otherwise treat metric as a metric type
+    metric_types = detect_available_metric_types(df)
+    if metric in metric_types:
+        matching_cols = get_matching_columns_for_metric(df, metric)
+        if not matching_cols:
+            # Fallback to flow-detected frequency
+            flow_cols = detect_flow_columns(df)
+            if flow_cols['frequencies']:
+                return flow_cols['frequencies'][0], None
+            return None, None
+        if len(matching_cols) == 1:
+            return matching_cols[0], None
+        return None, matching_cols
+
+    # Unknown metric string
+    return None, None

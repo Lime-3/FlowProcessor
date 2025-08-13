@@ -236,14 +236,17 @@ class EventHandler(QObject):
             )
             return
         
-        # Open the visualization dialog (modern import)
-        from ..dialogs.visualization_dialog import VisualizationDialog
+        # Open the visualization dialog (prefer legacy shim for testability)
+        try:
+            from ..dialogs.visualization_display_dialog import VisualizationDisplayDialog as _VizDialog
+        except Exception:
+            from ..dialogs.visualization_dialog import VisualizationDialog as _VizDialog
         
         try:
             self.state_manager.update_status("Opening visualization...")
             
             # Create and show the single visualization dialog
-            visualization_dialog = VisualizationDialog(
+            visualization_dialog = _VizDialog(
                 parent=self.main_window,
                 csv_path=self.state_manager.last_csv
             )
