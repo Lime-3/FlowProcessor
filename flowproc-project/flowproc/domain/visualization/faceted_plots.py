@@ -19,6 +19,7 @@ from .plot_utils import (
 )
 from .column_utils import create_enhanced_title, extract_cell_type_name, get_base_columns, create_timecourse_plot_title, extract_metric_name
 from .data_aggregation import prepare_data_for_plotting
+from ..aggregation import timecourse_group_stats
 
 logger = logging.getLogger(__name__)
 
@@ -116,8 +117,7 @@ def _create_faceted_plot(
                 if plot_df.empty:
                     continue
                 if aggregation == "mean_sem" and group_col and group_col in plot_df.columns:
-                    agg_df = plot_df.groupby([group_col, time_col])[col].agg(['mean', 'std', 'count']).reset_index()
-                    agg_df['sem'] = agg_df['std'] / np.sqrt(agg_df['count'])
+                    agg_df = timecourse_group_stats(plot_df, col, time_col=time_col, group_col=group_col)
                     for group in agg_df[group_col].unique():
                         group_data = agg_df[agg_df[group_col] == group]
                         trace_name = f"{trace_name_fn(col) if trace_name_fn else extract_cell_type_name(col)} - {group}"
@@ -163,8 +163,7 @@ def _create_faceted_plot(
                 if group_data.empty:
                     continue
                 if aggregation == "mean_sem" and group_col and group_col in plot_df.columns:
-                    time_agg = group_data.groupby(time_col)[col].agg(['mean', 'std', 'count']).reset_index()
-                    time_agg['sem'] = time_agg['std'] / np.sqrt(time_agg['count'])
+                    time_agg = timecourse_group_stats(group_data, col, time_col=time_col, group_col=None)
                     error_y_data = dict(type='data', array=time_agg['sem'], visible=True)
                     trace_name = f"{extract_cell_type_name(col)} (Group {group})"
                     fig.add_trace(

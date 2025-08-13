@@ -3,6 +3,7 @@ from typing import Dict, List, Tuple, Optional, Any
 import pandas as pd
 import numpy as np
 import logging
+from ..aggregation import generic_aggregate
 
 logger = logging.getLogger(__name__)
 
@@ -57,32 +58,13 @@ class DataAggregator:
             logger.warning("No data to aggregate")
             return pd.DataFrame()
             
-        # Prepare aggregation dictionary
-        if agg_methods is None:
-            agg_dict = {col: self.agg_method for col in value_columns}
-        else:
-            agg_dict = {
-                col: agg_methods.get(col, self.agg_method)
-                for col in value_columns
-            }
-            
-        # Convert to functions
-        agg_funcs = {}
-        for col, method in agg_dict.items():
-            if method in self.AGG_FUNCTIONS:
-                agg_funcs[col] = self.AGG_FUNCTIONS[method]
-            else:
-                logger.warning(f"Unknown aggregation method: {method}")
-                agg_funcs[col] = self.AGG_FUNCTIONS[self.agg_method]
-                
-        # Perform aggregation
-        result = df_clean.groupby(group_columns).agg(agg_funcs).reset_index()
-        
-        # Add count column
-        counts = df_clean.groupby(group_columns).size().reset_index(name='N')
-        result = result.merge(counts, on=group_columns)
-        
-        return result
+        # Delegate to centralized generic aggregation
+        return generic_aggregate(
+            df_clean,
+            value_cols=value_columns,
+            group_cols=group_columns,
+            agg_methods=agg_methods or {col: self.agg_method for col in value_columns},
+        )
         
     def aggregate_with_stats(self, df: pd.DataFrame,
                             value_columns: List[str],

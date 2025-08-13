@@ -26,6 +26,7 @@ from .column_utils import (
 from .legend_config import configure_legend
 from .plot_utils import get_group_label_map
 from .data_aggregation import aggregate_by_group_with_sem
+from ..aggregation import timecourse_group_stats, timecourse_group_stats_multi
 from .plot_factory import build_plot_from_df
 
 logger = logging.getLogger(__name__)
@@ -315,9 +316,8 @@ def _create_single_metric_timecourse(
     
     # Apply aggregation if requested
     if aggregation == "mean_sem" and group_col:
-        # For timecourse plots, we need to aggregate by both group and time
-        plot_df = df.groupby([group_col, time_col])[value_col].agg(['mean', 'std', 'count']).reset_index()
-        plot_df['sem'] = plot_df['std'] / np.sqrt(plot_df['count'])
+        # Centralized timecourse aggregation
+        plot_df = timecourse_group_stats(df, value_col, time_col=time_col, group_col=group_col)
         y_col = 'mean'
         error_y = 'sem'
         logger.info(f"Aggregated data shape: {plot_df.shape}")
@@ -411,17 +411,14 @@ def _create_overlay_timecourse(
     
     # Apply aggregation if requested
     if aggregation == "mean_sem" and group_col:
-        # For timecourse plots, we need to aggregate by both group and time for ALL value columns
-        agg_data = []
-        for value_col in value_cols:
-            # Aggregate each value column separately
-            col_agg = df.groupby([group_col, time_col])[value_col].agg(['mean', 'std', 'count']).reset_index()
-            col_agg['sem'] = col_agg['std'] / np.sqrt(col_agg['count'])
-            col_agg['value_col'] = value_col  # Track which column this data came from
-            agg_data.append(col_agg)
-        
-        # Combine all aggregated data
-        plot_df = pd.concat(agg_data, ignore_index=True)
+        # Centralized multi-column timecourse aggregation
+        plot_df = timecourse_group_stats_multi(
+            df,
+            value_cols=value_cols,
+            time_col=time_col,
+            group_col=group_col,
+            long_name='value_col',
+        )
         y_col = 'mean'
         error_y = 'sem'
     else:
