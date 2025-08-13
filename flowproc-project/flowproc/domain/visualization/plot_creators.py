@@ -15,7 +15,7 @@ from .plot_factory import build_plot_from_df
 from .data_aggregation import aggregate_by_group_with_sem, aggregate_multiple_metrics_by_group
 from .column_utils import extract_cell_type_name, extract_metric_name, create_comprehensive_plot_title
 from .plot_config import (
-    DEFAULT_WIDTH, MARGIN, VERTICAL_SPACING, HORIZONTAL_SPACING,
+    DEFAULT_WIDTH, DEFAULT_HEIGHT, MARGIN, VERTICAL_SPACING, HORIZONTAL_SPACING,
     MAX_CELL_TYPES
 )
 from .plot_utils import (
@@ -66,8 +66,8 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
     
     # Apply standardized legend configuration to ALL plot types
     color_col = kwargs.get('color')
-    width = kwargs.get('width', 1000)  # Use default width if not specified
-    height = kwargs.get('height', 500)  # Use default height if not specified (reduced from 700 for better aspect ratio)
+    width = kwargs.get('width', DEFAULT_WIDTH)
+    height = kwargs.get('height', DEFAULT_HEIGHT)
     
     # Determine appropriate legend title based on plot type
     legend_title = "Groups" if color_col else "Populations"
@@ -206,8 +206,8 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
     logger.debug("Figure created successfully, applying legend configuration")
     
     # Apply standardized legend configuration to ALL plot types
-    width = kwargs.get('width', 1000)  # Use default width if not specified
-    height = kwargs.get('height', 500)  # Use default height if not specified (reduced from 700 for better aspect ratio)
+    width = kwargs.get('width', DEFAULT_WIDTH)
+    height = kwargs.get('height', DEFAULT_HEIGHT)
     
     # Determine appropriate legend title for cell type comparison
     legend_title = "Cell Types"
@@ -312,8 +312,8 @@ def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, filter_opti
     
     # Apply standardized legend configuration
     color_col = kwargs.get('color')
-    width = kwargs.get('width', 1200)  # Use default width if not specified
-    height = kwargs.get('height', 500)  # Use default height if not specified
+    width = kwargs.get('width', DEFAULT_WIDTH)
+    height = kwargs.get('height', DEFAULT_HEIGHT)
     
     # Determine appropriate legend title based on plot type
     legend_title = "Groups" if color_col else "Populations"
@@ -947,8 +947,8 @@ def _create_single_timecourse(
         logger.info(f"Trace {i}: {trace.name}, x points: {len(trace.x)}, y points: {len(trace.y)}")
     
     # Apply legend configuration
-    width = kwargs.get('width', 1200)
-    height = kwargs.get('height', 500)
+    width = kwargs.get('width', DEFAULT_WIDTH)
+    height = kwargs.get('height', DEFAULT_HEIGHT)
     
     # Determine appropriate legend title based on plot type
     if group_col:
@@ -1093,8 +1093,8 @@ def _create_overlay_timecourse(
                 ))
     
     # Apply legend configuration
-    width = kwargs.get('width', 1000)
-    height = kwargs.get('height', 480)
+    width = kwargs.get('width', DEFAULT_WIDTH)
+    height = kwargs.get('height', DEFAULT_HEIGHT)
     
     # Determine appropriate legend title based on plot type
     if group_col:
@@ -1337,9 +1337,9 @@ def plot(data: Union[str, DataFrame],
     
     # Ensure consistent sizing
     if 'width' not in kwargs:
-        kwargs['width'] = 1200
+        kwargs['width'] = DEFAULT_WIDTH
     if 'height' not in kwargs:
-        kwargs['height'] = 500
+        kwargs['height'] = DEFAULT_HEIGHT
     
     # Create plot
     if plot_type == "histogram":
@@ -1405,9 +1405,9 @@ def compare_groups(data: Union[str, DataFrame],
     
     # Ensure consistent sizing
     if 'width' not in kwargs:
-        kwargs['width'] = 1200
+        kwargs['width'] = DEFAULT_WIDTH
     if 'height' not in kwargs:
-        kwargs['height'] = 500
+        kwargs['height'] = DEFAULT_HEIGHT
     
     # Check if metric is a metric type (like "Freq. of Parent") or a specific column
     from .column_utils import detect_available_metric_types, get_matching_columns_for_metric

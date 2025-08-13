@@ -14,6 +14,7 @@ from typing import Optional, List, Union
 
 from .column_utils import detect_flow_columns, analyze_data_size, extract_metric_name, create_comprehensive_plot_title
 from .plot_creators import create_single_metric_plot, create_cell_type_comparison_plot, create_basic_plot
+from .plot_config import DEFAULT_WIDTH, DEFAULT_HEIGHT
 # Legacy timecourse functions removed - use create_timecourse_visualization from time_plots module directly
 from .faceted_plots import create_cell_type_faceted_plot
 from .legend_config import configure_legend
@@ -102,13 +103,11 @@ def plot(data: Union[str, DataFrame],
             else:
                 y = df.columns[1] if len(df.columns) > 1 else "Value"
     
-    # Ensure consistent sizing
+    # Ensure consistent sizing using centralized defaults
     if 'width' not in kwargs:
-        kwargs['width'] = 1200
+        kwargs['width'] = DEFAULT_WIDTH
     if 'height' not in kwargs:
-        # For standard mode plots (groups on x-axis, populations in legend), use shorter height
-        # This provides better aspect ratio and fits better in the window
-        kwargs['height'] = 500  # Reduced from 700 to 500 for better standard mode aspect ratio
+        kwargs['height'] = DEFAULT_HEIGHT
     
     # Create plot based on type
     # Check if y is a metric type (like "Freq. of Parent") or a specific column
@@ -231,12 +230,11 @@ def compare_groups(data, groups: Optional[List[str]] = None,
         else:
             metric = df.columns[1] if len(df.columns) > 1 else df.columns[0]
     
-    # Ensure consistent sizing
+    # Ensure consistent sizing using centralized defaults
     if 'width' not in kwargs:
-        kwargs['width'] = 1200
+        kwargs['width'] = DEFAULT_WIDTH
     if 'height' not in kwargs:
-        # Use shorter height for better aspect ratio in standard mode
-        kwargs['height'] = 500  # Reduced from 700 to 500 for better standard mode aspect ratio
+        kwargs['height'] = DEFAULT_HEIGHT
     
     # Check if metric is a metric type (like "Freq. of Parent") or a specific column
     from .column_utils import detect_available_metric_types, get_matching_columns_for_metric

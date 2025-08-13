@@ -136,15 +136,15 @@ def _configure_global_legend(
     # Calculate total width - ensure legend fits within the plot area
     plot_width = width if width is not None else DEFAULT_WIDTH
     legend_width = legend_width if legend_width is not None else 150
-    
-    # Position legend at x=1.02 (closer to plot) and ensure it fits
-    # The legend should be positioned so it's visible without scrolling
-    legend_x = 1.02
-    legend_width_paper = legend_width / plot_width  # Convert to paper coordinates
-    
-    # Ensure legend doesn't extend beyond reasonable bounds
-    if legend_x + legend_width_paper > 1.15:  # Don't go too far right
-        legend_x = 1.15 - legend_width_paper
+
+    # Compute a right margin that can accommodate the legend
+    required_right_margin = max(MARGIN.get('r', 0), legend_width + 50)
+
+    # Position legend using configured default; keep constant regardless of legend size
+    # We expand total figure width to accommodate larger legends instead of shifting x
+    legend_x = LEGEND_X_POSITION
+    # We compute width in pixels; no need to convert to paper coordinates since
+    # we expand the figure width to accommodate the legend.
     
     # Preserve existing legend title if set
     existing_legend_title = None
@@ -152,10 +152,21 @@ def _configure_global_legend(
         existing_legend_title = fig.layout.legend.title
     
     # Apply layout with legend
+    # If we increased the right margin beyond the configured default, expand the
+    # total figure width so the plot area stays consistent and the legend has room
+    base_right_margin = MARGIN.get('r', 0)
+    expanded_width = plot_width + max(0, required_right_margin - base_right_margin)
+
+    # Start with base layout using expanded width
     layout_updates = {
-        'width': plot_width,
+        'width': expanded_width,
         'showlegend': show_legend,
-        'margin': MARGIN
+        'margin': {
+            'l': MARGIN.get('l', 50),
+            'r': required_right_margin,
+            't': MARGIN.get('t', 50),
+            'b': MARGIN.get('b', 50)
+        }
     }
     
     # Only configure legend if we're showing it
@@ -177,6 +188,7 @@ def _configure_global_legend(
             entrywidthmode="pixels",
             itemclick="toggle",
             itemdoubleclick="toggleothers",
+            valign='middle'
         )
         
         # Add legend title if provided
