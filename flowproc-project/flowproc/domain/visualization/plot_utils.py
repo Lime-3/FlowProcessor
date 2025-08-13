@@ -13,6 +13,43 @@ logger = logging.getLogger(__name__)
 
 # Type aliases
 DataFrame = pd.DataFrame
+def get_group_label_map(
+    df: DataFrame,
+    user_group_labels: Optional[List[str]] = None
+) -> Dict[Union[int, float, str], str]:
+    """
+    Build a mapping from group numeric codes to display labels.
+
+    Industry-standard approach: keep numeric codes for data/positions and
+    supply human-friendly labels for display (ticks/legend). This avoids
+    mutating data and preserves sorting.
+
+    Args:
+        df: DataFrame that may contain a 'Group' column
+        user_group_labels: Optional list of custom labels provided by the user
+
+    Returns:
+        Dict mapping group code -> display label
+    """
+    groups: List[Any] = []
+    if df is not None and 'Group' in df.columns:
+        try:
+            # Preserve numeric identity where possible for stable ordering
+            groups = sorted(pd.unique(df['Group']))
+        except Exception:
+            groups = list(pd.unique(df['Group']))
+
+    # Fallback: if no groups detected, return empty map
+    if not groups:
+        return {}
+
+    # Only apply mapping when custom labels are explicitly provided and cover all groups
+    if user_group_labels and len(user_group_labels) >= len(groups):
+        return {groups[i]: user_group_labels[i] for i in range(len(groups))}
+
+    # No mapping if custom labels not provided; preserve original numeric labels
+    return {}
+
 
 
 def format_time_title(time_values: Union[List[Union[int, float, str]], np.ndarray]) -> str:

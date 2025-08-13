@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from typing import Optional, List, Dict, Any
 
 from .plot_config import (
-    DEFAULT_WIDTH, DEFAULT_HEIGHT, MARGIN, LEGEND_X_POSITION, 
+    DEFAULT_WIDTH, DEFAULT_HEIGHT, MARGIN, LEGEND_X_POSITION,
     LEGEND_BG_COLOR, LEGEND_FONT_SIZE, LEGEND_ITEM_WIDTH, LEGEND_TRACE_GROUP_GAP
 )
 
@@ -181,22 +181,16 @@ def _configure_global_legend(
                 font=dict(size=font_size + 1, color="black")
             )
         
-        # Add mean +/- SEM label at bottom if requested
+        # Add mean +/- SEM label at a fixed bottom threshold if requested
         if show_mean_sem_label:
-            # Create a custom legend with mean +/- SEM label
-            # We'll add this as an annotation below the legend
-            # Calculate position below the legend based on legend height
-            legend_height = legend_items * 20 + 40  # Approximate legend height in pixels
-            legend_height_paper = legend_height / plot_width  # Convert to paper coordinates
-            
             fig.add_annotation(
                 text="Mean ± SEM",
                 xref="paper",
                 yref="paper",
-                x=legend_x,  # Slightly to the right of legend
-                y=0.5 - legend_height_paper - 0.05,  # Dynamic positioning below legend
+                x=legend_x,
+                y=0.03,  # Fixed placement near bottom of figure
                 xanchor="left",
-                yanchor="top",
+                yanchor="bottom",
                 showarrow=False,
                 font=dict(size=font_size - 1, color="gray"),
                 align="left"

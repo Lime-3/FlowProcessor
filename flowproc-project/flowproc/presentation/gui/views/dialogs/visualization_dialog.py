@@ -35,7 +35,7 @@ class VisualizationOptions:
     time_course_mode: bool = False
     theme: str = "plotly"
     width: int = 1200  # Updated to match new default
-    height: int = 500   # Updated to match new default for better standard mode aspect ratio
+    height: int = 600   # Updated to match new default for better standard mode aspect ratio
     show_individual_points: bool = False
     error_bars: bool = True
     interactive: bool = True
@@ -806,7 +806,7 @@ class VisualizationDialog(QDialog):
             
             # Additional debugging for filtered data
             logger.info(f"Filtered data - rows: {len(filtered_df)}, columns: {list(filtered_df.columns)}")
-            logger.info(f"Filtered data sample:")
+            logger.info("Filtered data sample:")
             logger.info(f"  First few rows: {filtered_df.head(3).to_dict('records')}")
             
             # Check for time-related columns
@@ -844,11 +844,7 @@ class VisualizationDialog(QDialog):
                     real_tissues = [t for t in unique_tissues if t != 'UNK']
                     has_real_tissue_data = len(real_tissues) > 0
                 
-                # Check if time filter is visible and populated (even if no items are checked)
-                time_filter_visible = self.time_filter and self.time_filter.isVisible() and self.time_filter.count() > 0
-                
-                # Check if tissue filter is visible and populated (even if no items are checked)
-                tissue_filter_visible = self.tissue_filter and self.tissue_filter.isVisible() and self.tissue_filter.count() > 0
+                # Note: visibility flags are not used below; skip assignments to avoid linter warnings
                 
                 if not has_tissue_filter and not has_time_filter and (has_time_data or has_real_tissue_data):
                     error_msg = "No filters selected. Please select at least one tissue or time filter to display data."
@@ -981,6 +977,9 @@ class VisualizationDialog(QDialog):
                     y=options.y_axis,
                     plot_type=options.plot_type,
                     filter_options=options,  # Pass filter options for title generation
+                    # Pass user group labels only if explicitly set by user via state
+                    user_group_labels=getattr(self.parent(), 'current_group_labels', []) or None,
+                    fixed_layout=True,
                     width=options.width,
                     height=options.height,
                     save_html=self.temp_html_file
