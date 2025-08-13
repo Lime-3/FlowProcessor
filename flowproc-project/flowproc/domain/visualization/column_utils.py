@@ -210,24 +210,27 @@ def enhance_cell_type_name(cell_type: str, column_name: str) -> str:
     Returns:
         Enhanced cell type name (e.g., "CD4+GFP+", "T cells GFP+")
     """
-    # Check if this is a GFP-related column
-    is_gfp_column = 'GFP' in column_name or 'gfp' in column_name.lower()
-    
-    if not is_gfp_column:
+    # Normalize checks
+    col_lower = column_name.lower() if isinstance(column_name, str) else ""
+    cell_lower = cell_type.lower() if isinstance(cell_type, str) else ""
+
+    # If the source column is not GFP-related, or the cell_type already contains GFP, return as-is
+    if 'gfp' not in col_lower or 'gfp' in cell_lower:
         return cell_type
-    
-    # Format cell type names to match the expected display
-    if cell_type == "CD4":
+
+    # Format standardized names while avoiding duplication
+    normalized = cell_type.strip()
+    if normalized.upper() in {"CD4", "CD4+"}:
         return "CD4+GFP+"
-    elif cell_type == "CD8":
+    if normalized.upper() in {"CD8", "CD8+"}:
         return "CD8+GFP+"
-    elif cell_type == "T Cells":
+    if cell_lower in {"t cells", "t cells+", "t-cells", "t cell", "t-cell"}:
         return "T cells GFP+"
-    elif cell_type == "Non-T Cells":
+    if cell_lower in {"non-t cells", "non t cells", "non-t cell", "non t cell"}:
         return "Non T cells GFP+"
-    else:
-        # Generic enhancement for other cell types
-        return f"{cell_type} GFP+"
+
+    # Generic enhancement for other cell types
+    return f"{normalized} GFP+"
 
 
 def create_enhanced_title(df: DataFrame, column_name: str, time_col: str = 'Time') -> str:

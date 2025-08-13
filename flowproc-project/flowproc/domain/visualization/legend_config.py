@@ -113,16 +113,21 @@ def _configure_global_legend(
     
     if color_col and color_col in df.columns:
         legend_items = len(df[color_col].unique())
-        show_legend = legend_items > 1  # Only show legend if there are multiple items
+        show_legend = legend_items > 1  # Only show legend if there are multiple items by default
     else:
         # Check if the figure has traces with names (for single metric plots)
         named_traces = [trace for trace in fig.data if trace.name and trace.name.strip()]
         legend_items = len(named_traces)
-        show_legend = legend_items > 1  # Only show legend if there are multiple named traces
+        show_legend = legend_items > 1  # Only show legend if there are multiple named traces by default
         
         # For single metric plots, check if there's a legend title set (like "Mean ± SEM")
         if legend_items <= 1 and hasattr(fig.layout, 'legend') and fig.layout.legend and hasattr(fig.layout.legend, 'title'):
             show_legend = True  # Show legend if there's a meaningful title
+
+    # If a context legend title was provided, ensure legend shows when there's at least one item
+    # This allows displaying a proper title (e.g., "Groups", "Populations") and the Mean ± SEM label
+    if not show_legend and legend_title and legend_items >= 1:
+        show_legend = True
     
     # Calculate legend width
     if legend_width is None:
