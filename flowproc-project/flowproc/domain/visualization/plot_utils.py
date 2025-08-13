@@ -173,8 +173,11 @@ def calculate_layout_for_long_labels(
     legend_items: int, 
     title: str, 
     legend_labels: List[str], 
-    default_width: int, 
-    default_height: int
+    default_width: Optional[int] = None, 
+    default_height: Optional[int] = None,
+    # Backward-compat synonyms used by tests
+    base_width: Optional[int] = None,
+    base_height: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Calculate layout adjustments for plots with long labels.
@@ -190,20 +193,32 @@ def calculate_layout_for_long_labels(
     Returns:
         Dictionary with layout adjustments
     """
+    # Resolve width/height inputs from either default_* or base_* synonyms
+    resolved_width = (
+        default_width if default_width is not None else (
+            base_width if base_width is not None else DEFAULT_WIDTH
+        )
+    )
+    resolved_height = (
+        default_height if default_height is not None else (
+            base_height if base_height is not None else DEFAULT_HEIGHT
+        )
+    )
+
     # Calculate maximum label length
     max_label_length = max(len(str(label)) for label in labels) if labels else 0
     max_legend_length = max(len(str(label)) for label in legend_labels) if legend_labels else 0
     
     # Adjust width based on label length
     width_adjustment = max(0, (max_label_length - 10) * 8)  # 8px per character over 10
-    adjusted_width = default_width + width_adjustment
+    adjusted_width = resolved_width + width_adjustment
     
     # Adjust height for legend if needed
     height_adjustment = 0
     if legend_items > 0:
         height_adjustment = max(0, (legend_items - 3) * 20)  # 20px per legend item over 3
     
-    adjusted_height = default_height + height_adjustment
+    adjusted_height = resolved_height + height_adjustment
     
     # Calculate margin adjustments
     margin = MARGIN.copy()

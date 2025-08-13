@@ -6,6 +6,7 @@ import logging
 import pandas as pd
 import numpy as np
 from typing import List, Optional
+from ..aggregation import group_stats, group_stats_multi
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +26,8 @@ def aggregate_by_group_with_sem(df: DataFrame, y_col: str, group_col: str = 'Gro
     Returns:
         Aggregated DataFrame with mean, std, count, and sem columns
     """
-    # Aggregate data by Group
-    agg_df = df.groupby(group_col)[y_col].agg(['mean', 'std', 'count']).reset_index()
-    
-    # Replace NaN means with 0.0 for visualization (happens when all values in group are NaN)
-    agg_df['mean'] = agg_df['mean'].fillna(0.0)
-    
-    # Calculate SEM (Standard Error of the Mean)
-    # Handle cases where std is NaN (single value in group) or count is 1
-    agg_df['sem'] = np.where(
-        (agg_df['count'] > 1) & agg_df['std'].notna(),
-        agg_df['std'] / np.sqrt(agg_df['count']),
-        0  # Use 0 for SEM when there's only one value or std is NaN
-    )
-    
-    return agg_df
+    # Delegate to centralized aggregation helper
+    return group_stats(df, y_col, group_cols=group_col)
 
 
 def aggregate_multiple_metrics_by_group(df: DataFrame, freq_cols: List[str], group_col: str = 'Group') -> DataFrame:
@@ -54,39 +42,22 @@ def aggregate_multiple_metrics_by_group(df: DataFrame, freq_cols: List[str], gro
     Returns:
         Combined DataFrame with all metrics aggregated by group
     """
-    plot_data = []
-    
-    # Check if we have multiple tissues
-    # For single metric plots, don't separate by tissue - combine all data
-    # This creates cleaner plots with cell types as the main distinction
-    tissues_detected = False  # Disable tissue separation for now to fix plotting issues
-    
-    # Build stable labels once for all columns using only '/' and '|'
+    # Centralized aggregation in long form
+    combined_df = group_stats_multi(
+        df,
+        value_cols=freq_cols,
+        group_cols=group_col,
+        long_name='Cell Type',
+        value_name='Value',
+    )
+
+    # Preserve existing label enhancements
     from .column_utils import build_unique_cell_type_labels, enhance_cell_type_name
     label_map = build_unique_cell_type_labels(freq_cols)
+    combined_df['Cell Type'] = combined_df['Cell Type'].map(
+        lambda original: enhance_cell_type_name(label_map.get(original, original), original)
+    )
 
-    for col in freq_cols:
-        # Extract label and then enhance if context requires (e.g., GFP tag already present)
-        basic_cell_type = label_map.get(col, col)
-        cell_type = enhance_cell_type_name(basic_cell_type, col)
-        
-        if tissues_detected:
-            # When multiple tissues detected, aggregate by Group AND Tissue separately
-            for tissue in df['Tissue'].unique():
-                tissue_df = df[df['Tissue'] == tissue]
-                if not tissue_df.empty:
-                    agg_df = aggregate_by_group_with_sem(tissue_df, col, group_col)
-                    agg_df['Cell Type'] = f"{cell_type} ({tissue})"  # Include tissue in cell type name
-                    plot_data.append(agg_df)
-        else:
-            # Single tissue or no tissue info - aggregate by Group only
-            agg_df = aggregate_by_group_with_sem(df, col, group_col)
-            agg_df['Cell Type'] = cell_type
-            plot_data.append(agg_df)
-    
-    # Combine all data
-    combined_df = pd.concat(plot_data, ignore_index=True)
-    
     return combined_df
 
 
