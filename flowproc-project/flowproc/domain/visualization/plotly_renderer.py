@@ -20,18 +20,7 @@ class PlotlyRenderer:
             'template': 'plotly_white',
             'font': {'family': 'Arial, sans-serif', 'size': 12},
             'margin': {'l': 50, 'r': 50, 't': 50, 'b': 80},
-            'showlegend': True,
-            'legend': {
-                'orientation': 'h', 
-                'yanchor': 'top', 
-                'y': -0.25, 
-                'xanchor': 'center', 
-                'x': 0.5,
-                'itemwidth': 150,
-                'tracegroupgap': 4,
-                'entrywidth': 150,
-                'entrywidthmode': 'pixels'
-            }
+            'showlegend': True
         }
     
     def render_scatter(self, df: pd.DataFrame, x_col: str, y_col: str, 
@@ -62,21 +51,18 @@ class PlotlyRenderer:
             **self.default_layout
         )
         
-        # Apply margin and legend adjustments using centralized config
-        from .plot_config import LEGEND_X_POSITION, MARGIN
-        margin = self.default_layout['margin'].copy()
-        if max(len(str(label)) for label in labels) > 15:
-            margin['b'] = 80
-        margin['r'] = max(margin.get('r', 50), MARGIN.get('r', 50))
-        fig.update_layout(
-            margin=margin,
-            legend=dict(
-                x=LEGEND_X_POSITION,
-                y=0.5,
-                yanchor='middle',
-                xanchor='left',
-                orientation='v'
-            )
+        # Apply centralized legend configuration
+        from .legend_config import configure_legend
+        from .plot_config import DEFAULT_HEIGHT
+        fig = configure_legend(
+            fig=fig,
+            df=df,
+            color_col=color_col,
+            is_subplot=False,
+            width=dimensions['width'],
+            height=dimensions.get('height', DEFAULT_HEIGHT),
+            legend_title=("Groups" if color_col else None),
+            show_mean_sem_label=True
         )
         
         return fig
@@ -108,21 +94,18 @@ class PlotlyRenderer:
             **self.default_layout
         )
         
-        # Apply margin and legend adjustments using centralized config
-        from .plot_config import LEGEND_X_POSITION, MARGIN
-        margin = self.default_layout['margin'].copy()
-        if max(len(str(label)) for label in labels) > 15:
-            margin['b'] = 80
-        margin['r'] = max(margin.get('r', 50), MARGIN.get('r', 50))
-        fig.update_layout(
-            margin=margin,
-            legend=dict(
-                x=LEGEND_X_POSITION,
-                y=0.5,
-                yanchor='middle',
-                xanchor='left',
-                orientation='v'
-            )
+        # Apply centralized legend configuration
+        from .legend_config import configure_legend
+        from .plot_config import DEFAULT_HEIGHT
+        fig = configure_legend(
+            fig=fig,
+            df=df,
+            color_col=color_col,
+            is_subplot=False,
+            width=dimensions['width'],
+            height=dimensions.get('height', DEFAULT_HEIGHT),
+            legend_title=("Groups" if color_col else None),
+            show_mean_sem_label=True
         )
         
         return fig
@@ -154,21 +137,18 @@ class PlotlyRenderer:
             **self.default_layout
         )
         
-        # Apply margin and legend adjustments using centralized config
-        from .plot_config import LEGEND_X_POSITION, MARGIN
-        margin = self.default_layout['margin'].copy()
-        if max(len(str(label)) for label in labels) > 15:
-            margin['b'] = 80
-        margin['r'] = max(margin.get('r', 50), MARGIN.get('r', 50))
-        fig.update_layout(
-            margin=margin,
-            legend=dict(
-                x=LEGEND_X_POSITION,
-                y=0.5,
-                yanchor='middle',
-                xanchor='left',
-                orientation='v'
-            )
+        # Apply centralized legend configuration
+        from .legend_config import configure_legend
+        from .plot_config import DEFAULT_HEIGHT
+        fig = configure_legend(
+            fig=fig,
+            df=df,
+            color_col=color_col,
+            is_subplot=False,
+            width=dimensions['width'],
+            height=dimensions.get('height', DEFAULT_HEIGHT),
+            legend_title=("Groups" if color_col else None),
+            show_mean_sem_label=True
         )
         
         return fig
@@ -200,21 +180,18 @@ class PlotlyRenderer:
             **self.default_layout
         )
         
-        # Apply margin and legend adjustments using centralized config
-        from .plot_config import LEGEND_X_POSITION, MARGIN
-        margin = self.default_layout['margin'].copy()
-        if max(len(str(label)) for label in labels) > 15:
-            margin['b'] = 80
-        margin['r'] = max(margin.get('r', 50), MARGIN.get('r', 50))
-        fig.update_layout(
-            margin=margin,
-            legend=dict(
-                x=LEGEND_X_POSITION,
-                y=0.5,
-                yanchor='middle',
-                xanchor='left',
-                orientation='v'
-            )
+        # Apply centralized legend configuration
+        from .legend_config import configure_legend
+        from .plot_config import DEFAULT_HEIGHT
+        fig = configure_legend(
+            fig=fig,
+            df=df,
+            color_col=color_col,
+            is_subplot=False,
+            width=dimensions['width'],
+            height=dimensions.get('height', DEFAULT_HEIGHT),
+            legend_title=("Groups" if color_col else None),
+            show_mean_sem_label=True
         )
         
         return fig
@@ -287,21 +264,18 @@ class PlotlyRenderer:
             **self.default_layout
         )
         
-        # Apply margin and legend adjustments using centralized config
-        from .plot_config import LEGEND_X_POSITION, MARGIN
-        margin = self.default_layout['margin'].copy()
-        if max(len(str(label)) for label in labels) > 15:
-            margin['b'] = 80
-        margin['r'] = max(margin.get('r', 50), MARGIN.get('r', 50))
-        fig.update_layout(
-            margin=margin,
-            legend=dict(
-                x=LEGEND_X_POSITION,
-                y=0.5,
-                yanchor='middle',
-                xanchor='left',
-                orientation='v'
-            )
+        # Apply centralized legend configuration
+        from .legend_config import configure_legend
+        from .plot_config import DEFAULT_HEIGHT
+        fig = configure_legend(
+            fig=fig,
+            df=df,
+            color_col=color_col,
+            is_subplot=False,
+            width=dimensions['width'],
+            height=dimensions.get('height', DEFAULT_HEIGHT),
+            legend_title=("Groups" if color_col else None),
+            show_mean_sem_label=True
         )
         
         return fig
@@ -333,20 +307,18 @@ class PlotlyRenderer:
             **self.default_layout
         )
         
-        # Apply margin and legend adjustments
-        margin = self.default_layout['margin'].copy()
-        if max(len(str(label)) for label in labels) > 15:
-            margin['b'] = 80  # Increase bottom margin for long labels
-            margin['r'] = 250  # Increase right margin for legend
-        
-        fig.update_layout(
-            margin=margin,
-            legend=dict(
-                x=0.5,
-                y=-0.25,
-                yanchor='top',
-                xanchor='center'
-            )
+        # Apply centralized legend configuration
+        from .legend_config import configure_legend
+        from .plot_config import DEFAULT_HEIGHT
+        fig = configure_legend(
+            fig=fig,
+            df=df,
+            color_col=color_col,
+            is_subplot=False,
+            width=dimensions['width'],
+            height=dimensions.get('height', DEFAULT_HEIGHT),
+            legend_title=("Groups" if color_col else None),
+            show_mean_sem_label=True
         )
         
         return fig

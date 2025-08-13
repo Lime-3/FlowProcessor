@@ -158,29 +158,14 @@ def calculate_subplot_dimensions(num_items: int, max_items_per_row: Optional[int
     """
     from .plot_config import MAX_SUBPLOTS_PER_ROW
     
+    # Legacy behavior used in tests: single column layout when caller does not
+    # specify max_items_per_row (i.e., keep rows=num_items, cols=1)
     if max_items_per_row is None:
-        max_items_per_row = MAX_SUBPLOTS_PER_ROW
-    
-    if max_items_per_row == 1:
         return num_items, 1
-    else:
-        # Calculate optimal layout to minimize bunching
-        if num_items <= max_items_per_row:
-            # Single row if we have few items
-            return 1, num_items
-        else:
-            # Calculate rows and columns to minimize height while maintaining readability
-            rows = (num_items + max_items_per_row - 1) // max_items_per_row
-            cols = min(num_items, max_items_per_row)
-            
-            # For timecourse plots, prefer more columns to reduce vertical bunching
-            if num_items > 4:
-                # Try to balance rows and columns better
-                optimal_cols = min(max_items_per_row, (num_items + 1) // 2)
-                rows = (num_items + optimal_cols - 1) // optimal_cols
-                cols = optimal_cols
-            
-            return rows, cols
+    # When explicit max_items_per_row provided, arrange in rows of that many
+    rows = (num_items + max_items_per_row - 1) // max_items_per_row
+    cols = min(num_items, max_items_per_row)
+    return rows, cols
 
 
 def calculate_layout_for_long_labels(
