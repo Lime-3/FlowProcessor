@@ -205,11 +205,6 @@ class VisualizationDialog(QDialog):
         button_layout = QVBoxLayout()
         button_layout.addStretch()  # Push buttons to the top
         
-        generate_button = QPushButton("Generate Plot")
-        generate_button.setMinimumHeight(40)
-        generate_button.clicked.connect(self._generate_plot)
-        button_layout.addWidget(generate_button)
-        
         save_button = QPushButton("Save Plot")
         save_button.setMinimumHeight(40)
         save_button.clicked.connect(self._save_visualization)
@@ -880,11 +875,12 @@ class VisualizationDialog(QDialog):
                     except Exception as e:
                         logger.warning(f"Failed to read HTML content for debugging: {e}")
                 
-                # Load in web view
+                # Load in web view if available (skip during tests where web_view may be absent)
                 from PySide6.QtCore import QUrl
                 file_url = QUrl.fromLocalFile(str(self.temp_html_file))
                 logger.info(f"Loading web view with URL: {file_url}")
-                self.web_view.load(file_url)
+                if self.web_view is not None and hasattr(self.web_view, 'load'):
+                    self.web_view.load(file_url)
                 
                 # Update status with filter information
                 status_text = f"Plot generated successfully - {len(filtered_df)} of {len(df)} rows displayed"
@@ -968,7 +964,9 @@ class VisualizationDialog(QDialog):
         </body>
         </html>
         """
-        self.web_view.setHtml(error_html)
+        # In test mode, web_view may be unavailable; guard the call
+        if self.web_view is not None and hasattr(self.web_view, 'setHtml'):
+            self.web_view.setHtml(error_html)
         self.status_label.setText("Error generating plot")
     
     def closeEvent(self, event):
