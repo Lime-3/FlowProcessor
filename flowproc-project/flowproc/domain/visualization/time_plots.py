@@ -352,8 +352,9 @@ def _create_single_metric_timecourse(
         logger.info(f"Trace {i}: {trace.name}, x points: {len(trace.x)}, y points: {len(trace.y)}")
     
     # Apply legend configuration
-    width = kwargs.get('width', 1200)
-    height = kwargs.get('height', 500)
+    from .plot_config import DEFAULT_WIDTH, DEFAULT_HEIGHT
+    width = kwargs.get('width', DEFAULT_WIDTH)
+    height = kwargs.get('height', DEFAULT_HEIGHT)
     
     # Determine appropriate legend title based on plot type
     if group_col:
@@ -497,8 +498,9 @@ def _create_overlay_timecourse(
                 ))
     
     # Apply legend configuration
-    width = kwargs.get('width', 1200)
-    height = kwargs.get('height', 500)
+    from .plot_config import DEFAULT_WIDTH, DEFAULT_HEIGHT
+    width = kwargs.get('width', DEFAULT_WIDTH)
+    height = kwargs.get('height', DEFAULT_HEIGHT)
     
     # Determine appropriate legend title based on plot type
     if group_col:

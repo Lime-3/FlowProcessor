@@ -23,6 +23,7 @@ import pandas as pd
 
 from flowproc.domain.parsing import load_and_parse_df
 # Import moved to where it's used to avoid circular imports
+from flowproc.domain.visualization.plot_config import DEFAULT_WIDTH, DEFAULT_HEIGHT
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +35,9 @@ class VisualizationOptions:
     y_axis: Optional[str] = None
     time_course_mode: bool = False
     theme: str = "plotly"
-    width: int = 1200  # Updated to match new default
-    height: int = 600   # Updated to match new default for better standard mode aspect ratio
-    show_individual_points: bool = False
+    width: int = DEFAULT_WIDTH + 300
+    height: int = DEFAULT_HEIGHT + 100
+    show_individual_points: bool = True
     error_bars: bool = True
     interactive: bool = True
     # Filter options

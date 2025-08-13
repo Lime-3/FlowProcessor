@@ -48,10 +48,11 @@ class PlotlyRenderer:
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
         
         from .plot_utils import calculate_aspect_ratio_dimensions
+        from .plot_config import DEFAULT_WIDTH
         dimensions = calculate_aspect_ratio_dimensions(
             labels=labels,
             legend_items=legend_items,
-            base_width=1200  # Use consistent base width
+            base_width=DEFAULT_WIDTH
         )
         
         # Apply dimensions maintaining aspect ratio
@@ -61,19 +62,20 @@ class PlotlyRenderer:
             **self.default_layout
         )
         
-        # Apply margin and legend adjustments
+        # Apply margin and legend adjustments using centralized config
+        from .plot_config import LEGEND_X_POSITION, MARGIN
         margin = self.default_layout['margin'].copy()
         if max(len(str(label)) for label in labels) > 15:
-            margin['b'] = 80  # Increase bottom margin for long labels
-            margin['r'] = 300  # Increase right margin for legend
-        
+            margin['b'] = 80
+        margin['r'] = max(margin.get('r', 50), MARGIN.get('r', 50))
         fig.update_layout(
             margin=margin,
             legend=dict(
-                x=1.02,  # Position legend closer to plot
+                x=LEGEND_X_POSITION,
                 y=0.5,
-                yanchor='top',
-                xanchor='center'
+                yanchor='middle',
+                xanchor='left',
+                orientation='v'
             )
         )
         
@@ -92,10 +94,11 @@ class PlotlyRenderer:
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
         
         from .plot_utils import calculate_aspect_ratio_dimensions
+        from .plot_config import DEFAULT_WIDTH
         dimensions = calculate_aspect_ratio_dimensions(
             labels=labels,
             legend_items=legend_items,
-            base_width=1000
+            base_width=DEFAULT_WIDTH
         )
         
         # Apply dimensions maintaining aspect ratio
@@ -105,19 +108,20 @@ class PlotlyRenderer:
             **self.default_layout
         )
         
-        # Apply margin and legend adjustments
+        # Apply margin and legend adjustments using centralized config
+        from .plot_config import LEGEND_X_POSITION, MARGIN
         margin = self.default_layout['margin'].copy()
         if max(len(str(label)) for label in labels) > 15:
-            margin['b'] = 80  # Increase bottom margin for long labels
-            margin['r'] = 250  # Increase right margin for legend
-        
+            margin['b'] = 80
+        margin['r'] = max(margin.get('r', 50), MARGIN.get('r', 50))
         fig.update_layout(
             margin=margin,
             legend=dict(
-                x=0.5,
-                y=-0.25,
-                yanchor='top',
-                xanchor='center'
+                x=LEGEND_X_POSITION,
+                y=0.5,
+                yanchor='middle',
+                xanchor='left',
+                orientation='v'
             )
         )
         
@@ -136,10 +140,11 @@ class PlotlyRenderer:
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
         
         from .plot_utils import calculate_aspect_ratio_dimensions
+        from .plot_config import DEFAULT_WIDTH
         dimensions = calculate_aspect_ratio_dimensions(
             labels=labels,
             legend_items=legend_items,
-            base_width=1000
+            base_width=DEFAULT_WIDTH
         )
         
         # Apply dimensions maintaining aspect ratio
@@ -149,19 +154,20 @@ class PlotlyRenderer:
             **self.default_layout
         )
         
-        # Apply margin and legend adjustments
+        # Apply margin and legend adjustments using centralized config
+        from .plot_config import LEGEND_X_POSITION, MARGIN
         margin = self.default_layout['margin'].copy()
         if max(len(str(label)) for label in labels) > 15:
-            margin['b'] = 80  # Increase bottom margin for long labels
-            margin['r'] = 250  # Increase right margin for legend
-        
+            margin['b'] = 80
+        margin['r'] = max(margin.get('r', 50), MARGIN.get('r', 50))
         fig.update_layout(
             margin=margin,
             legend=dict(
-                x=0.5,
-                y=-0.25,
-                yanchor='top',
-                xanchor='center'
+                x=LEGEND_X_POSITION,
+                y=0.5,
+                yanchor='middle',
+                xanchor='left',
+                orientation='v'
             )
         )
         
@@ -180,10 +186,11 @@ class PlotlyRenderer:
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
         
         from .plot_utils import calculate_aspect_ratio_dimensions
+        from .plot_config import DEFAULT_WIDTH
         dimensions = calculate_aspect_ratio_dimensions(
             labels=labels,
             legend_items=legend_items,
-            base_width=1000
+            base_width=DEFAULT_WIDTH
         )
         
         # Apply dimensions maintaining aspect ratio
@@ -193,19 +200,20 @@ class PlotlyRenderer:
             **self.default_layout
         )
         
-        # Apply margin and legend adjustments
+        # Apply margin and legend adjustments using centralized config
+        from .plot_config import LEGEND_X_POSITION, MARGIN
         margin = self.default_layout['margin'].copy()
         if max(len(str(label)) for label in labels) > 15:
-            margin['b'] = 80  # Increase bottom margin for long labels
-            margin['r'] = 250  # Increase right margin for legend
-        
+            margin['b'] = 80
+        margin['r'] = max(margin.get('r', 50), MARGIN.get('r', 50))
         fig.update_layout(
             margin=margin,
             legend=dict(
-                x=0.5,
-                y=-0.25,
-                yanchor='top',
-                xanchor='center'
+                x=LEGEND_X_POSITION,
+                y=0.5,
+                yanchor='middle',
+                xanchor='left',
+                orientation='v'
             )
         )
         
@@ -235,10 +243,11 @@ class PlotlyRenderer:
         labels = x_labels + y_labels
         
         from .plot_utils import calculate_aspect_ratio_dimensions
+        from .plot_config import DEFAULT_WIDTH
         dimensions = calculate_aspect_ratio_dimensions(
             labels=labels,
             legend_items=0,  # Heatmaps don't have legends
-            base_width=1000
+            base_width=DEFAULT_WIDTH
         )
         
         # Apply dimensions maintaining aspect ratio
@@ -264,10 +273,11 @@ class PlotlyRenderer:
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
         
         from .plot_utils import calculate_aspect_ratio_dimensions
+        from .plot_config import DEFAULT_WIDTH
         dimensions = calculate_aspect_ratio_dimensions(
             labels=labels,
             legend_items=legend_items,
-            base_width=1000
+            base_width=DEFAULT_WIDTH
         )
         
         # Apply dimensions maintaining aspect ratio
@@ -277,19 +287,20 @@ class PlotlyRenderer:
             **self.default_layout
         )
         
-        # Apply margin and legend adjustments
+        # Apply margin and legend adjustments using centralized config
+        from .plot_config import LEGEND_X_POSITION, MARGIN
         margin = self.default_layout['margin'].copy()
         if max(len(str(label)) for label in labels) > 15:
-            margin['b'] = 80  # Increase bottom margin for long labels
-            margin['r'] = 250  # Increase right margin for legend
-        
+            margin['b'] = 80
+        margin['r'] = max(margin.get('r', 50), MARGIN.get('r', 50))
         fig.update_layout(
             margin=margin,
             legend=dict(
-                x=0.5,
-                y=-0.25,
-                yanchor='top',
-                xanchor='center'
+                x=LEGEND_X_POSITION,
+                y=0.5,
+                yanchor='middle',
+                xanchor='left',
+                orientation='v'
             )
         )
         
@@ -308,10 +319,11 @@ class PlotlyRenderer:
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
         
         from .plot_utils import calculate_aspect_ratio_dimensions
+        from .plot_config import DEFAULT_WIDTH
         dimensions = calculate_aspect_ratio_dimensions(
             labels=labels,
             legend_items=legend_items,
-            base_width=1000
+            base_width=DEFAULT_WIDTH
         )
         
         # Apply dimensions maintaining aspect ratio
@@ -352,10 +364,11 @@ class PlotlyRenderer:
         legend_items = len(df[color_col].unique()) if color_col and color_col in df.columns else 0
         
         from .plot_utils import calculate_aspect_ratio_dimensions
+        from .plot_config import DEFAULT_WIDTH
         dimensions = calculate_aspect_ratio_dimensions(
             labels=[],  # 3D plots don't have x-axis labels in the same way
             legend_items=legend_items,
-            base_width=1000
+            base_width=DEFAULT_WIDTH
         )
         
         # For 3D plots, adjust to be more square (reduce aspect ratio)
@@ -395,11 +408,12 @@ class PlotlyRenderer:
         # Estimate labels and legend items from the plots
         total_legend_items = sum(len(plot.data) for plot in plots)
         
+        from .plot_config import DEFAULT_WIDTH
         dimensions = calculate_aspect_ratio_dimensions(
             labels=[],  # Subplot titles are handled separately
             legend_items=total_legend_items,
             num_subplots=rows * cols,
-            base_width=1000
+            base_width=DEFAULT_WIDTH
         )
         
         # Apply dimensions maintaining aspect ratio
