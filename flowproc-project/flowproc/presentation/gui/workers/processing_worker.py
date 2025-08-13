@@ -204,7 +204,7 @@ class ProcessingWorker(QThread):
         """
         try:
             if input_path.is_file() and input_path.suffix.lower() == '.csv':
-                # Generate base output filename - the actual output files will be created with suffixes
+                # Generate base output filename (no extension). Downstream will write explicit files
                 base_output = self._task.output_dir / f"{input_path.stem}_Processed"
                 
                 # Process the CSV - the new logic automatically detects time data and processes in both modes
