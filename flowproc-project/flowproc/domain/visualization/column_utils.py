@@ -70,133 +70,35 @@ def detect_flow_columns(df: DataFrame) -> Dict[str, List[str]]:
 
 def extract_cell_type_name(column_name: str) -> str:
     """
-    Extract cell type name from column name and format it appropriately.
-    
-    Args:
-        column_name: Full column name
-        
-    Returns:
-        Extracted and formatted cell type name
+    Extract the display cell type (population) from a FlowJo-exported column name.
+
+    Standard approach: take the leaf population label from the gating path,
+    i.e., the final token after '/' and before the '|' metric separator.
+    Example:
+      "FlowAIGoodEvents/Singlets/Live/T cells/CD4+/CD4+GFP+ | Freq. of Parent (%)"
+      -> "CD4+GFP+"
     """
-    # Handle different prefix patterns
-    prefixes = [
-        'FlowAIGoodEvents/Singlets/Live/',
-        'Singlets/Live/',
-        'Singlets/Live/'
-    ]
-    
-    for prefix in prefixes:
-        if prefix in column_name:
-            # Extract the cell type part
-            parts = column_name.split(prefix)
-            if len(parts) > 1:
-                cell_part = parts[1].split(' | ')[0]  # Remove the metric part
-                # Clean up the cell type name
-                if '/' in cell_part:
-                    # Take the meaningful parts after Singlets/Live
-                    path_parts = cell_part.split('/')
-                    if len(path_parts) > 2 and path_parts[0] == 'Singlets' and path_parts[1] == 'Live':
-                        # Skip Singlets/Live and take the meaningful cell type parts
-                        meaningful_parts = path_parts[2:]
-                        if len(meaningful_parts) == 1:
-                            return meaningful_parts[0]
-                        elif len(meaningful_parts) == 2:
-                            # Combine parent and child cell types
-                            return f"{meaningful_parts[0]}/{meaningful_parts[1]}"
-                        else:
-                            # Take the last two meaningful parts
-                            return f"{meaningful_parts[-2]}/{meaningful_parts[-1]}"
-                    else:
-                        # Take the last meaningful part
-                        return path_parts[-1]
-                return cell_part
-    
-    # Fallback: try to extract from the beginning if no prefix matches
-    if ' | ' in column_name:
-        cell_part = column_name.split(' | ')[0]
-        if '/' in cell_part:
-            # Parse the hierarchical path to extract the cell type
-            path_parts = cell_part.split('/')
-            
-            # Handle the specific format: Scatter/Singlets - FSC/Singlets - SSC/Live/CD45+/T Cells/CD4/GFP-A+
-            # We need to identify the cell type before the GFP marker
-            
-            # Find the position of "Live" in the path
-            live_index = -1
-            for i, part in enumerate(path_parts):
-                if 'Live' in part:
-                    live_index = i
-                    break
-            
-            if live_index >= 0 and live_index < len(path_parts) - 1:
-                # Take parts after "Live" but before any GFP markers
-                meaningful_parts = path_parts[live_index + 1:]
-                
-                # Remove GFP markers and empty parts
-                clean_parts = []
-                for part in meaningful_parts:
-                    if part and not part.startswith('GFP') and not part.endswith('+'):
-                        clean_parts.append(part)
-                    elif part.endswith('+') and not part.startswith('GFP'):
-                        # Handle markers ending with +
-                        if part == 'CD45+':
-                            # Skip CD45+ as it's a general leukocyte marker
-                            continue
-                        elif any(cell_marker in part for cell_marker in ['CD4', 'CD8', 'CD3']):
-                            # Include specific cell markers like CD4+, CD8+
-                            clean_parts.append(part.rstrip('+'))
-                        else:
-                            # Include other markers, removing the +
-                            clean_parts.append(part.rstrip('+'))
-                
-                # Reconstruct the cell type name
-                if len(clean_parts) == 1:
-                    return clean_parts[0]
-                elif len(clean_parts) == 2:
-                    # For cases like "T Cells/CD4" -> return "CD4"
-                    if clean_parts[1] in ['CD4', 'CD8', 'CD3']:
-                        return clean_parts[1]
-                    else:
-                        return f"{clean_parts[0]}/{clean_parts[1]}"
-                elif len(clean_parts) > 2:
-                    # For longer paths, prioritize the most specific cell type
-                    # Check for specific cell markers
-                    for part in reversed(clean_parts):
-                        if part in ['CD4', 'CD8', 'CD3']:
-                            return part
-                    # If no specific markers, use the last meaningful part
-                    return clean_parts[-1]
-                elif len(clean_parts) == 0:
-                    # If no clean parts found, look for broader cell types
-                    for part in meaningful_parts:
-                        if 'T Cells' in part:
-                            return 'T Cells'
-                        elif 'Non-T Cells' in part:
-                            return 'Non-T Cells'
-                        elif 'B Cells' in part:
-                            return 'B Cells'
-            
-            # Original fallback logic for other formats
-            if len(path_parts) > 2 and path_parts[0] == 'Singlets' and path_parts[1] == 'Live':
-                # Skip Singlets/Live and take the meaningful parts
-                meaningful_parts = path_parts[2:]
-                if len(meaningful_parts) == 1:
-                    return meaningful_parts[0]
-                elif len(meaningful_parts) == 2:
-                    return f"{meaningful_parts[0]}/{meaningful_parts[1]}"
-                else:
-                    return f"{meaningful_parts[-2]}/{meaningful_parts[-1]}"
-            else:
-                # For other formats, try to extract the most meaningful part
-                # Skip common prefixes and look for actual cell type names
-                for part in reversed(path_parts):
-                    if part and not part.startswith('GFP') and part not in ['Scatter', 'Singlets', 'FSC', 'SSC']:
-                        return part
-                # Last resort - return the last part
-                return path_parts[-1]
-        return cell_part
-    
-    return column_name
+    return extract_population_leaf(column_name)
+
+
+def extract_population_leaf(column_name: str) -> str:
+    """
+    Return the leaf population label from a FlowJo gating path.
+
+    Rules:
+    - Split on '|' and take the left side (gating path).
+    - Split that path on '/' and return the last non-empty segment.
+    - Preserve marker syntax like '+' (e.g., "CD4+GFP+", "GFP+ Classical Monocytes").
+    """
+    if not isinstance(column_name, str):
+        return str(column_name)
+
+    path_part = column_name.split('|', 1)[0].strip().strip('/ ')
+    if not path_part:
+        return column_name
+
+    parts = [p.strip() for p in path_part.split('/') if p.strip()]
+    return parts[-1] if parts else path_part
 
 
 def enhance_cell_type_name(cell_type: str, column_name: str) -> str:
@@ -593,98 +495,11 @@ def get_matching_columns_for_metric(df: DataFrame, metric_type: str) -> List[str
 
 def create_population_shortname(column_name: str) -> str:
     """
-    Create a shortname for population filters, similar to legend shortnames.
-    
-    This function extracts a concise, readable name from full column names
-    for use in population filter dropdowns and UI elements.
-    
-    Args:
-        column_name: Full column name (e.g., "Live/CD4+/GFP+ | Freq. of Parent (%)")
-        
-    Returns:
-        Short population name (e.g., "CD4+")
+    Create a concise population shortname for UI elements.
+
+    Standard: use the leaf population label from the gating path.
+    Examples:
+      ".../CD4+/CD4+GFP+ | Freq. of Parent (%)" -> "CD4+GFP+"
+      ".../Monocytes/GFP+ Non-Classical Monocytes | Median (...)" -> "GFP+ Non-Classical Monocytes"
     """
-    # First try to extract using the existing cell type extraction logic
-    shortname = extract_cell_type_name(column_name)
-    
-    # If we got a meaningful shortname, return it
-    if shortname and shortname != column_name:
-        return shortname
-    
-    # Fallback: try to extract population from common patterns
-    # Look for common separators
-    separators = [' | ', ' |', '| ', ' - ', ' -', '- ']
-    for separator in separators:
-        if separator in column_name:
-            parts = column_name.split(separator)
-            if len(parts) >= 2:
-                # First part is usually the population
-                population_part = parts[0].strip()
-                if population_part:
-                    # Clean up the population part
-                    if '/' in population_part:
-                        # Take the most meaningful part (usually the last one)
-                        path_parts = population_part.split('/')
-                        # Skip common prefixes like "Live", "Singlets"
-                        meaningful_parts = []
-                        for part in path_parts:
-                            if part and part not in ['Live', 'Singlets', 'FSC', 'SSC', 'Scatter']:
-                                meaningful_parts.append(part)
-                        
-                        if meaningful_parts:
-                            # Prioritize cell type markers over GFP markers
-                            # Look for specific cell type identifiers first
-                            cell_type_markers = ['CD4', 'CD8', 'CD3', 'CD19', 'CD45', 'T Cells', 'B Cells', 'Non-T Cells', 'Monocytes', 'Neutrophils']
-                            
-                            # Check if we have both cell type and GFP markers
-                            has_cell_type = any(marker in str(part) for part in meaningful_parts for marker in cell_type_markers)
-                            has_gfp = any('GFP' in str(part) for part in meaningful_parts)
-                            
-                            if has_cell_type and has_gfp:
-                                # Prioritize cell type markers
-                                for part in meaningful_parts:
-                                    if any(marker in str(part) for marker in cell_type_markers):
-                                        return part
-                                # If no cell type found, fall back to last meaningful part
-                                return meaningful_parts[-1]
-                            else:
-                                # Return the most specific part (usually the last one)
-                                return meaningful_parts[-1]
-                        else:
-                            # If no meaningful parts, return the last non-empty part
-                            for part in reversed(path_parts):
-                                if part:
-                                    return part
-                    else:
-                        return population_part
-    
-    # If no clear pattern found, return a cleaned version of the column name
-    # Remove common metric suffixes
-    metric_suffixes = [
-        ' | Freq. of Parent (%)',
-        ' | Freq. of Live (%)',
-        ' | Freq. of Singlets (%)',
-        ' | Count',
-        ' | Median',
-        ' | Mean'
-    ]
-    
-    cleaned_name = column_name
-    for suffix in metric_suffixes:
-        if cleaned_name.endswith(suffix):
-            cleaned_name = cleaned_name[:-len(suffix)]
-            break
-    
-    # If the cleaned name is still too long, try to extract the most meaningful part
-    if len(cleaned_name) > 20:
-        if '/' in cleaned_name:
-            parts = cleaned_name.split('/')
-            # Look for the most specific cell type identifier
-            for part in reversed(parts):
-                if part and part not in ['Live', 'Singlets', 'FSC', 'SSC', 'Scatter']:
-                    return part
-        
-        # If still too long, truncate
-        return cleaned_name[:20] + "..."
-    
-    return cleaned_name 
+    return extract_population_leaf(column_name)
