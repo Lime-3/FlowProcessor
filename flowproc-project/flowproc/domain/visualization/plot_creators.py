@@ -4,7 +4,6 @@ Core plot creation functions for flow cytometry visualization.
 
 import logging
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from typing import Optional, List, Callable, Dict, Union
@@ -12,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from .legend_config import configure_legend
+from .plot_factory import build_plot_from_df
 from .data_aggregation import aggregate_by_group_with_sem, aggregate_multiple_metrics_by_group
 from .column_utils import extract_cell_type_name, extract_metric_name, create_comprehensive_plot_title
 from .plot_config import (
@@ -50,25 +50,23 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
     # Aggregate data by Group
     agg_df = aggregate_by_group_with_sem(df, y_col)
     
-    # Create plot based on type with error bars
-    if plot_type == "scatter":
-        fig = px.scatter(agg_df, x='Group', y='mean', error_y='sem', **kwargs)
-    elif plot_type == "bar":
-        fig = px.bar(agg_df, x='Group', y='mean', error_y='sem', **kwargs)
-    elif plot_type == "box":
+    # Create plot based on type with centralized factory
+    if plot_type == "box":
         # For box plots, use original data to show distribution
-        fig = px.box(df, x='Group', y=y_col, **kwargs)
-    elif plot_type == "line":
-        fig = px.line(agg_df, x='Group', y='mean', error_y='sem', **kwargs)
+        fig = build_plot_from_df("box", df, x='Group', y=y_col, **kwargs)
     elif plot_type == "histogram":
         # For histograms, use original data to show distribution
-        fig = px.histogram(df, x=y_col, **kwargs)
+        fig = build_plot_from_df("histogram", df, x=y_col, **kwargs)
     else:
-        raise ValueError(f"Unknown plot type: {plot_type}")
+        # Bar charts: vertical orientation; populations grouped side-by-side when color is used
+        if plot_type == "bar":
+            fig = build_plot_from_df("bar", agg_df, x='Group', y='mean', error_y='sem', **kwargs)
+        else:
+            fig = build_plot_from_df(plot_type, agg_df, x='Group', y='mean', error_y='sem', **kwargs)
     
     # Apply standardized legend configuration to ALL plot types
     color_col = kwargs.get('color')
-    width = kwargs.get('width', 1200)  # Use default width if not specified
+    width = kwargs.get('width', 1000)  # Use default width if not specified
     height = kwargs.get('height', 500)  # Use default height if not specified (reduced from 700 for better aspect ratio)
     
     # Determine appropriate legend title based on plot type
@@ -176,25 +174,16 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
     base_metric = extract_metric_name(freq_cols[0]) if freq_cols else "Value"
     logger.debug(f"Base metric name: {base_metric}")
 
-    # Create plot with cell types in legend
-    if plot_type == "scatter":
-        fig = px.scatter(combined_df, x='Group', y='mean', color='Cell Type', error_y='sem', **kwargs)
-        logger.debug(f"Created scatter plot with {len(fig.data)} traces")
-    elif plot_type == "bar":
-        fig = px.bar(combined_df, x='Group', y='mean', color='Cell Type', error_y='sem', barmode='group', **kwargs)
-        logger.debug(f"Created bar plot with {len(fig.data)} traces")
-    elif plot_type == "box":
+    # Create plot with cell types in legend using centralized factory
+    if plot_type == "box":
         # For box plots, use original data
         melted_df = df.melt(id_vars=['Group'], value_vars=freq_cols, 
                            var_name='Cell Type', value_name='Frequency')
         from .column_utils import build_unique_cell_type_labels
         label_map = build_unique_cell_type_labels(freq_cols)
         melted_df['Cell Type'] = melted_df['Cell Type'].map(label_map).fillna(melted_df['Cell Type'])
-        fig = px.box(melted_df, x='Group', y='Frequency', color='Cell Type', **kwargs)
+        fig = build_plot_from_df("box", melted_df, x='Group', y='Frequency', color='Cell Type', **kwargs)
         logger.debug(f"Created box plot with {len(fig.data)} traces")
-    elif plot_type == "line":
-        fig = px.line(combined_df, x='Group', y='mean', color='Cell Type', error_y='sem', **kwargs)
-        logger.debug(f"Created line plot with {len(fig.data)} traces")
     elif plot_type == "histogram":
         # For histograms, use original data melted by cell type
         melted_df = df.melt(id_vars=['Group'], value_vars=freq_cols, 
@@ -202,15 +191,22 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
         from .column_utils import build_unique_cell_type_labels
         label_map = build_unique_cell_type_labels(freq_cols)
         melted_df['Cell Type'] = melted_df['Cell Type'].map(label_map).fillna(melted_df['Cell Type'])
-        fig = px.histogram(melted_df, x='Frequency', color='Cell Type', barmode='overlay', **kwargs)
+        fig = build_plot_from_df("histogram", melted_df, x='Frequency', color='Cell Type', **kwargs)
         logger.debug(f"Created histogram plot with {len(fig.data)} traces")
     else:
-        raise ValueError(f"Unknown plot type: {plot_type}")
+        # scatter, bar, line → use aggregated df with SEM
+        if plot_type == "bar":
+            # Vertical grouped bars: populations next to one another
+            kwargs.setdefault('barmode', 'group')
+            fig = build_plot_from_df("bar", combined_df, x='Group', y='mean', color='Cell Type', error_y='sem', **kwargs)
+        else:
+            fig = build_plot_from_df(plot_type, combined_df, x='Group', y='mean', color='Cell Type', error_y='sem', **kwargs)
+        logger.debug(f"Created {plot_type} plot with {len(fig.data)} traces")
 
     logger.debug("Figure created successfully, applying legend configuration")
     
     # Apply standardized legend configuration to ALL plot types
-    width = kwargs.get('width', 1200)  # Use default width if not specified
+    width = kwargs.get('width', 1000)  # Use default width if not specified
     height = kwargs.get('height', 500)  # Use default height if not specified (reduced from 700 for better aspect ratio)
     
     # Determine appropriate legend title for cell type comparison
@@ -304,20 +300,15 @@ def create_basic_plot(df: DataFrame, x: str, y: str, plot_type: str, filter_opti
     user_group_labels = kwargs.pop('user_group_labels', None)
     kwargs.pop('fixed_layout', None)
 
-    # Create plot based on type
-    if plot_type == "scatter":
-        fig = px.scatter(df, x=x, y=y, **kwargs)
+    # Create plot via centralized factory
+    if plot_type == "histogram":
+        fig = build_plot_from_df("histogram", df, x=x, **kwargs)
     elif plot_type == "bar":
-        fig = px.bar(df, x=x, y=y, **kwargs)
-    elif plot_type == "box":
-        fig = px.box(df, x=x, y=y, **kwargs)
-    elif plot_type == "line":
-        fig = px.line(df, x=x, y=y, **kwargs)
-    elif plot_type == "histogram":
-        # For histograms, we only need the x column (y is ignored)
-        fig = px.histogram(df, x=x, **kwargs)
+        # Basic bar: vertical, grouped when color present
+        kwargs.setdefault('barmode', 'group')
+        fig = build_plot_from_df("bar", df, x=x, y=y, **kwargs)
     else:
-        raise ValueError(f"Unknown plot type: {plot_type}")
+        fig = build_plot_from_df(plot_type, df, x=x, y=y, **kwargs)
     
     # Apply standardized legend configuration
     color_col = kwargs.get('color')
@@ -931,44 +922,10 @@ def _create_single_timecourse(
         error_y = None
         logger.info(f"Using raw data, shape: {plot_df.shape}")
     
-    # Create plot based on type with error bars
-    if plot_type == "line":
-        if group_col and group_col in plot_df.columns:
-            if error_y and error_y in plot_df.columns:
-                fig = px.line(plot_df, x=time_col, y=y_col, color=group_col, error_y=error_y, **kwargs)
-                logger.info(f"Created line plot with grouping by {group_col} and SEM error bars")
-            else:
-                fig = px.line(plot_df, x=time_col, y=y_col, color=group_col, **kwargs)
-                logger.info(f"Created line plot with grouping by {group_col} (no error bars)")
-        else:
-            if error_y and error_y in plot_df.columns:
-                fig = px.line(plot_df, x=time_col, y=y_col, error_y=error_y, **kwargs)
-                logger.info("Created line plot without grouping and SEM error bars")
-            else:
-                fig = px.line(plot_df, x=time_col, y=y_col, **kwargs)
-                logger.info("Created line plot without grouping (no error bars)")
-    elif plot_type == "scatter":
-        if group_col and group_col in plot_df.columns:
-            if error_y and error_y in plot_df.columns:
-                fig = px.scatter(plot_df, x=time_col, y=y_col, color=group_col, error_y=error_y, **kwargs)
-            else:
-                fig = px.scatter(plot_df, x=time_col, y=y_col, color=group_col, **kwargs)
-        else:
-            if error_y and error_y in plot_df.columns:
-                fig = px.scatter(plot_df, x=time_col, y=y_col, error_y=error_y, **kwargs)
-            else:
-                fig = px.scatter(plot_df, x=time_col, y=y_col, error_y=error_y, **kwargs)
-    elif plot_type == "area":
-        if group_col and group_col in plot_df.columns:
-            if error_y and error_y in plot_df.columns:
-                fig = px.area(plot_df, x=time_col, y=y_col, color=group_col, error_y=error_y, **kwargs)
-            else:
-                fig = px.area(plot_df, x=time_col, y=y_col, color=group_col, **kwargs)
-        else:
-            if error_y and error_y in plot_df.columns:
-                fig = px.area(plot_df, x=time_col, y=y_col, error_y=error_y, **kwargs)
-            else:
-                fig = px.area(plot_df, x=time_col, y=y_col, error_y=error_y, **kwargs)
+    # Create plot based on type via centralized factory
+    if plot_type in ("line", "scatter", "area"):
+        fig = build_plot_from_df(plot_type, plot_df, x=time_col, y=y_col, color=group_col, error_y=error_y, **kwargs)
+        logger.info(f"Created {plot_type} plot (group_col={group_col}, error_y={error_y})")
     else:
         raise ValueError(f"Unsupported plot type: {plot_type}")
     
