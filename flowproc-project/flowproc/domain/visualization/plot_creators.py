@@ -540,13 +540,21 @@ def _create_faceted_plot(
             
             fig.add_trace(trace, row=row, col=col)
     
-    # Update layout
+    # Apply standardized legend configuration for faceted plots
+    color_col = 'Group' if 'Group' in df.columns else None
+    legend_title = "Groups" if facet_by else "Cell Types"
+
+    fig = configure_legend(
+        fig, df, color_col, is_subplot=False, width=width, height=height,
+        legend_title=legend_title, show_mean_sem_label=True
+    )
+
+    # Update layout title and sizing
     fig.update_layout(
         title=title,
         width=width,
         height=height,
-        margin=MARGIN,
-        showlegend=True
+        margin=MARGIN
     )
     
     # Update axes labels

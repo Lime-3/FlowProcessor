@@ -89,6 +89,7 @@ def mock_ui_builder():
         'group_combo': Mock(),
         'metric_combo': Mock(),
         'timecourse_combo': Mock(),
+        'time_course_checkbox': Mock(),
 
         'progress_bar': Mock(),
         'status_label': Mock()

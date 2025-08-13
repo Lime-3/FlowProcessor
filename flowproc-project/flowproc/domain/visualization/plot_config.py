@@ -5,10 +5,10 @@ Shared configuration constants for flow cytometry visualization plots.
 from typing import Dict, Final
 
 # Default dimensions and spacing
-DEFAULT_WIDTH: Final[int] = 900  # Standardized default width
-DEFAULT_HEIGHT: Final[int] = 400  # Standardized default height
-MARGIN: Final[Dict[str, int]] = {'l': 50, 'r': 300, 't': 50, 'b': 50}  # Increased right margin for legend
-VERTICAL_SPACING: Final[float] = 0.08  # Reduced from 0.12 to allow more subplots without bunching
+DEFAULT_WIDTH: Final[int] = 800
+DEFAULT_HEIGHT: Final[int] = 350
+MARGIN: Final[Dict[str, int]] = {'l': 50, 'r': 200, 't': 50, 'b': 50}
+VERTICAL_SPACING: Final[float] = 0.12
 HORIZONTAL_SPACING: Final[float] = 0.05
 
 # Legend configuration (default: right-side vertical legend)
@@ -21,7 +21,7 @@ LEGEND_TRACE_GROUP_GAP: Final[int] = 6
 
 # Plot limits and sizing
 MAX_CELL_TYPES: Final[int] = 8
-SUBPLOT_HEIGHT_PER_ROW: Final[int] = 250  # Increased from 200 for better legend visibility
+SUBPLOT_HEIGHT_PER_ROW: Final[int] = 200
 MAX_SUBPLOTS_PER_ROW: Final[int] = 2  # Allow up to 2 subplots per row to reduce bunching
 
 # Aspect ratio configuration
