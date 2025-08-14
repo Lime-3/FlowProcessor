@@ -2,17 +2,19 @@
 name = "flowproc"
 version = "2.0.0"
 description = "A high-performance tool for processing flow cytometry CSV data with async GUI support and vectorized data aggregation"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
-    "numpy>=1.26.4",
-    "pandas>=2.3.1",
-    "openpyxl>=3.1.5",
-    "PySide6>=6.7.0",  # GUI framework
-    "plotly>=5.18.0",  # Added for visualization support
-    "kaleido>=1.0.0",  # Added for static image export in plotly (PNG, PDF, SVG)
-    "scikit-learn>=1.7.0",  # Added for data transformations
-    "PyYAML>=6.0.0",  # Added for configuration management
-    "pydantic>=2.0.0",  # Added for data validation and settings
+    "numpy>=1.24",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "openpyxl>=3.1.2",
+    "PySide6>=6.6.0",
+    "plotly>=5.18.0",
+    "kaleido>=0.2.1",
+    "scikit-learn>=1.3",
+    "PyYAML>=6.0.0",
+    "pydantic>=2.0.0",
+    "psutil>=5.9.0",
 ]
 license = {text = "MIT"}
 authors = [
@@ -28,6 +30,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Visualization",
 ]
 urls = {Homepage = "https://github.com/yourusername/FlowProcessor"}
+readme = "docs/README.md"
 
 [project.scripts]
 flowproc = "flowproc.presentation.gui.main:main"  # Entry point for PySide6-based GUI
@@ -35,6 +38,7 @@ flowproc = "flowproc.presentation.gui.main:main"  # Entry point for PySide6-base
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "pytest-timeout>=2.2.0",
     "pytest-qt>=4.3.0",
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.13.0",
@@ -56,6 +60,7 @@ dev = [
 ]
 test = [
     "pytest>=8.0.0",
+    "pytest-timeout>=2.2.0",
     "pytest-qt>=4.3.0",
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.13.0",
@@ -80,15 +85,16 @@ sources = [
 formal_name = "FlowProcessor"
 description = "A high-performance GUI application for processing flow cytometry data with async support and vectorized aggregation"
 requires = [
-    "numpy>=1.26.4",
-    "pandas>=2.3.1",
-    "openpyxl>=3.1.5",
-    "PySide6>=6.7.0",
-    "plotly>=5.18.0",  # Added for visualization
-    "kaleido>=1.0.0",  # Added for static image export in plotly (PNG, PDF, SVG)
-    "scikit-learn>=1.7.0",  # Added for data transformations
-    "PyYAML>=6.0.0",  # Added for configuration management
-    "pydantic>=2.0.0",  # Added for data validation and settings
+    "numpy>=1.24",
+    "pandas>=2.1",
+    "openpyxl>=3.1.2",
+    "PySide6>=6.6.0",
+    "plotly>=5.18.0",
+    "kaleido>=0.2.1",
+    "scikit-learn>=1.3",
+    "PyYAML>=6.0.0",
+    "pydantic>=2.0.0",
+    "psutil>=5.9.0",
 ]
 test_requires = [
     "pytest>=8.0.0",
@@ -106,8 +112,15 @@ requires = []  # No platform-specific dependencies; inherit from project
 requires = []  # No platform-specific dependencies; inherit from project
 
 [tool.setuptools]
-packages = [
-    "flowproc",
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["flowproc*"]
+
+[tool.setuptools.package-data]
+flowproc = [
+    "resources/**/*",
 ]
 
 [build-system]
@@ -137,7 +150,7 @@ addopts = [
 
 [tool.black]
 line-length = 88
-target-version = ['py313']
+target-version = ['py311']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -160,7 +173,7 @@ line_length = 88
 known_first_party = ["flowproc"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
