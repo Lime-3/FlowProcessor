@@ -20,7 +20,7 @@ from dataclasses import dataclass
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from debug.system_health_check import SystemHealthChecker
+from flowproc.infrastructure.monitoring.health import HealthChecker
 
 
 @dataclass
@@ -38,7 +38,7 @@ class SafeTestRunnerV2:
     
     def __init__(self, project_root: str):
         self.project_root = Path(project_root)
-        self.health_checker = SystemHealthChecker(project_root)
+        self.health_checker = HealthChecker()
         self.test_timeout = 120  # 2 minutes per test file
         self.max_failures = 5
         self.cleanup_temp_files = True
@@ -102,8 +102,8 @@ class SafeTestRunnerV2:
     def run_health_check(self) -> bool:
         """Run system health check and return success status."""
         print("🔍 Running system health check...")
-        report = self.health_checker.run_all_checks()
-        success = self.health_checker.print_report(report)
+        report = self.health_checker.check_system_health()
+        success = self._print_health_report(report)
         
         if not success:
             print("\n❌ Health check failed. Fix critical issues before running tests.")
@@ -111,6 +111,25 @@ class SafeTestRunnerV2:
         
         print("\n✅ Health check passed. Proceeding with tests.")
         return True
+
+    def _print_health_report(self, report: Dict[str, Any]) -> bool:
+        """Pretty-print health report and return success boolean."""
+        try:
+            status = report.get('status', 'unknown')
+            print(f"Status: {status}")
+            summary = report.get('summary')
+            if summary:
+                print(f"Summary: {summary}")
+            checks = report.get('checks', [])
+            for check in checks:
+                name = check.get('name', 'unknown')
+                cstatus = check.get('status', 'unknown')
+                message = check.get('message', '')
+                print(f"- {name}: {cstatus} - {message}")
+            return status != 'critical'
+        except Exception:
+            # If anything goes wrong, don't block tests
+            return True
     
     def run_tests_with_isolation(self, test_paths: List[str], category: str) -> List[TestResult]:
         """Run tests with appropriate isolation based on category."""

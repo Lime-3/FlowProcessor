@@ -1,0 +1,6 @@
+# FlowProc generated data/logs
+data/
+*/data/
+*.log
+logs/
+# Health checker report artifacts (none by default)

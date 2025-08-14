@@ -53,19 +53,18 @@ flowproc
 python -m flowproc
 ```
 
-### Command Line
+### Programmatic usage
 
 ```python
-from flowproc import load_and_parse_df, process_csv, visualize_data
+from flowproc.domain.visualization.flow_cytometry_visualizer import plot
+from flowproc.domain.parsing import load_and_parse_df
 
 # Load and parse CSV data
-df = load_and_parse_df("your_data.csv")
-
-# Process data and export to Excel
-process_csv("input.csv", "output.xlsx")
+df, _ = load_and_parse_df("your_data.csv")
 
 # Create visualizations
-visualize_data(df)
+fig = plot(df, y="Freq. of Parent")
+fig.write_html("output.html")
 ```
 
 ## Development

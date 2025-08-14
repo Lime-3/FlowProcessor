@@ -18,7 +18,7 @@ from typing import List, Optional
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from debug.system_health_check import SystemHealthChecker
+from flowproc.infrastructure.monitoring.health import HealthChecker
 
 
 class SafeTestRunner:
@@ -26,7 +26,7 @@ class SafeTestRunner:
     
     def __init__(self, project_root: str):
         self.project_root = Path(project_root)
-        self.health_checker = SystemHealthChecker(project_root)
+        self.health_checker = HealthChecker()
         self.test_timeout = 300  # 5 minutes per test file
         self.max_failures = 3
         self.cleanup_temp_files = True
@@ -64,8 +64,8 @@ class SafeTestRunner:
     def run_health_check(self) -> bool:
         """Run system health check and return success status."""
         print("🔍 Running system health check...")
-        report = self.health_checker.run_all_checks()
-        success = self.health_checker.print_report(report)
+        report = self.health_checker.check_system_health()
+        success = self._print_health_report(report)
         
         if not success:
             print("\n❌ Health check failed. Fix critical issues before running tests.")
@@ -73,6 +73,17 @@ class SafeTestRunner:
         
         print("\n✅ Health check passed. Proceeding with tests.")
         return True
+
+    def _print_health_report(self, report: dict) -> bool:
+        """Print a compact health report summary; return True unless critical."""
+        try:
+            status = report.get('status', 'unknown')
+            print(f"Status: {status}")
+            for check in report.get('checks', []):
+                print(f"- {check.get('name')}: {check.get('status')} - {check.get('message')}")
+            return status != 'critical'
+        except Exception:
+            return True
     
     def run_tests_with_timeout(self, test_args: List[str]) -> subprocess.CompletedProcess:
         """Run tests with timeout and segfault protection."""
