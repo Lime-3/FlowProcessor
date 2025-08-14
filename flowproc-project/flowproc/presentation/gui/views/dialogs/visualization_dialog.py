@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget, QSplitter, QSizePolicy, QApplication,
     QFileDialog, QListWidget, QListWidgetItem
 )
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QThread, Slot
 import pandas as pd
 
 from flowproc.domain.parsing import load_and_parse_df
@@ -910,7 +910,7 @@ class VisualizationDialog(QDialog):
             self._show_error_message(f"Failed to generate plot: {str(e)}")
     
     def _save_visualization(self):
-        """Save the current visualization to a user-selected location as PDF."""
+        """Save the current visualization to a user-selected location as PDF (non-blocking)."""
         if not self.current_fig:
             QMessageBox.warning(self, "No Plot", "Please generate a plot first.")
             return
@@ -927,29 +927,58 @@ class VisualizationDialog(QDialog):
             "PDF Files (*.pdf)"
         )
 
-        if file_path:
-            try:
-                # Ensure .pdf extension
-                if not str(file_path).lower().endswith('.pdf'):
-                    file_path = str(file_path) + '.pdf'
+        if not file_path:
+            return
 
-                from flowproc.domain.visualization.plotly_renderer import PlotlyRenderer
+        # Ensure .pdf extension
+        if not str(file_path).lower().endswith('.pdf'):
+            file_path = str(file_path) + '.pdf'
 
-                renderer = PlotlyRenderer()
+        # Prepare export parameters
+        width = getattr(getattr(self.current_fig, 'layout', None), 'width', None)
+        height = getattr(getattr(self.current_fig, 'layout', None), 'height', None)
 
-                # Use figure's layout dimensions if available
-                width = getattr(getattr(self.current_fig, 'layout', None), 'width', None)
-                height = getattr(getattr(self.current_fig, 'layout', None), 'height', None)
+        logger.info(f"Starting PDF export to: {file_path} (width={width}, height={height})")
 
-                if width is not None and height is not None:
-                    renderer.export_to_pdf(self.current_fig, file_path, width=width, height=height, scale=1)
-                else:
-                    renderer.export_to_pdf(self.current_fig, file_path)
+        # Run export in background thread to avoid interfering with Qt event loop
+        class _PdfExportThread(QThread):
+            success = Signal(str)
+            error = Signal(str)
 
-                QMessageBox.information(self, "Success", f"Visualization saved to {file_path}")
-            except Exception as e:
-                logger.error(f"Failed to save PDF: {e}")
-                QMessageBox.critical(self, "Error", f"Failed to save PDF: {str(e)}")
+            def __init__(self, fig, out_path: str, width: int | None, height: int | None) -> None:
+                super().__init__()
+                self._fig = fig
+                self._out_path = out_path
+                self._width = width
+                self._height = height
+
+            def run(self) -> None:
+                try:
+                    from flowproc.domain.visualization.plotly_renderer import PlotlyRenderer
+                    renderer = PlotlyRenderer()
+                    if self._width is not None and self._height is not None:
+                        renderer.export_to_pdf(self._fig, self._out_path, width=self._width, height=self._height, scale=1)
+                    else:
+                        renderer.export_to_pdf(self._fig, self._out_path)
+                    self.success.emit(self._out_path)
+                except Exception as e:  # noqa: BLE001
+                    self.error.emit(str(e))
+
+        self._export_thread = _PdfExportThread(self.current_fig, file_path, width, height)
+
+        @Slot(str)
+        def _on_success(path: str) -> None:
+            logger.info(f"PDF export completed: {path}")
+            QMessageBox.information(self, "Success", f"Visualization saved to {path}")
+
+        @Slot(str)
+        def _on_error(msg: str) -> None:
+            logger.error(f"Failed to save PDF: {msg}")
+            QMessageBox.critical(self, "Error", f"Failed to save PDF: {msg}")
+
+        self._export_thread.success.connect(_on_success)
+        self._export_thread.error.connect(_on_error)
+        self._export_thread.start()
     
     def _show_error_message(self, message: str):
         """Show an error message in the web view."""
