@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Pre-commit test script for FlowProcessor
-# This script runs the testing suite before commits
+# Test Suite Runner for FlowProcessor
+# This script runs the complete testing suite for validation
 
 set -e  # Exit on any error
 

@@ -1,10 +1,6 @@
 """
-Simple Visualizer - Minimal Interface for Flow Cytometry Visualization (Refactored)
+Visualizer -  Interface for Flow Cytometry Visualization
 
-This module provides a super simple interface for creating visualizations
-without the complexity of the full system. Just 3 main functions for 90% of use cases.
-
-This is the refactored version that uses modular components.
 """
 
 import logging

@@ -432,7 +432,9 @@ def _write_timecourse_data(df, sid_col, ws_vals, ws_ids, raw_cols, num_replicate
             # Replicate headers under each group (in Row 3)
             for rep in range(1, num_replicates + 1):
                 col_pos = group_start_col + rep - 1
-                ws_vals.cell(row=3, column=col_pos, value=f"Replicate {rep}")
+                # Avoid placing string headers into the values sheet to keep the
+                # column purely numeric; write headers only in IDs sheet.
+                ws_vals.cell(row=3, column=col_pos, value=None)
                 ws_ids.cell(row=3, column=col_pos, value=f"Replicate {rep}")
             
             # Move to next group position (no gaps between groups)

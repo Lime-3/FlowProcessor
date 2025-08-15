@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# FlowProcessor Installation Script
-# Provides multiple installation options for pip
+# FlowProcessor Project Setup Script
+# Comprehensive setup script with multiple installation options
 
 set -e  # Exit on any error
 

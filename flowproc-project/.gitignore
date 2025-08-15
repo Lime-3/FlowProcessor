@@ -1,0 +1,13 @@
+# FlowProc generated data/logs
+data/
+*/data/
+*.log
+logs/
+
+# Test data files (should not be uploaded to git)
+tests/data/
+tests/data/*.csv
+tests/data/*.xlsx
+tests/data/*.xls
+
+# Health checker report artifacts (none by default)

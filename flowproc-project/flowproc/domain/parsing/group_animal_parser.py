@@ -1,6 +1,6 @@
 """Parse group and animal identifiers."""
 import re
-from typing import Optional, Tuple, NamedTuple
+from typing import Optional, NamedTuple
 import logging
 
 logger = logging.getLogger(__name__)
@@ -142,6 +142,9 @@ def extract_group_animal(text: str):
     from ...core.constants import Constants
     from .validation_utils import validate_sample_id_for_negative_values
     
+    # Type validation for clearer error message expected by tests
+    if not isinstance(text, str):
+        raise ValueError("Sample ID must be a string")
     # Validate for negative values; do not raise here to allow uniform error handling upstream
     if not validate_sample_id_for_negative_values(text, strict=False):
         raise ValueError("Invalid group/animal")

@@ -117,8 +117,14 @@ def get_data_path(relative_path: str = "") -> Path:
                 # Windows/Linux: Next to executable
                 data_dir = Path(sys.executable).parent / "data"
         else:
-            # Development mode: Use package directory
-            data_dir = get_package_root() / "data"
+            # Development mode: Use OS-appropriate user data directory
+            if sys.platform == "win32":
+                base_dir = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
+            elif sys.platform == "darwin":
+                base_dir = Path.home() / "Library" / "Application Support"
+            else:
+                base_dir = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share")))
+            data_dir = Path(base_dir) / "FlowProc"
         
         # Create full path
         if relative_path:

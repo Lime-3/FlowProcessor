@@ -36,8 +36,10 @@ def setup_logging(
     if any(isinstance(h, logging.FileHandler) for h in root.handlers):
         return True  # Already configured
 
-    root.setLevel(logging.DEBUG)
-    root.handlers.clear()
+    # Respect existing level if set; default to INFO, elevate to DEBUG only for development
+    if root.level == logging.NOTSET:
+        root.setLevel(logging.INFO)
+    # Do not blindly clear all handlers; add ours alongside console handler
 
     # Console handler
     console = logging.StreamHandler(sys.stderr)

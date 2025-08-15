@@ -118,7 +118,7 @@ class TestProcessingWorker:
             ProcessingState.COMPLETED
         ]
         
-    @patch('flowproc.domain.visualization.facade.visualize_data')
+    @patch('flowproc.domain.visualization.flow_cytometry_visualizer.plot')
     def test_worker_cancellation(self, mock_visualize_data, qapp, temp_csv, tmp_path):
         """Test worker cancellation mechanism."""
         mock_visualize_data.return_value = None
@@ -164,7 +164,7 @@ class TestProcessingWorker:
         worker.resume()
         assert not worker._should_pause
         
-    @patch('flowproc.domain.visualization.facade.visualize_data')
+    @patch('flowproc.domain.visualization.flow_cytometry_visualizer.plot')
     def test_worker_file_processing(self, mock_visualize_data, qapp, temp_csv, tmp_path):
         """Test actual file processing in worker."""
         worker = ProcessingWorker()
@@ -221,7 +221,7 @@ class TestProcessingManager:
         assert not manager.is_processing()
         assert manager.get_state() == ProcessingState.IDLE
         
-    @patch('flowproc.domain.visualization.facade.visualize_data')
+    @patch('flowproc.domain.visualization.flow_cytometry_visualizer.plot')
     def test_manager_start_processing(self, mock_visualize_data, qapp, temp_csv, tmp_path):
         """Test starting processing through manager."""
         manager = ProcessingManager()
@@ -446,7 +446,7 @@ class TestVectorizedAggregator:
 class TestIntegration:
     """Integration tests for async processing with vectorized aggregation."""
     
-    @patch('flowproc.domain.visualization.facade.visualize_data')
+    @patch('flowproc.domain.visualization.flow_cytometry_visualizer.plot')
     @patch('flowproc.domain.processing.vectorized_aggregator.VectorizedAggregator')
     def test_end_to_end_processing(self, mock_aggregator, mock_visualize_data, 
                                   qapp, temp_csv, tmp_path):

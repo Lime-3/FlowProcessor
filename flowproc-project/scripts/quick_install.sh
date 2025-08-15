@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Quick pip install script for FlowProcessor
+# Quick Install Script for FlowProcessor
+# Fast installation for development environments
 
 set -e  # Exit on any error
 

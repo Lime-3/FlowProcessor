@@ -100,7 +100,7 @@ class TestCSVDemoFunctionality:
             except Exception as e:
                 pytest.skip(f"Sample ID extraction failed for {csv_file.name}: {str(e)}")
     
-    @patch('flowproc.domain.visualization.facade.visualize_data')
+    @patch('flowproc.domain.visualization.flow_cytometry_visualizer.plot')
     def test_visualization_demo(self, mock_visualize, test_csv_files):
         """Test visualization demonstration."""
         mock_visualize.return_value = MagicMock()
