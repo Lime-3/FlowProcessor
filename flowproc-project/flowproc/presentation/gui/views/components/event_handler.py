@@ -116,7 +116,7 @@ class EventHandler(QObject):
     @Slot()
     def preview_csv(self) -> None:
         """Display a preview table for selected CSV files."""
-        from flowproc.domain.parsing.service import ParseService
+        from flowproc.domain.parsing.parsing_utils import load_and_parse_df
         
         if not self.state_manager.preview_paths:
             QMessageBox.warning(
@@ -131,7 +131,6 @@ class EventHandler(QObject):
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
-        parse_service = ParseService()
         row = 0
         
         for selected_path in self.state_manager.preview_paths:
@@ -142,13 +141,79 @@ class EventHandler(QObject):
                 continue
                 
             try:
-                df, _ = parse_service.load_and_parse_df(path_obj)
+                # Use the correct parsing function
+                df, _ = load_and_parse_df(path_obj)
                 num_samples = len(df)
-                unique_groups = ", ".join(map(str, sorted(df["Group"].dropna().unique()))) if "Group" in df.columns and not df["Group"].isna().all() else "N/A"
-                unique_animals = ", ".join(map(str, sorted(df["Animal"].dropna().unique()))) if "Animal" in df.columns and not df["Animal"].isna().all() else "N/A"
-                unique_timepoints = ", ".join(map(str, sorted(df["Time"].dropna().unique()))) if "Time" in df.columns and not df["Time"].isna().all() else "N/A"
-                unique_tissues = ", ".join(map(str, sorted(df["Tissue"].dropna().unique()))) if "Tissue" in df.columns and not df["Tissue"].isna().all() else "N/A"
                 
+                # Check for various possible column names and combinations
+                group_col = None
+                animal_col = None
+                time_col = None
+                tissue_col = None
+                
+                # Look for group columns
+                for col in df.columns:
+                    col_lower = col.lower()
+                    if 'group' in col_lower or 'treatment' in col_lower or 'condition' in col_lower:
+                        group_col = col
+                        break
+                
+                # Look for animal columns
+                for col in df.columns:
+                    col_lower = col.lower()
+                    if 'animal' in col_lower or 'mouse' in col_lower or 'subject' in col_lower:
+                        animal_col = col
+                        break
+                
+                # Look for time columns
+                for col in df.columns:
+                    col_lower = col.lower()
+                    if 'time' in col_lower or 'timepoint' in col_lower or 'hour' in col_lower or 'day' in col_lower:
+                        time_col = col
+                        break
+                
+                # Look for tissue columns
+                for col in df.columns:
+                    col_lower = col.lower()
+                    if 'tissue' in col_lower or 'organ' in col_lower:
+                        tissue_col = col
+                        break
+                
+                # Extract unique values for each column type
+                unique_groups = "N/A"
+                if group_col and group_col in df.columns and not df[group_col].isna().all():
+                    groups = sorted(df[group_col].dropna().unique())
+                    if len(groups) > 0:
+                        if len(groups) == 1:
+                            unique_groups = str(groups[0])
+                        else:
+                            unique_groups = f"{len(groups)}: {min(groups)} - {max(groups)}"
+                
+                unique_animals = "N/A"
+                if animal_col and animal_col in df.columns and not df[animal_col].isna().all():
+                    animals = sorted(df[animal_col].dropna().unique())
+                    if len(animals) > 0:
+                        if len(animals) == 1:
+                            unique_animals = str(animals[0])
+                        else:
+                            unique_animals = f"{len(animals)}: {min(animals)} - {max(animals)}"
+                
+                unique_timepoints = "N/A"
+                if time_col and time_col in df.columns and not df[time_col].isna().all():
+                    timepoints = sorted(df[time_col].dropna().unique())
+                    if len(timepoints) > 0:
+                        if len(timepoints) == 1:
+                            unique_timepoints = str(timepoints[0])
+                        else:
+                            unique_timepoints = f"{len(timepoints)}: {min(timepoints)} - {max(timepoints)}"
+                
+                unique_tissues = "N/A"
+                if tissue_col and tissue_col in df.columns and not df[tissue_col].isna().all():
+                    tissues = df[tissue_col].dropna().unique()
+                    if len(tissues) > 0:
+                        unique_tissues = f"{len(tissues)}: {', '.join(map(str, sorted(tissues)))}"
+                
+                # Populate table row
                 table.setItem(row, 0, QTableWidgetItem(path_obj.name))
                 table.setItem(row, 1, QTableWidgetItem(str(num_samples)))
                 table.setItem(row, 2, QTableWidgetItem(unique_groups))
@@ -156,9 +221,13 @@ class EventHandler(QObject):
                 table.setItem(row, 4, QTableWidgetItem(unique_timepoints))
                 table.setItem(row, 5, QTableWidgetItem(unique_tissues))
                 row += 1
+                
             except Exception as e:
                 logger.error(f"Summary preview failed for {selected_path}: {str(e)}", exc_info=True)
                 table.setItem(row, 0, QTableWidgetItem(f"{path_obj.name} - Error: Failed to parse ({str(e)})"))
+                # Set other columns to error state
+                for col in range(1, 6):
+                    table.setItem(row, col, QTableWidgetItem("Error"))
                 row += 1
                 
         preview_window = QMainWindow(self.main_window)

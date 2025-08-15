@@ -279,15 +279,33 @@ class PreviewDialog(QDialog):
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
         
         # Cancel any existing worker
-        if self.preview_worker and self.preview_worker.isRunning():
-            self.preview_worker.quit()
-            self.preview_worker.wait()
+        self._cleanup_worker()
             
         # Create and start new worker
         self.preview_worker = CSVPreviewWorker(file_path, self.row_limit_spin.value())
         self.preview_worker.data_loaded.connect(self._on_data_loaded)
         self.preview_worker.error_occurred.connect(self._on_load_error)
+        self.preview_worker.finished.connect(self._on_worker_finished)
         self.preview_worker.start()
+        
+    def _cleanup_worker(self):
+        """Clean up the worker thread and its connections."""
+        if self.preview_worker:
+            if self.preview_worker.isRunning():
+                self.preview_worker.quit()
+                self.preview_worker.wait()
+            
+            # Disconnect all signals to prevent memory leaks
+            try:
+                self.preview_worker.data_loaded.disconnect()
+                self.preview_worker.error_occurred.disconnect()
+                self.preview_worker.finished.disconnect()
+            except (RuntimeError, TypeError):
+                # Signals might not be connected, ignore errors
+                pass
+            
+            self.preview_worker.deleteLater()
+            self.preview_worker = None
         
     def _on_data_loaded(self, df: pd.DataFrame):
         """Handle data loaded from worker thread."""
@@ -302,6 +320,10 @@ class PreviewDialog(QDialog):
         self.progress_bar.setVisible(False)
         QMessageBox.critical(self, "Load Error", f"Failed to load CSV file:\n{error_message}")
         self._clear_preview()
+        
+    def _on_worker_finished(self):
+        """Handle worker thread completion."""
+        self.progress_bar.setVisible(False)
         
     def _populate_table(self, df: pd.DataFrame):
         """Populate the table with DataFrame data."""
@@ -351,3 +373,18 @@ class PreviewDialog(QDialog):
         if self.file_combo.currentData():
             return Path(self.file_combo.currentData())
         return None
+        
+    def closeEvent(self, event):
+        """Handle dialog close event to clean up resources."""
+        self._cleanup_worker()
+        super().closeEvent(event)
+        
+    def reject(self):
+        """Handle dialog rejection to clean up resources."""
+        self._cleanup_worker()
+        super().reject()
+        
+    def accept(self):
+        """Handle dialog acceptance to clean up resources."""
+        self._cleanup_worker()
+        super().accept()
