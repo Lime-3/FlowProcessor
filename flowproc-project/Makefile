@@ -20,7 +20,7 @@ help:
 	@echo "  test-integration - Run integration tests with safety checks"
 	@echo "  test-unit    - Run unit tests with safety checks"
 	@echo "  test-cov     - Run tests with coverage"
-	@echo "  test-kaleido - Test Kaleido image export"
+	@echo "  test-selenium - Test Selenium image export"
 	@echo "  health-check - Run system health check"
 	@echo "  quick-test   - Quick test suite (tests + linting + type checking)"
 	@echo "  clean        - Clean build artifacts"
@@ -85,9 +85,9 @@ test-cov:
 	@echo "Running tests with coverage and safety checks..."
 	@pytest --cov=flowproc --cov-report=html --cov-report=term-missing
 
-test-kaleido:
-	@echo "Testing Kaleido image export functionality..."
-	@python -c "import plotly.graph_objects as go; import plotly.io as pio; fig = go.Figure(data=go.Scatter(x=[1,2,3], y=[1,2,3])); fig.write_image('test_kaleido.png'); import os; os.remove('test_kaleido.png'); print('✅ Kaleido export test passed')"
+test-selenium:
+	@echo "Testing Selenium image export functionality..."
+	@python -c "from flowproc.domain.visualization.plotly_renderer import PlotlyRenderer; import plotly.graph_objects as go; fig = go.Figure(data=go.Scatter(x=[1,2,3], y=[1,2,3])); renderer = PlotlyRenderer(); renderer.export_to_png_selenium(fig, 'test_selenium.png'); import os; os.remove('test_selenium.png'); print('✅ Selenium export test passed')"
 
 test-safe:
 	@echo "Running tests with comprehensive safety checks..."

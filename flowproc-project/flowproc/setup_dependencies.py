@@ -36,7 +36,7 @@ def install_flowproc_dependencies(dependencies: List[str] = None, upgrade: bool 
             'openpyxl>=3.1.5',    # For Excel output
             'PySide6>=6.7.2',     # For PySide6-based GUI (latest stable as of July 2025)
             'plotly>=5.23.0',     # For visualization (added for visualize.py compatibility)
-            'kaleido>=0.2.1',     # For static image export in plotly if needed
+            'selenium>=4.15.0',     # For static image export in plotly if needed
             'pytest>=8.3.4',      # For testing (added for test_logging.py compatibility) 
             
         ]

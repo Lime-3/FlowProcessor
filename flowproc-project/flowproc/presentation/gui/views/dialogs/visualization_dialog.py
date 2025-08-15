@@ -991,11 +991,11 @@ class VisualizationDialog(QDialog):
                     from flowproc.domain.visualization.plotly_renderer import PlotlyRenderer
                     renderer = PlotlyRenderer()
                     
-                    # Use the new fallback method that tries Selenium first, then Kaleido
+                    # Use Selenium-based export method for reliable image generation
                     if self._width is not None and self._height is not None:
-                        renderer.export_to_pdf_with_fallback(self._fig, self._out_path, width=self._width, height=self._height, scale=1)
+                        renderer.export_to_pdf(self._fig, self._out_path, width=self._width, height=self._height, scale=1)
                     else:
-                        renderer.export_to_pdf_with_fallback(self._fig, self._out_path)
+                        renderer.export_to_pdf(self._fig, self._out_path)
                     
                     self.success.emit(self._out_path)
                 except Exception as e:  # noqa: BLE001
