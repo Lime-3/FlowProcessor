@@ -498,6 +498,172 @@ class PlotlyRenderer:
         temp_fig = fig  # Copy to modify
         # Optional: Hide legend for export: temp_fig.update_layout(showlegend=False)
         temp_fig.write_image(filepath, width=width, height=height, scale=scale)  # 6x2 inches at 300 DPI
+
+    def export_to_pdf_selenium(self, fig: go.Figure, filepath: str, 
+                              width: int = 1800, height: int = 600, scale: int = 1) -> None:
+        """
+        Export Plotly figure to PDF using Selenium + system browser.
+        
+        This method uses your system's default browser (Safari, Chrome, Firefox)
+        instead of requiring a specific Chrome installation like Kaleido.
+        """
+        try:
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options
+            from selenium.webdriver.firefox.options import Options as FirefoxOptions
+            from selenium.webdriver.safari.options import Options as SafariOptions
+            import tempfile
+            import os
+            
+            # Create temporary HTML file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as tmp:
+                # Export Plotly figure to HTML (this part stays exactly the same!)
+                fig.write_html(tmp.name, include_plotlyjs=True, full_html=True)
+                html_path = tmp.name
+            
+            # Try different browsers in order of preference
+            drivers = []
+            
+            # Try Safari first (macOS default)
+            try:
+                safari_options = SafariOptions()
+                driver = webdriver.Safari(options=safari_options)
+                drivers.append(('Safari', driver))
+            except:
+                pass
+            
+            # Try Chrome
+            try:
+                chrome_options = Options()
+                chrome_options.add_argument('--headless')
+                chrome_options.add_argument('--no-sandbox')
+                chrome_options.add_argument('--disable-dev-shm-usage')
+                driver = webdriver.Chrome(options=chrome_options)
+                drivers.append(('Chrome', driver))
+            except:
+                pass
+            
+            # Try Firefox
+            try:
+                firefox_options = FirefoxOptions()
+                firefox_options.add_argument('--headless')
+                driver = webdriver.Firefox(options=firefox_options)
+                drivers.append(('Firefox', driver))
+            except:
+                pass
+            
+            if not drivers:
+                raise RuntimeError("No browser drivers available. Install Selenium and a browser driver.")
+            
+            # Use the first available driver
+            browser_name, driver = drivers[0]
+            logger.info(f"Using {browser_name} for PDF export")
+            
+            try:
+                # Load the HTML file
+                driver.get(f"file://{html_path}")
+                
+                # Wait for Plotly to render
+                driver.implicitly_wait(5)
+                
+                # Set page size for PDF
+                driver.execute_script(f"document.body.style.width = '{width}px'")
+                driver.execute_script(f"document.body.style.height = '{height}px'")
+                
+                # Print to PDF
+                print_options = {
+                    'printBackground': True,
+                    'paperWidth': width / 96,  # Convert pixels to inches
+                    'paperHeight': height / 96,
+                    'marginTop': 0,
+                    'marginBottom': 0,
+                    'marginLeft': 0,
+                    'marginRight': 0,
+                    'scale': scale
+                }
+                
+                result = driver.execute_cdp_cmd('Page.printToPDF', print_options)
+                
+                # Save PDF - handle both base64 and hex data formats
+                pdf_data = result.get('data', '')
+                if pdf_data:
+                    try:
+                        # Try base64 first (most common)
+                        import base64
+                        pdf_bytes = base64.b64decode(pdf_data)
+                        with open(filepath, 'wb') as f:
+                            f.write(pdf_bytes)
+                    except Exception:
+                        try:
+                            # Try hex format
+                            pdf_bytes = bytes.fromhex(pdf_data)
+                            with open(filepath, 'wb') as f:
+                                f.write(pdf_bytes)
+                        except Exception as hex_error:
+                            raise RuntimeError(f"Could not decode PDF data: {hex_error}")
+                else:
+                    raise RuntimeError("No PDF data received from browser")
+                
+                logger.info(f"PDF export successful using {browser_name}: {filepath}")
+                
+            finally:
+                try:
+                    driver.quit()
+                except Exception as e:
+                    logger.warning(f"Failed to quit browser driver: {e}")
+                
+            # Clean up temporary file
+            try:
+                os.unlink(html_path)
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temporary HTML file: {e}")
+            
+        except ImportError as e:
+            if "selenium" in str(e):
+                raise RuntimeError(
+                    "Selenium not available. Install with: pip install selenium"
+                )
+            else:
+                raise RuntimeError(f"Required library not available: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Selenium PDF export failed: {str(e)}")
+
+    def export_to_pdf_with_fallback(self, fig: go.Figure, filepath: str, 
+                                  width: int = 1800, height: int = 600, 
+                                  scale: int = 1) -> None:
+        """
+        Export figure to PDF with automatic fallback between Selenium and Kaleido.
+        
+        This method tries Selenium first (more reliable), then falls back to Kaleido
+        if Selenium fails. This gives you the best of both worlds.
+        """
+        try:
+            # Try Selenium first (more reliable)
+            logger.info("Attempting PDF export with Selenium...")
+            self.export_to_pdf_selenium(fig, filepath, width, height, scale)
+            logger.info("Selenium PDF export successful")
+            
+        except Exception as selenium_error:
+            logger.warning(f"Selenium PDF export failed: {selenium_error}")
+            
+            # Fallback to original Kaleido method
+            try:
+                logger.info("Falling back to Kaleido method...")
+                temp_fig = fig
+                temp_fig.write_image(filepath, width=width, height=height, scale=scale)
+                logger.info("Kaleido fallback successful")
+                
+            except Exception as kaleido_error:
+                # Both methods failed - provide helpful error
+                raise RuntimeError(
+                    f"PDF export failed with both methods:\n\n"
+                    f"Selenium error: {selenium_error}\n"
+                    f"Kaleido error: {kaleido_error}\n\n"
+                    f"Recommendations:\n"
+                    f"1. Install Selenium: pip install selenium\n"
+                    f"2. Use HTML export instead\n"
+                    f"3. Check browser permissions"
+                )
     
     def get_figure_info(self, fig: go.Figure) -> Dict[str, Any]:
         """Get information about a figure."""

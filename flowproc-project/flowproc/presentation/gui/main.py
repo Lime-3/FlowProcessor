@@ -42,6 +42,18 @@ def main() -> None:
     window.show()
     logging.debug("Main window shown")
 
+    # Set up exception handling to prevent unexpected crashes
+    def handle_exception(exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            # Handle Ctrl+C gracefully
+            logging.info("Application interrupted by user")
+            app.quit()
+        else:
+            # Log unexpected exceptions
+            logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+    
+    sys.excepthook = handle_exception
+
     sys.exit(app.exec())
 
 if __name__ == "__main__":

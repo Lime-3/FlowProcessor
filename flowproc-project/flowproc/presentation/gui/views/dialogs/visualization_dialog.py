@@ -51,6 +51,7 @@ class VisualizationDialog(QDialog):
         self.csv_path = csv_path
         self.temp_html_file: Optional[Path] = None
         self.current_fig: Optional[object] = None
+        self._export_thread: Optional[QThread] = None
         
         # UI Components
         self.plot_type_combo: Optional[QComboBox] = None
@@ -103,10 +104,39 @@ class VisualizationDialog(QDialog):
         splitter.addWidget(plot_widget)
         
         # Status bar at bottom with fixed height
+        status_widget = QWidget()
+        status_layout = QHBoxLayout(status_widget)
+        status_layout.setContentsMargins(5, 5, 5, 5)
+        status_layout.setSpacing(10)
+        
         self.status_label = QLabel("Ready")
-        self.status_label.setFixedHeight(30)  # Fixed height for status bar
         self.status_label.setStyleSheet("padding: 5px; background-color: #191919; border-top: 1px solid #303030; color: #F0F0F0;")
-        main_layout.addWidget(self.status_label)
+        status_layout.addWidget(self.status_label)
+        
+        # Add cancel button for PDF export
+        self.cancel_pdf_button = QPushButton("Cancel PDF Export")
+        self.cancel_pdf_button.setStyleSheet("""
+            QPushButton {
+                background-color: #d32f2f;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #b71c1c;
+            }
+            QPushButton:disabled {
+                background-color: #666;
+                color: #ccc;
+            }
+        """)
+        self.cancel_pdf_button.clicked.connect(self.stop_pdf_export)
+        self.cancel_pdf_button.setEnabled(False)
+        status_layout.addWidget(self.cancel_pdf_button)
+        
+        status_widget.setFixedHeight(40)  # Increased height for button
+        main_layout.addWidget(status_widget)
     
     def _create_settings_panel(self):
         """Create the settings configuration panel at the top."""
@@ -939,6 +969,10 @@ class VisualizationDialog(QDialog):
         height = getattr(getattr(self.current_fig, 'layout', None), 'height', None)
 
         logger.info(f"Starting PDF export to: {file_path} (width={width}, height={height})")
+        
+        # Update UI to show export is in progress
+        self.status_label.setText("PDF export in progress...")
+        self.cancel_pdf_button.setEnabled(True)
 
         # Run export in background thread to avoid interfering with Qt event loop
         class _PdfExportThread(QThread):
@@ -956,29 +990,52 @@ class VisualizationDialog(QDialog):
                 try:
                     from flowproc.domain.visualization.plotly_renderer import PlotlyRenderer
                     renderer = PlotlyRenderer()
+                    
+                    # Use the new fallback method that tries Selenium first, then Kaleido
                     if self._width is not None and self._height is not None:
-                        renderer.export_to_pdf(self._fig, self._out_path, width=self._width, height=self._height, scale=1)
+                        renderer.export_to_pdf_with_fallback(self._fig, self._out_path, width=self._width, height=self._height, scale=1)
                     else:
-                        renderer.export_to_pdf(self._fig, self._out_path)
+                        renderer.export_to_pdf_with_fallback(self._fig, self._out_path)
+                    
                     self.success.emit(self._out_path)
                 except Exception as e:  # noqa: BLE001
                     self.error.emit(str(e))
+            
+            def stop(self):
+                """Safely stop the thread."""
+                if self.isRunning():
+                    self.quit()
+                    self.wait(2000)
+                    if self.isRunning():
+                        self.terminate()
+                        self.wait(1000)
 
         self._export_thread = _PdfExportThread(self.current_fig, file_path, width, height)
 
         @Slot(str)
         def _on_success(path: str) -> None:
             logger.info(f"PDF export completed: {path}")
+            # Reset UI state
+            self.status_label.setText("PDF export completed successfully")
+            self.cancel_pdf_button.setEnabled(False)
             QMessageBox.information(self, "Success", f"Visualization saved to {path}")
 
         @Slot(str)
         def _on_error(msg: str) -> None:
             logger.error(f"Failed to save PDF: {msg}")
+            # Reset UI state
+            self.status_label.setText("PDF export failed")
+            self.cancel_pdf_button.setEnabled(False)
             QMessageBox.critical(self, "Error", f"Failed to save PDF: {msg}")
 
         self._export_thread.success.connect(_on_success)
         self._export_thread.error.connect(_on_error)
+        self._export_thread.finished.connect(self._on_pdf_export_finished)
         self._export_thread.start()
+        
+        # Store the success and error handlers to prevent them from being garbage collected
+        self._success_handler = _on_success
+        self._error_handler = _on_error
     
     def _show_error_message(self, message: str):
         """Show an error message in the web view."""
@@ -999,11 +1056,120 @@ class VisualizationDialog(QDialog):
         self.status_label.setText("Error generating plot")
     
     def closeEvent(self, event):
-        """Handle close event and cleanup temporary files."""
+        """Handle close event and cleanup temporary files and threads."""
+        # Check if PDF export is running and ask user if they want to cancel it
+        if self.is_pdf_export_running():
+            reply = QMessageBox.question(
+                self,
+                "PDF Export in Progress",
+                "A PDF export is currently running. Do you want to cancel it and close the dialog?\n\n"
+                "Note: Cancelling may result in an incomplete PDF file.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                # User chose to cancel - stop the export first
+                self.stop_pdf_export()
+                # Wait a bit for the thread to finish
+                if self._export_thread is not None:
+                    self._export_thread.wait(1000)
+            else:
+                event.ignore()
+                return
+        
         try:
+            # Clean up any running PDF export thread
+            if self._export_thread is not None:
+                if self._export_thread.isRunning():
+                    logger.info("Terminating PDF export thread before closing dialog")
+                    # Disconnect signals first to prevent callbacks after thread termination
+                    self._export_thread.success.disconnect()
+                    self._export_thread.error.disconnect()
+                    # Use the thread's own stop method for safer termination
+                    self._export_thread.stop()
+                self._export_thread.deleteLater()
+                self._export_thread = None
+            
+            # Clean up temporary HTML file
             if self.temp_html_file and self.temp_html_file.exists():
                 self.temp_html_file.unlink()
         except Exception as e:
-            logger.warning(f"Failed to cleanup temporary file: {e}")
+            logger.warning(f"Failed to cleanup during dialog close: {e}")
         
         super().closeEvent(event)
+    
+    def hideEvent(self, event):
+        """Handle hide event to ensure thread safety."""
+        super().hideEvent(event)
+        # Don't stop the thread when hiding, just ensure it's properly managed
+    
+    def showEvent(self, event):
+        """Handle show event."""
+        super().showEvent(event)
+        # Check if any thread is still running and clean up if needed
+        if self._export_thread is not None and not self._export_thread.isRunning():
+            self._export_thread.deleteLater()
+            self._export_thread = None
+    
+    def is_pdf_export_running(self) -> bool:
+        """Check if PDF export is currently running."""
+        return self._export_thread is not None and self._export_thread.isRunning()
+    
+    def can_close_safely(self) -> bool:
+        """Check if the dialog can be closed safely without interrupting operations."""
+        return not self.is_pdf_export_running()
+    
+    @Slot()
+    def _on_pdf_export_finished(self):
+        """Handle PDF export thread completion (success, error, or cancellation)."""
+        # Ensure UI state is consistent regardless of how the thread finished
+        if self._export_thread is not None:
+            self._export_thread.deleteLater()
+            self._export_thread = None
+        
+        # Reset UI state if not already done by success/error handlers
+        if self.cancel_pdf_button.isEnabled():
+            self.cancel_pdf_button.setEnabled(False)
+            if "completed" not in self.status_label.text() and "failed" not in self.status_label.text():
+                self.status_label.setText("Ready")
+    
+    def stop_pdf_export(self):
+        """Safely stop any ongoing PDF export."""
+        if self._export_thread is not None and self._export_thread.isRunning():
+            logger.info("Stopping PDF export on user request")
+            try:
+                # Disconnect signals first
+                self._export_thread.success.disconnect()
+                self._export_thread.error.disconnect()
+                # Use the thread's own stop method for safer termination
+                self._export_thread.stop()
+                self._export_thread.deleteLater()
+                self._export_thread = None
+                # Reset UI state
+                self.status_label.setText("PDF export cancelled")
+                self.cancel_pdf_button.setEnabled(False)
+                logger.info("PDF export stopped successfully")
+            except Exception as e:
+                logger.warning(f"Failed to stop PDF export: {e}")
+                # Reset UI state even on error
+                self.status_label.setText("PDF export error")
+                self.cancel_pdf_button.setEnabled(False)
+    
+    def __del__(self):
+        """Destructor to ensure thread cleanup."""
+        try:
+            if self._export_thread is not None:
+                if self._export_thread.isRunning():
+                    logger.info("Terminating PDF export thread in destructor")
+                    # Disconnect signals first to prevent callbacks after thread termination
+                    try:
+                        self._export_thread.success.disconnect()
+                        self._export_thread.error.disconnect()
+                    except Exception:
+                        pass  # Signals may already be disconnected
+                    # Use the thread's own stop method for safer termination
+                    self._export_thread.stop()
+                self._export_thread.deleteLater()
+        except Exception as e:
+            logger.warning(f"Failed to cleanup thread in destructor: {e}")
