@@ -37,7 +37,10 @@ class FileManager:
         Returns:
             List of selected file/folder paths
         """
-        dialog = QFileDialog()
+        # Get the main window as parent for proper dialog hierarchy
+        main_window = self.state_manager.main_window if hasattr(self.state_manager, 'main_window') else None
+        
+        dialog = QFileDialog(main_window)
         dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
         dialog.setNameFilter("CSV Files (*.csv);;All Files (*)")
         dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
@@ -45,7 +48,7 @@ class FileManager:
         # Enable both file and directory selection
         dialog.setFileMode(QFileDialog.FileMode.Directory)
         
-        if dialog.exec():
+        if dialog.exec() == QFileDialog.DialogCode.Accepted:
             selected_paths = dialog.selectedFiles()
             validated_paths = self._validate_and_expand_paths(selected_paths)
             logger.info(f"Selected {len(validated_paths)} valid input paths")
@@ -63,7 +66,10 @@ class FileManager:
         try:
             from ....parsing import load_and_parse_df
             
-            preview_window = QMainWindow()
+            # Get the main window as parent for proper dialog hierarchy
+            main_window = self.state_manager.main_window if hasattr(self.state_manager, 'main_window') else None
+            
+            preview_window = QMainWindow(main_window)
             preview_window.setWindowTitle("Combined Summary Preview")
             preview_window.setMinimumSize(600, 400)
             
@@ -80,7 +86,7 @@ class FileManager:
             
         except Exception as e:
             QMessageBox.warning(
-                None,
+                main_window,
                 "Preview Error",
                 f"Failed to generate preview: {str(e)}"
             )

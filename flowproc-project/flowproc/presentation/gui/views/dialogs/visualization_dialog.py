@@ -1029,12 +1029,23 @@ class VisualizationDialog(QDialog):
             if self.csv_path else "visualization.pdf"
         )
 
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Visualization",
-            default_name,
-            "PDF Files (*.pdf)"
-        )
+        # Create a custom file dialog to ensure proper parent-child relationship
+        file_dialog = QFileDialog(self)
+        file_dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+        file_dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        file_dialog.setNameFilter("PDF Files (*.pdf)")
+        file_dialog.setDefaultSuffix("pdf")
+        file_dialog.setDirectory(str(self.csv_path.parent) if self.csv_path else "")
+        file_dialog.selectFile(default_name)
+        
+        # Ensure the visualization dialog stays on top
+        self.raise_()
+        self.activateWindow()
+        
+        if file_dialog.exec() == QFileDialog.DialogCode.Accepted:
+            file_path = file_dialog.selectedFiles()[0]
+        else:
+            return
 
         if not file_path:
             return

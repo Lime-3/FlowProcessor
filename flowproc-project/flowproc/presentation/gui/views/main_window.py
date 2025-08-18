@@ -38,7 +38,7 @@ class MainWindow(QMainWindow, StylingMixin, ValidationMixin):
         super().__init__()
         
         # Initialize core components
-        self.state_manager = StateManager()
+        self.state_manager = StateManager(self)
         self.file_manager = FileManager(self.state_manager)
         self.ui_builder = UIBuilder(self)
         self.processing_coordinator = ProcessingCoordinator(self, self.state_manager)

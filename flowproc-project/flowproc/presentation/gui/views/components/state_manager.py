@@ -30,9 +30,10 @@ class StateManager:
     Centralizes state management to avoid scattered state across the UI.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, main_window=None) -> None:
         self._state = WindowState()
         self._state_observers: List[callable] = []
+        self.main_window = main_window
 
     @property
     def preview_paths(self) -> List[str]:
