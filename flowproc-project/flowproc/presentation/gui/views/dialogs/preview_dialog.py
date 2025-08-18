@@ -60,7 +60,7 @@ class PreviewDialog(QDialog):
         
         self.setWindowTitle("CSV Preview")
         self.setModal(True)
-        self.resize(800, 600)
+        self.resize(800, 1200)
         
         self._setup_ui()
         self._setup_styling()
