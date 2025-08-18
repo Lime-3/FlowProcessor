@@ -416,6 +416,9 @@ class VisualizationDialog(QDialog):
             # Populate filter options
             self._populate_filter_options(df)
             
+            # Force a UI update to ensure all widgets have processed their state changes
+            QApplication.processEvents()
+            
             # Auto-generate initial plot if filters are available
             has_tissue_data = 'Tissue' in df.columns and not df['Tissue'].isna().all()
             has_time_data = 'Time' in df.columns and len(df['Time'].dropna().unique()) > 0
@@ -428,10 +431,14 @@ class VisualizationDialog(QDialog):
                 has_real_tissue_data = len(real_tissues) > 0
             
             if has_real_tissue_data or has_time_data:
-                self._generate_plot()
+                # Use a small delay to ensure UI is fully updated before generating plot
+                from PySide6.QtCore import QTimer
+                QTimer.singleShot(100, self._generate_plot)
             else:
                 self.status_label.setText("No real tissue or time data detected. Generating plot with available data.")
-                self._generate_plot()
+                # Use a small delay to ensure UI is fully updated before generating plot
+                from PySide6.QtCore import QTimer
+                QTimer.singleShot(100, self._generate_plot)
             
         except Exception as e:
             logger.error(f"Failed to analyze data: {e}")
@@ -454,6 +461,13 @@ class VisualizationDialog(QDialog):
         # Add the dynamically detected metric types
         for metric_type in available_metrics:
             self.y_axis_combo.addItem(metric_type)
+        
+        # Ensure we have a default selection for the Y-axis
+        if available_metrics and self.y_axis_combo.count() > 0:
+            self.y_axis_combo.setCurrentIndex(0)
+            logger.info(f"Set default Y-axis selection to: {self.y_axis_combo.currentText()}")
+        else:
+            logger.warning("No available metrics found for Y-axis selection")
     
     def _populate_filter_options(self, df: pd.DataFrame):
         """Populate tissue and time filter options from parsed data."""
@@ -654,6 +668,22 @@ class VisualizationDialog(QDialog):
         
         logger.info(f"Filter selection - selected population: {selected_population}")
         
+        # Additional debugging for widget states
+        if self.tissue_filter and self.tissue_filter.isVisible():
+            logger.debug("Tissue filter items and states:")
+            for i in range(self.tissue_filter.count()):
+                item = self.tissue_filter.item(i)
+                logger.debug(f"  Item {i}: '{item.text()}' - checked: {item.checkState() == Qt.CheckState.Checked}")
+        
+        if self.time_filter and self.time_filter.isVisible():
+            logger.debug("Time filter items and states:")
+            for i in range(self.time_filter.count()):
+                item = self.time_filter.item(i)
+                logger.debug(f"  Item {i}: '{item.text()}' - checked: {item.checkState() == Qt.CheckState.Checked}")
+        
+        if self.population_filter and self.population_filter.isVisible():
+            logger.debug(f"Population filter current text: '{self.population_filter.currentText()}'")
+        
         return VisualizationOptions(
             plot_type=self.plot_type_combo.currentText() if self.plot_type_combo else "bar",
             y_axis=self.y_axis_combo.currentText() if self.y_axis_combo else None,
@@ -663,6 +693,34 @@ class VisualizationDialog(QDialog):
             selected_population=selected_population
         )
     
+    def _ensure_filter_synchronization(self):
+        """Ensure all filter options are properly synchronized before generating plots."""
+        logger.info("Ensuring filter synchronization...")
+        
+        # Check tissue filter synchronization
+        if self.tissue_filter and self.tissue_filter.isVisible():
+            logger.debug("Tissue filter synchronization check:")
+            for i in range(self.tissue_filter.count()):
+                item = self.tissue_filter.item(i)
+                logger.debug(f"  Item {i}: '{item.text()}' - checked: {item.checkState() == Qt.CheckState.Checked}")
+        
+        # Check time filter synchronization
+        if self.time_filter and self.time_filter.isVisible():
+            logger.debug("Time filter synchronization check:")
+            for i in range(self.time_filter.count()):
+                item = self.time_filter.item(i)
+                logger.debug(f"  Item {i}: '{item.text()}' - checked: {item.checkState() == Qt.CheckState.Checked}")
+        
+        # Check population filter synchronization
+        if self.population_filter and self.population_filter.isVisible():
+            logger.debug(f"Population filter synchronization check: '{self.population_filter.currentText()}'")
+        
+        # Check Y-axis synchronization
+        if self.y_axis_combo and self.y_axis_combo.count() > 0:
+            logger.debug(f"Y-axis synchronization check: '{self.y_axis_combo.currentText()}'")
+        
+        logger.info("Filter synchronization check completed")
+
     def _generate_plot(self):
         """Generate the plot using the coordinator's unified method."""
         try:
@@ -670,11 +728,32 @@ class VisualizationDialog(QDialog):
                 self.status_label.setText("Error: No data available")
                 return
             
+            # Ensure all filter options are properly synchronized before generating the plot
+            self._ensure_filter_synchronization()
+            
             # Get current options including filters
             options = self.get_current_options()
             
             # Debug logging for filter options
             logger.info(f"Current options - tissues: {options.selected_tissues}, times: {options.selected_times}, time_course: {options.time_course_mode}")
+            
+            # Validate that we have the necessary options for plotting
+            if not options.y_axis:
+                logger.warning("No Y-axis metric selected, this may cause plot generation issues")
+            
+            # Log filter validation
+            if options.selected_tissues is None:
+                logger.info("No tissue filtering applied (showing all tissues)")
+            elif len(options.selected_tissues) == 0:
+                logger.warning("No tissues selected for filtering - this may result in empty plots")
+            
+            if options.selected_times is None:
+                logger.info("No time filtering applied (showing all time points)")
+            elif len(options.selected_times) == 0:
+                logger.warning("No time points selected for filtering - this may result in empty plots")
+            
+            if options.time_course_mode and not options.selected_population:
+                logger.info("Time course mode: no specific population selected (showing all populations)")
             
             # Create temporary HTML file
             if self.temp_html_file and self.temp_html_file.exists():
