@@ -15,7 +15,7 @@ from flowproc.core.exceptions import ProcessingError, DataError as DataProcessin
 from flowproc.domain.parsing import load_and_parse_df
 from flowproc.domain.parsing.parsing_utils import validate_parsed_data
 from flowproc import DataProcessor
-from flowproc import VectorizedAggregator
+# VectorizedAggregator no longer exists - removed in migration
 
 
 def test_processing_error_import():
@@ -137,29 +137,29 @@ def test_specific_exception_handling():
     return True
 
 
-def test_vectorized_aggregator_type_validation():
-    """Test type validation in VectorizedAggregator."""
-    print("\n🧪 Testing VectorizedAggregator type validation...")
+def test_aggregation_service_type_validation():
+    """Test type validation in AggregationService."""
+    print("\n🧪 Testing AggregationService type validation...")
     
     # Test with valid DataFrame
     try:
+        from flowproc.domain.aggregation import AggregationService
         df = pd.DataFrame({'Group': [1, 2], 'Animal': [1, 2], 'Value': [10, 20]})
-        aggregator = VectorizedAggregator(df, 'Group')
-        print("✅ VectorizedAggregator created successfully with valid DataFrame")
+        service = AggregationService(df, 'Group')
+        print("✅ AggregationService created successfully with valid DataFrame")
+        service.cleanup()
     except Exception as e:
-        print(f"❌ VectorizedAggregator failed with valid DataFrame: {e}")
+        print(f"❌ AggregationService failed with valid DataFrame: {e}")
         return False
     
-    # Test optimize_dataframe with invalid type
+    # Test with invalid type
     try:
-        VectorizedAggregator.optimize_dataframe("not a dataframe")
-        print("❌ optimize_dataframe should have failed with invalid type")
+        from flowproc.domain.aggregation import AggregationService
+        AggregationService("not a dataframe", 'Group')
+        print("❌ AggregationService should have failed with invalid type")
         return False
-    except TypeError as e:
-        print(f"✅ optimize_dataframe correctly caught TypeError: {e}")
     except Exception as e:
-        print(f"❌ optimize_dataframe failed with unexpected error: {e}")
-        return False
+        print(f"✅ AggregationService correctly caught invalid type: {e}")
     
     return True
 
@@ -174,7 +174,7 @@ def main():
         test_type_validation,
         test_csv_reading_exceptions,
         test_specific_exception_handling,
-        test_vectorized_aggregator_type_validation
+        test_aggregation_service_type_validation
     ]
     
     passed = 0

@@ -71,7 +71,6 @@ class GenericProcessingStrategy(ProcessingStrategy):
     
     def __init__(self):
         from .transformers import DataTransformer
-        self.aggregator = None  # Will be initialized when needed
         self.transformer = DataTransformer()
     
     def can_handle(self, config: ProcessingConfig) -> bool:
@@ -97,15 +96,21 @@ class GenericProcessingStrategy(ProcessingStrategy):
     
     def _apply_aggregations(self, df: pd.DataFrame, group_by: List[str], methods: List[str]) -> pd.DataFrame:
         """Apply data aggregations."""
-        # Initialize aggregator if not already done
-        if self.aggregator is None:
-            from ..aggregation import AggregationService
-            # Use the first column as sid_col for now - this should be configurable
-            sid_col = df.columns[0] if len(df.columns) > 0 else 'SampleID'
-            self.aggregator = AggregationService(df, sid_col)
+        from ..aggregation import AggregationService
         
-        # Use the unified aggregation service
-        return self.aggregator.export_aggregate(df, group_by, methods)
+        # Use the first column as sid_col for now - this should be configurable
+        sid_col = df.columns[0] if len(df.columns) > 0 else 'SampleID'
+        service = AggregationService(df, sid_col)
+        
+        try:
+            # Convert methods list to dict format expected by export_aggregate
+            agg_methods = {col: methods[0] for col in df.select_dtypes(include=['number']).columns 
+                          if col not in group_by}
+            
+            # Use the unified aggregation service
+            return service.export_aggregate(list(agg_methods.keys()), group_by, agg_methods)
+        finally:
+            service.cleanup()
 
 
 class VisualizationProcessingStrategy(ProcessingStrategy):
@@ -167,7 +172,6 @@ class WorkflowProcessingStrategy(ProcessingStrategy):
     
     def __init__(self):
         from .transformers import DataTransformer
-        self.aggregator = None  # Will be initialized when needed
         self.transformer = DataTransformer()
     
     def can_handle(self, config: ProcessingConfig) -> bool:
@@ -197,15 +201,21 @@ class WorkflowProcessingStrategy(ProcessingStrategy):
     
     def _apply_aggregations(self, df: pd.DataFrame, group_by: List[str], methods: List[str]) -> pd.DataFrame:
         """Apply data aggregations."""
-        # Initialize aggregator if not already done
-        if self.aggregator is None:
-            from ..aggregation import AggregationService
-            # Use the first column as sid_col for now - this should be configurable
-            sid_col = df.columns[0] if len(df.columns) > 0 else 'SampleID'
-            self.aggregator = AggregationService(df, sid_col)
+        from ..aggregation import AggregationService
         
-        # Use the unified aggregation service
-        return self.aggregator.export_aggregate(df, group_by, methods)
+        # Use the first column as sid_col for now - this should be configurable
+        sid_col = df.columns[0] if len(df.columns) > 0 else 'SampleID'
+        service = AggregationService(df, sid_col)
+        
+        try:
+            # Convert methods list to dict format expected by export_aggregate
+            agg_methods = {col: methods[0] for col in df.select_dtypes(include=['number']).columns 
+                          if col not in group_by}
+            
+            # Use the unified aggregation service
+            return service.export_aggregate(list(agg_methods.keys()), group_by, agg_methods)
+        finally:
+            service.cleanup()
     
     def _apply_workflow_processing(self, df: pd.DataFrame, workflow_options: Dict[str, Any]) -> pd.DataFrame:
         """Apply workflow-specific processing."""

@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple
 import logging
 
-from flowproc.domain.processing.vectorized_aggregator import VectorizedAggregator, AggregationConfig
+# VectorizedAggregator no longer exists - using unified AggregationService instead
+from flowproc.domain.aggregation import AggregationService, AggregationConfig
 from flowproc.domain.visualization.flow_cytometry_visualizer import plot
 from flowproc.domain.parsing import load_and_parse_df
 from flowproc.domain.processing.transform import map_replicates
@@ -154,7 +155,7 @@ def benchmark_aggregation_methods(
         start_time = time.time()
         start_memory = df.memory_usage(deep=True).sum() / 1e6
         
-        aggregator = VectorizedAggregator(df.copy(), sid_col)
+        service = AggregationService(df.copy(), sid_col)
         config = AggregationConfig(
             groups=groups,
             times=times,
@@ -164,7 +165,7 @@ def benchmark_aggregation_methods(
             time_course_mode=True
         )
         
-        result = aggregator.aggregate_all_metrics(config=config)
+        result = service.aggregate_all_metrics(config=config)
         
         elapsed = time.time() - start_time
         end_memory = sum(
@@ -172,7 +173,7 @@ def benchmark_aggregation_methods(
         ) / 1e6 if result.dataframes else 0
         
         # Clean up after memory measurement
-        del aggregator
+        service.cleanup()
         del result
         gc.collect()  # Force garbage collection
         

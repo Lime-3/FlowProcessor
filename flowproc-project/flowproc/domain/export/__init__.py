@@ -7,7 +7,7 @@ import pandas as pd
 from .service import ExportService
 from .excel_writer import ExcelWriter
 from .formatters import DataFormatter
-from .data_aggregator import DataAggregator
+from .data_aggregator import aggregate_by_group, aggregate_with_stats, aggregate_by_replicate, create_export_aggregator
 from .replicate_mapper import ReplicateMapper
 from .excel_formatter import ExcelFormatter
 
@@ -522,7 +522,10 @@ def _create_empty_excel(output_file, sheet_name):
 __all__ = [
     'ExportService',
     'ExcelWriter', 
-    'DataAggregator',
+    'aggregate_by_group',
+    'aggregate_with_stats', 
+    'aggregate_by_replicate',
+    'create_export_aggregator',
     'ReplicateMapper',
     'ExcelFormatter',
     'process_csv',
