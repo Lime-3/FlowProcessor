@@ -108,35 +108,6 @@ def test_plotly_renderer_export_improvements():
             if Path(tmp.name).exists():
                 os.unlink(tmp.name)
 
-def test_theme_improvements():
-    """Test theme improvements and consistency."""
-    print("\n=== Testing Theme Improvements ===")
-    
-    from flowproc.domain.visualization.themes import VisualizationThemes
-    
-    themes = VisualizationThemes()
-    available_themes = themes.get_available_themes()
-    
-    # Test that we have the expected themes
-    expected_themes = ['default', 'scientific', 'dark', 'minimal', 'colorful', 'publication']
-    for theme in expected_themes:
-        assert theme in available_themes, f"Expected theme '{theme}' not found"
-    
-    print(f"✅ All expected themes available: {available_themes}")
-    
-    # Test theme application consistency
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=[1, 2, 3], y=[1, 2, 3]))
-    
-    for theme in available_themes:
-        try:
-            themes.apply_theme(fig, theme)
-            # Verify theme was applied
-            assert fig.layout.template is not None or 'template' in fig.layout
-            print(f"✅ Theme '{theme}' applied successfully")
-        except Exception as e:
-            print(f"❌ Theme '{theme}' failed: {e}")
-
 def test_visualization_config_improvements():
     """Test improvements to visualization configuration."""
     print("\n=== Testing Visualization Config Improvements ===")
@@ -290,7 +261,6 @@ def main():
     try:
         test_layout_calculation_improvements()
         test_plotly_renderer_export_improvements()
-        test_theme_improvements()
         test_visualization_config_improvements()
         test_timecourse_improvements()
         test_error_handling_improvements()

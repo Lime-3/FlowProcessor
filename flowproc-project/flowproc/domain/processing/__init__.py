@@ -3,16 +3,15 @@ Processing domain module for flow cytometry data processing.
 """
 
 from .transform import map_replicates
-from .vectorized_aggregator import VectorizedAggregator, AggregationConfig, AggregationResult
-from .aggregators import DataAggregator, AggregationStats
+from .aggregators import AggregationStats, create_aggregation_service, aggregate_for_processing, flow_cytometry_aggregate, aggregate_all_metrics
 from .service import DataProcessingService
 
 __all__ = [
     'map_replicates',
-    'VectorizedAggregator',
-    'AggregationConfig', 
-    'AggregationResult',
-    'DataAggregator',
     'AggregationStats',
+    'create_aggregation_service',
+    'aggregate_for_processing',
+    'flow_cytometry_aggregate',
+    'aggregate_all_metrics',
     'DataProcessingService'
 ] 

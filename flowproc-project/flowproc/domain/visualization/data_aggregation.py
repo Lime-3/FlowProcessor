@@ -1,12 +1,21 @@
 """
 Data aggregation functions for flow cytometry visualization.
+
+This module provides visualization-specific aggregation functions that use
+the unified aggregation service for complex operations while maintaining
+simple interfaces for common visualization needs.
 """
 
 import logging
 import pandas as pd
 import numpy as np
-from typing import List, Optional
-from ..aggregation import group_stats, group_stats_multi
+from typing import List, Optional, Union, Sequence
+from ..aggregation import (
+    group_stats, 
+    group_stats_multi,
+    AggregationService,
+    AggregationConfig
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +35,7 @@ def aggregate_by_group_with_sem(df: DataFrame, y_col: str, group_col: str = 'Gro
     Returns:
         Aggregated DataFrame with mean, std, count, and sem columns
     """
-    # Delegate to centralized aggregation helper
+    # Use core function for simple aggregation
     return group_stats(df, y_col, group_cols=group_col)
 
 
@@ -42,7 +51,7 @@ def aggregate_multiple_metrics_by_group(df: DataFrame, freq_cols: List[str], gro
     Returns:
         Combined DataFrame with all metrics aggregated by group
     """
-    # Centralized aggregation in long form
+    # Use core function for multi-column aggregation
     combined_df = group_stats_multi(
         df,
         value_cols=freq_cols,
@@ -59,6 +68,44 @@ def aggregate_multiple_metrics_by_group(df: DataFrame, freq_cols: List[str], gro
     )
 
     return combined_df
+
+
+def aggregate_flow_cytometry_data(
+    df: DataFrame, 
+    sid_col: str,
+    metrics: Optional[List[str]] = None,
+    time_course_mode: bool = False,
+    split_by_tissue: bool = True
+) -> List[DataFrame]:
+    """
+    Aggregate flow cytometry data using the unified aggregation service.
+    
+    Args:
+        df: DataFrame to aggregate
+        sid_col: Sample ID column name
+        metrics: List of metric names to process (None for all)
+        time_course_mode: Whether to process as time course data
+        split_by_tissue: Whether to split results by tissue
+        
+    Returns:
+        List of aggregated DataFrames
+    """
+    # Create aggregation service
+    service = AggregationService(df, sid_col)
+    
+    try:
+        # Configure aggregation
+        config = service.get_config()
+        config.time_course_mode = time_course_mode
+        config.split_by_tissue = split_by_tissue
+        
+        # Perform aggregation
+        result = service.aggregate_all_metrics(metrics, config)
+        return result.dataframes
+        
+    finally:
+        # Clean up
+        service.cleanup()
 
 
 def sample_data_if_large(df: DataFrame, sample_size: Optional[int] = None, 
@@ -122,4 +169,15 @@ def prepare_data_for_plotting(df: DataFrame, base_columns: List[str], value_col:
     plot_df = df[required_cols].copy()
     plot_df = plot_df.dropna(subset=[value_col])
     
-    return plot_df 
+    return plot_df
+
+
+# Backward compatibility aliases
+def aggregate_by_group(df: DataFrame, y_col: str, group_col: str = 'Group') -> DataFrame:
+    """Alias for aggregate_by_group_with_sem for backward compatibility."""
+    return aggregate_by_group_with_sem(df, y_col, group_col)
+
+
+def aggregate_multiple_metrics(df: DataFrame, freq_cols: List[str], group_col: str = 'Group') -> DataFrame:
+    """Alias for aggregate_multiple_metrics_by_group for backward compatibility."""
+    return aggregate_multiple_metrics_by_group(df, freq_cols, group_col) 

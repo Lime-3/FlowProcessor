@@ -3,16 +3,16 @@
 FlowProc - Flow Cytometry Data Processing Package
 
 High-performance flow cytometry data processing with async GUI support.
-Features vectorized data aggregation for 5-10x performance improvements.
+Features unified data aggregation with clean, modern architecture.
 """
 
-__version__ = "2.0.0"  # Major version bump for async and vectorized features
+__version__ = "2.1.0"  # Version bump for unified aggregation architecture
 
 # Import from new domain structure
 from .domain.parsing import load_and_parse_df, extract_tissue, extract_group_animal
 from .domain.export import process_csv, process_directory
 from .domain.processing import map_replicates
-from .domain.processing.vectorized_aggregator import VectorizedAggregator, AggregationConfig
+from .domain.aggregation import AggregationService, AggregationConfig, AggregationResult
 from .core.constants import KEYWORDS
 from .core.protocols import DataProcessor
 
@@ -42,8 +42,9 @@ __all__ = [
     'process_directory',
     'map_replicates',
     'reshape_pair',
-    'VectorizedAggregator',
+    'AggregationService',
     'AggregationConfig',
+    'AggregationResult',
     'KEYWORDS',
     'DataProcessor',
     'get_resource_path',
@@ -61,9 +62,7 @@ def main():
     if GUI_AVAILABLE and gui_main:
         gui_main()
     else:
-        raise ImportError(
-            "GUI components not available. Install PySide6: pip install PySide6"
-        )
+        raise ImportError("GUI components not available. Install PySide6 for GUI support.")
 
 if __name__ == "__main__":
     main()
