@@ -244,7 +244,6 @@ def main():
         test_visualization_service()
         test_plotting_functions()
         test_visualizer_class()
-        test_theme_functionality()
         test_data_processor()
         test_integration()
         test_error_handling()

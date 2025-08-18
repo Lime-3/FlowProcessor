@@ -99,12 +99,13 @@ class GenericProcessingStrategy(ProcessingStrategy):
         """Apply data aggregations."""
         # Initialize aggregator if not already done
         if self.aggregator is None:
-            from .vectorized_aggregator import VectorizedAggregator
+            from ..aggregation import AggregationService
             # Use the first column as sid_col for now - this should be configurable
             sid_col = df.columns[0] if len(df.columns) > 0 else 'SampleID'
-            self.aggregator = VectorizedAggregator(df, sid_col)
+            self.aggregator = AggregationService(df, sid_col)
         
-        return self.aggregator.aggregate(df, group_by, methods)
+        # Use the unified aggregation service
+        return self.aggregator.export_aggregate(df, group_by, methods)
 
 
 class VisualizationProcessingStrategy(ProcessingStrategy):
@@ -198,12 +199,13 @@ class WorkflowProcessingStrategy(ProcessingStrategy):
         """Apply data aggregations."""
         # Initialize aggregator if not already done
         if self.aggregator is None:
-            from .vectorized_aggregator import VectorizedAggregator
+            from ..aggregation import AggregationService
             # Use the first column as sid_col for now - this should be configurable
             sid_col = df.columns[0] if len(df.columns) > 0 else 'SampleID'
-            self.aggregator = VectorizedAggregator(df, sid_col)
+            self.aggregator = AggregationService(df, sid_col)
         
-        return self.aggregator.aggregate(df, group_by, methods)
+        # Use the unified aggregation service
+        return self.aggregator.export_aggregate(df, group_by, methods)
     
     def _apply_workflow_processing(self, df: pd.DataFrame, workflow_options: Dict[str, Any]) -> pd.DataFrame:
         """Apply workflow-specific processing."""
