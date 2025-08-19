@@ -934,10 +934,8 @@ def _create_overlay_timecourse(
                             visible=True
                         )
                     
-                    # Use shortname for better legend display
-                    from .column_utils import create_population_shortname
-                    shortname = create_population_shortname(value_col)
-                    trace_name = f"{shortname} - {group}"
+                    # Use just "Group" prefix for legend
+                    trace_name = f"Group {group}"
                     
                     fig.add_trace(go.Scatter(
                         x=group_data[time_col],

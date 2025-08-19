@@ -328,23 +328,87 @@ def _create_single_metric_timecourse(
         error_y = None
         logger.info(f"Using raw data, shape: {plot_df.shape}")
     
-    # Create plot based on type via centralized factory
-    if plot_type in ("line", "scatter", "area"):
-        fig = build_plot_from_df(plot_type, plot_df, x=time_col, y=y_col, color=group_col, error_y=error_y, **kwargs)
-        logger.info(f"Created {plot_type} plot (group_col={group_col}, error_y={error_y})")
-    else:
-        raise ValueError(f"Unsupported plot type: {plot_type}")
+    # Create plot manually to have full control over trace names
+    fig = go.Figure()
     
-    # Update trace names to use shortnames for better legend display
-    for trace in fig.data:
-        if trace.name and trace.name != value_col:
-            # This is a group trace, keep the group name
-            continue
-        else:
-            # This is the main trace, update to use shortname
-            shortname = create_population_shortname(value_col)
-            trace.name = shortname
-            logger.info(f"Updated trace name from '{value_col}' to '{shortname}'")
+    if group_col and group_col in plot_df.columns:
+        # Create separate traces for each group
+        for group in plot_df[group_col].unique():
+            group_data = plot_df[plot_df[group_col] == group]
+            if group_data.empty:
+                continue
+            
+            # Add error bars if available
+            error_y_data = None
+            if error_y and error_y in group_data.columns:
+                error_y_data = dict(
+                    type='data',
+                    array=group_data[error_y],
+                    visible=True
+                )
+            
+            # Create trace name with just "Group" prefix
+            trace_name = f"Group {group}"
+            
+            if plot_type == "line":
+                fig.add_trace(go.Scatter(
+                    x=group_data[time_col],
+                    y=group_data[y_col],
+                    name=trace_name,
+                    mode='lines+markers',
+                    line=dict(width=2),
+                    marker=dict(size=6),
+                    error_y=error_y_data
+                ))
+            elif plot_type == "scatter":
+                fig.add_trace(go.Scatter(
+                    x=group_data[time_col],
+                    y=group_data[y_col],
+                    name=trace_name,
+                    mode='markers',
+                    marker=dict(size=6),
+                    error_y=error_y_data
+                ))
+            elif plot_type == "area":
+                fig.add_trace(go.Scatter(
+                    x=group_data[time_col],
+                    y=group_data[y_col],
+                    name=trace_name,
+                    fill='tonexty',
+                    line=dict(width=2),
+                    error_y=error_y_data
+                ))
+    else:
+        # No group column, create single trace
+        shortname = create_population_shortname(value_col)
+        
+        if plot_type == "line":
+            fig.add_trace(go.Scatter(
+                x=plot_df[time_col],
+                y=plot_df[y_col],
+                name=shortname,
+                mode='lines+markers',
+                line=dict(width=2),
+                marker=dict(size=6)
+            ))
+        elif plot_type == "scatter":
+            fig.add_trace(go.Scatter(
+                x=plot_df[time_col],
+                y=plot_df[y_col],
+                name=shortname,
+                mode='markers',
+                marker=dict(size=6)
+            ))
+        elif plot_type == "area":
+            fig.add_trace(go.Scatter(
+                x=plot_df[time_col],
+                y=plot_df[y_col],
+                name=shortname,
+                fill='tonexty',
+                line=dict(width=2)
+            ))
+    
+    logger.info(f"Created {plot_type} plot manually with {len(fig.data)} traces")
     
     # Debug: Check what traces were created
     logger.info(f"Created figure with {len(fig.data)} traces")
@@ -363,7 +427,7 @@ def _create_single_metric_timecourse(
         legend_title = "Populations"
     
     fig = configure_legend(
-        fig, df, group_col, is_subplot=False, width=width, height=height,
+        fig, df, None, is_subplot=False, width=width, height=height,
         legend_title=legend_title, show_mean_sem_label=True
     )
     
@@ -450,9 +514,8 @@ def _create_overlay_timecourse(
                             visible=True
                         )
                     
-                    # Use shortname for better legend display
-                    shortname = create_population_shortname(value_col)
-                    trace_name = f"{shortname} - {group}"
+                    # Use just "Group" prefix for legend
+                    trace_name = f"Group {group}"
                     
                     fig.add_trace(go.Scatter(
                         x=group_data[time_col],

@@ -120,7 +120,7 @@ def _create_faceted_plot(
                     agg_df = timecourse_group_stats(plot_df, col, time_col=time_col, group_col=group_col)
                     for group in agg_df[group_col].unique():
                         group_data = agg_df[agg_df[group_col] == group]
-                        trace_name = f"{trace_name_fn(col) if trace_name_fn else extract_cell_type_name(col)} - {group}"
+                        trace_name = f"Group {group}"
                         error_y_data = dict(type='data', array=group_data['sem'], visible=True)
                         fig.add_trace(
                             go.Scatter(
@@ -165,7 +165,7 @@ def _create_faceted_plot(
                 if aggregation == "mean_sem" and group_col and group_col in plot_df.columns:
                     time_agg = timecourse_group_stats(group_data, col, time_col=time_col, group_col=None)
                     error_y_data = dict(type='data', array=time_agg['sem'], visible=True)
-                    trace_name = f"{extract_cell_type_name(col)} (Group {group})"
+                    trace_name = f"Group {group}"
                     fig.add_trace(
                         go.Scatter(
                             x=time_agg[time_col],
@@ -180,7 +180,7 @@ def _create_faceted_plot(
                         row=subplot_row, col=subplot_col
                     )
                 else:
-                    trace_name = f"{extract_cell_type_name(col)} (Group {group})"
+                    trace_name = f"Group {group}"
                     fig.add_trace(
                         go.Scatter(
                             x=group_data[time_col],
