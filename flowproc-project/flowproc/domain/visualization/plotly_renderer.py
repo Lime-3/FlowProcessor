@@ -12,12 +12,39 @@ from plotly.subplots import make_subplots
 
 logger = logging.getLogger(__name__)
 
+# Import browser manager for caching
+from .browser_manager import browser_manager
+
 class PlotlyRenderer:
     """Renderer for Plotly figures with Selenium-based image export."""
     
     def __init__(self):
         """Initialize the renderer."""
         self._setup_plotly_config()
+        # Pre-initialize browser for better performance
+        self._preinitialize_browser()
+    
+    def _preinitialize_browser(self):
+        """Pre-initialize browser in background to avoid delays on first export."""
+        try:
+            if not browser_manager.is_initialized() and not browser_manager.is_initializing():
+                logger.debug("Starting background browser initialization for better export performance")
+                # Start background initialization with default dimensions
+                browser_manager.initialize_browser(
+                    width=1800, 
+                    height=600, 
+                    background=True,
+                    callback=self._on_browser_initialized
+                )
+        except Exception as e:
+            logger.debug(f"Browser pre-initialization failed (will initialize on demand): {e}")
+    
+    def _on_browser_initialized(self, success: bool):
+        """Callback for when background browser initialization completes."""
+        if success:
+            logger.debug("Background browser initialization completed successfully")
+        else:
+            logger.warning("Background browser initialization failed")
     
     def _setup_plotly_config(self):
         """Configure Plotly for offline use."""
@@ -133,9 +160,10 @@ class PlotlyRenderer:
     def export_to_png_selenium(self, fig: go.Figure, filepath: str, 
                               width: int = 800, height: int = 600, scale: int = 1) -> None:
         """
-        Export Plotly figure to PNG using Selenium + system browser.
+        Export Plotly figure to PNG using cached browser instance.
         
-        This method uses your system's default browser to render the plot and capture a screenshot.
+        This method uses a cached browser driver to render the plot and capture a screenshot,
+        providing better performance for multiple exports.
         """
         try:
             from selenium import webdriver
@@ -151,67 +179,45 @@ class PlotlyRenderer:
                 fig.write_html(tmp.name, include_plotlyjs=True, full_html=True)
                 html_path = tmp.name
             
-            # Try different browsers in order of preference
-            drivers = []
+            # Initialize browser if not already done
+            if not browser_manager.is_initialized():
+                if browser_manager.is_initializing():
+                    logger.info("Browser initialization in progress, waiting for completion...")
+                    # Wait for background initialization to complete
+                    if not browser_manager.wait_for_initialization(timeout=30.0):
+                        raise RuntimeError("Browser initialization timed out")
+                else:
+                    logger.info("Initializing browser for PNG export")
+                    if not browser_manager.initialize_browser(width, height):
+                        raise RuntimeError("Failed to initialize browser for PNG export")
             
-            # Try Safari first (macOS default)
-            try:
-                safari_options = SafariOptions()
-                driver = webdriver.Safari(options=safari_options)
-                drivers.append(('Safari', driver))
-            except:
-                pass
-            
-            # Try Chrome
-            try:
-                chrome_options = Options()
-                chrome_options.add_argument('--headless')
-                chrome_options.add_argument('--no-sandbox')
-                chrome_options.add_argument('--disable-dev-shm-usage')
-                chrome_options.add_argument(f'--window-size={width},{height}')
-                driver = webdriver.Chrome(options=chrome_options)
-                drivers.append(('Chrome', driver))
-            except:
-                pass
-            
-            # Try Firefox
-            try:
-                firefox_options = FirefoxOptions()
-                firefox_options.add_argument('--headless')
-                firefox_options.add_argument(f'--width={width}')
-                firefox_options.add_argument(f'--height={height}')
-                driver = webdriver.Firefox(options=firefox_options)
-                drivers.append(('Firefox', driver))
-            except:
-                pass
-            
-            if not drivers:
-                raise RuntimeError("No browser drivers available. Install Selenium and a browser driver.")
-            
-            # Use the first available driver
-            browser_name, driver = drivers[0]
-            logger.info(f"Using {browser_name} for PNG export")
+            # Use cached browser instance
+            browser_name = browser_manager.get_browser_name()
+            logger.info(f"Using cached {browser_name} browser for PNG export")
             
             try:
-                # Load the HTML file
-                driver.get(f"file://{html_path}")
+                with browser_manager.get_browser() as driver:
+                    # Load the HTML file
+                    driver.get(f"file://{html_path}")
+                    
+                    # Wait for Plotly to render
+                    driver.implicitly_wait(5)
+                    
+                    # Set window size
+                    driver.set_window_size(width, height)
+                    
+                    # Take screenshot
+                    driver.save_screenshot(filepath)
+                    
+                    logger.info(f"PNG export successful using {browser_name}: {filepath}")
                 
-                # Wait for Plotly to render
-                driver.implicitly_wait(5)
-                
-                # Set window size
-                driver.set_window_size(width, height)
-                
-                # Take screenshot
-                driver.save_screenshot(filepath)
-                
-                logger.info(f"PNG export successful using {browser_name}: {filepath}")
-                
-            finally:
-                try:
-                    driver.quit()
-                except Exception as e:
-                    logger.warning(f"Failed to quit browser driver: {e}")
+            except Exception as e:
+                logger.error(f"Browser operation failed: {e}")
+                # Try to reset browser on critical errors
+                if "session not created" in str(e).lower() or "chrome not reachable" in str(e).lower():
+                    logger.info("Resetting browser due to session error")
+                    browser_manager.reset_browser()
+                raise
                 
             # Clean up temporary file
             try:
@@ -232,9 +238,10 @@ class PlotlyRenderer:
     def export_to_svg_selenium(self, fig: go.Figure, filepath: str, 
                               width: int = 800, height: int = 600, scale: int = 1) -> None:
         """
-        Export Plotly figure to SVG using Selenium + system browser.
+        Export Plotly figure to SVG using cached browser instance.
         
-        This method uses your system's default browser to render the plot and extract SVG content.
+        This method uses a cached browser driver to render the plot and extract SVG content,
+        providing better performance for multiple exports.
         """
         try:
             from selenium import webdriver
@@ -251,76 +258,54 @@ class PlotlyRenderer:
                 fig.write_html(tmp.name, include_plotlyjs=True, full_html=True)
                 html_path = tmp.name
             
-            # Try different browsers in order of preference
-            drivers = []
-            
-            # Try Safari first (macOS default)
-            try:
-                safari_options = SafariOptions()
-                driver = webdriver.Safari(options=safari_options)
-                drivers.append(('Safari', driver))
-            except:
-                pass
-            
-            # Try Chrome
-            try:
-                chrome_options = Options()
-                chrome_options.add_argument('--headless')
-                chrome_options.add_argument('--no-sandbox')
-                chrome_options.add_argument('--disable-dev-shm-usage')
-                chrome_options.add_argument(f'--window-size={width},{height}')
-                driver = webdriver.Chrome(options=chrome_options)
-                drivers.append(('Chrome', driver))
-            except:
-                pass
-            
-            # Try Firefox
-            try:
-                firefox_options = FirefoxOptions()
-                firefox_options.add_argument('--headless')
-                firefox_options.add_argument(f'--width={width}')
-                firefox_options.add_argument(f'--height={height}')
-                driver = webdriver.Firefox(options=firefox_options)
-                drivers.append(('Firefox', driver))
-            except:
-                pass
-            
-            if not drivers:
-                raise RuntimeError("No browser drivers available. Install Selenium and a browser driver.")
-            
-            # Use the first available driver
-            browser_name, driver = drivers[0]
-            logger.info(f"Using {browser_name} for SVG export")
-            
-            try:
-                # Load the HTML file
-                driver.get(f"file://{html_path}")
-                
-                # Wait for Plotly to render
-                driver.implicitly_wait(5)
-                
-                # Set window size
-                driver.set_window_size(width, height)
-                
-                # Extract SVG content from the plot
-                svg_element = driver.find_element("css selector", "svg.main-svg")
-                svg_content = svg_element.get_attribute("outerHTML")
-                
-                # Clean up SVG content
-                if svg_content:
-                    # Write SVG to file
-                    with open(filepath, 'w', encoding='utf-8') as f:
-                        f.write(svg_content)
-                    
-                    logger.info(f"SVG export successful using {browser_name}: {filepath}")
+            # Initialize browser if not already done
+            if not browser_manager.is_initialized():
+                if browser_manager.is_initializing():
+                    logger.info("Browser initialization in progress, waiting for completion...")
+                    # Wait for background initialization to complete
+                    if not browser_manager.wait_for_initialization(timeout=30.0):
+                        raise RuntimeError("Browser initialization timed out")
                 else:
-                    raise RuntimeError("No SVG content found in the plot")
+                    logger.info("Initializing browser for SVG export")
+                    if not browser_manager.initialize_browser(width, height):
+                        raise RuntimeError("Failed to initialize browser for SVG export")
+            
+            # Use cached browser instance
+            browser_name = browser_manager.get_browser_name()
+            logger.info(f"Using cached {browser_name} browser for SVG export")
+            
+            try:
+                with browser_manager.get_browser() as driver:
+                    # Load the HTML file
+                    driver.get(f"file://{html_path}")
+                    
+                    # Wait for Plotly to render
+                    driver.implicitly_wait(5)
+                    
+                    # Set window size
+                    driver.set_window_size(width, height)
+                    
+                    # Extract SVG content from the plot
+                    svg_element = driver.find_element("css selector", "svg.main-svg")
+                    svg_content = svg_element.get_attribute("outerHTML")
+                    
+                    # Clean up SVG content
+                    if svg_content:
+                        # Write SVG to file
+                        with open(filepath, 'w', encoding='utf-8') as f:
+                            f.write(svg_content)
+                        
+                        logger.info(f"SVG export successful using {browser_name}: {filepath}")
+                    else:
+                        raise RuntimeError("No SVG content found in the plot")
                 
-            finally:
-                try:
-                    driver.quit()
-                except Exception as e:
-                    logger.warning(f"Failed to quit browser driver: {e}")
+            except Exception as e:
+                logger.error(f"Browser operation failed: {e}")
+                # Try to reset browser on critical errors
+                if "session not created" in str(e).lower() or "chrome not reachable" in str(e).lower():
+                    logger.info("Resetting browser due to session error")
+                    browser_manager.reset_browser()
+                raise
                 
             # Clean up temporary file
             try:
@@ -341,10 +326,10 @@ class PlotlyRenderer:
     def export_to_pdf_selenium(self, fig: go.Figure, filepath: str, 
                               width: int = 1800, height: int = 600, scale: int = 1) -> None:
         """
-        Export Plotly figure to PDF using Selenium + system browser.
+        Export Plotly figure to PDF using cached browser instance.
         
-        This method uses your system's default browser (Safari, Chrome, Firefox)
-        to render the plot and print to PDF. Provides direct control over the browser process.
+        This method uses a cached browser driver to render the plot and print to PDF,
+        providing better performance for multiple exports.
         """
         try:
             from selenium import webdriver
@@ -374,201 +359,148 @@ class PlotlyRenderer:
                 tmp.flush()
                 html_path = tmp.name
             
-            # Try different browsers in order of preference
-            drivers = []
-            
-            # Try Brave first (macOS default, Chromium-based)
-            try:
-                chrome_options = Options()
-                chrome_options.add_argument('--headless')
-                chrome_options.add_argument('--no-sandbox')
-                chrome_options.add_argument('--disable-dev-shm-usage')
-                chrome_options.add_argument('--disable-gpu')
-                chrome_options.add_argument('--disable-extensions')
-                chrome_options.add_argument('--disable-plugins')
-                chrome_options.add_argument('--disable-images')  # Faster rendering
-                chrome_options.add_argument('--disable-javascript')  # Plotly.js already loaded
-                chrome_options.add_argument('--disable-web-security')
-                chrome_options.add_argument('--allow-running-insecure-content')
-                chrome_options.add_argument(f'--window-size={width},{height}')
-                
-                # Try Brave first if available (macOS)
-                brave_paths = [
-                    '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',  # macOS
-                    '/usr/bin/brave-browser',  # Linux
-                    '/usr/bin/brave-browser-stable',  # Linux
-                    'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',  # Windows
-                    'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe'  # Windows
-                ]
-                
-                brave_found = False
-                for brave_path in brave_paths:
-                    if os.path.exists(brave_path):
-                        chrome_options.binary_location = brave_path
-                        brave_found = True
-                        logger.debug(f"Found Brave browser at: {brave_path}")
-                        
-                        # Add Brave-specific options for better compatibility
-                        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-                        chrome_options.add_argument('--disable-features=VizDisplayCompositor')
-                        chrome_options.add_argument('--enable-logging')
-                        chrome_options.add_argument('--v=1')
-                        
-                        break
-                
-                if brave_found:
-                    logger.info("Using Brave browser for PDF export")
+            # Initialize browser if not already done
+            if not browser_manager.is_initialized():
+                if browser_manager.is_initializing():
+                    logger.info("Browser initialization in progress, waiting for completion...")
+                    # Wait for background initialization to complete
+                    if not browser_manager.wait_for_initialization(timeout=30.0):
+                        raise RuntimeError("Browser initialization timed out after 30 seconds")
                 else:
-                    logger.info("Using Chrome browser for PDF export")
-                
-                driver = webdriver.Chrome(options=chrome_options)
-                drivers.append(('Brave' if brave_found else 'Chrome', driver))
-                logger.debug("Chrome/Brave driver initialized successfully")
-            except Exception as e:
-                logger.debug(f"Chrome/Brave driver failed: {e}")
-                pass
-            
-            # Try Safari second (macOS native)
-            try:
-                safari_options = SafariOptions()
-                driver = webdriver.Safari(options=safari_options)
-                drivers.append(('Safari', driver))
-                logger.debug("Safari driver initialized successfully")
-            except Exception as e:
-                logger.debug(f"Safari driver failed: {e}")
-                pass
-            
-            # Try Firefox as fallback
-            try:
-                firefox_options = FirefoxOptions()
-                firefox_options.add_argument('--headless')
-                firefox_options.add_argument('--width')
-                firefox_options.add_argument(f'{width}')
-                firefox_options.add_argument('--height')
-                firefox_options.add_argument(f'{height}')
-                
-                driver = webdriver.Firefox(options=firefox_options)
-                drivers.append(('Firefox', driver))
-                logger.debug("Firefox driver initialized successfully")
-            except Exception as e:
-                logger.debug(f"Firefox driver failed: {e}")
-                pass
-            
-            if not drivers:
-                raise RuntimeError("No browser drivers available. Install Selenium and a browser driver.")
-            
-            # Use the first available driver
-            browser_name, driver = drivers[0]
-            logger.info(f"Using {browser_name} for PDF export")
-            
-            try:
-                # Load the HTML file
-                driver.get(f"file://{html_path}")
-                
-                # Wait for Plotly to render completely
-                wait = WebDriverWait(driver, 10)
-                try:
-                    # Wait for Plotly to be ready
-                    wait.until(lambda d: d.execute_script("return typeof Plotly !== 'undefined'"))
-                    # Wait a bit more for full rendering
-                    driver.implicitly_wait(2)
-                except Exception as e:
-                    logger.warning(f"Plotly ready check failed, proceeding anyway: {e}")
-                
-                # Set page size and ensure proper dimensions
-                driver.execute_script(f"document.body.style.width = '{width}px'")
-                driver.execute_script(f"document.body.style.height = '{height}px'")
-                driver.execute_script(f"document.body.style.margin = '0'")
-                driver.execute_script(f"document.body.style.padding = '0'")
-                
-                # Set viewport size
-                driver.set_window_size(width, height)
-                
-                # Print to PDF with optimized settings
-                print_options = {
-                    'printBackground': True,
-                    'paperWidth': width / 96,  # Convert pixels to inches
-                    'paperHeight': height / 96,
-                    'marginTop': 0.1,  # Small margin to prevent cutoff
-                    'marginBottom': 0.1,
-                    'marginLeft': 0.1,
-                    'marginRight': 0.1,
-                    'scale': scale,
-                    'preferCSSPageSize': True
-                }
-                
-                # Use CDP for Chrome-based browsers, fallback for others
-                if browser_name in ['Chrome', 'Brave']:
-                    try:
-                        # For Brave/Chrome, try CDP commands
-                        result = driver.execute_cdp_cmd('Page.printToPDF', print_options)
-                        pdf_data = result.get('data', '')
+                    logger.info("Initializing browser for PDF export")
+                    if not browser_manager.initialize_browser(width, height):
+                        # Get system browser info for better error reporting
+                        system_info = browser_manager.get_system_browser_info()
+                        available_browsers = [k for k, v in system_info.get('available_browsers', {}).items() if v.get('available', False)]
                         
-                        if not pdf_data:
-                            # Try alternative CDP command for some Brave versions
-                            try:
-                                logger.debug("Primary CDP command returned no data, trying alternative...")
-                                result = driver.execute_cdp_cmd('Page.captureScreenshot', {
-                                    'format': 'pdf',
-                                    'quality': 100
-                                })
-                                pdf_data = result.get('data', '')
-                            except Exception as alt_e:
-                                logger.debug(f"Alternative CDP command failed: {alt_e}")
-                                pass
-                                
-                        if not pdf_data:
-                            # Try to get CDP version info to debug
-                            try:
-                                version_info = driver.execute_cdp_cmd('Runtime.evaluate', {
-                                    'expression': 'navigator.userAgent'
-                                })
-                                logger.debug(f"Browser user agent: {version_info.get('result', {}).get('value', 'Unknown')}")
-                            except Exception:
-                                pass
-                                
-                    except Exception as e:
-                        logger.warning(f"CDP command failed: {e}, trying alternative method")
-                        pdf_data = self._fallback_pdf_export(driver, browser_name)
-                        
-                elif browser_name == 'Safari':
+                        if not available_browsers:
+                            raise RuntimeError(
+                                "No browsers available for PDF export. Please install Chrome, Brave, Firefox, or Safari."
+                            )
+                        elif 'safari' in available_browsers and system_info.get('system_default') == 'safari':
+                            raise RuntimeError(
+                                "Safari browser initialization failed. To use Safari for PDF export, enable 'Allow remote automation' in Safari's Developer settings (Safari > Settings > Advanced > Show Develop menu, then Develop > Allow Remote Automation). Alternatively, the system will automatically try other available browsers."
+                            )
+                        else:
+                            raise RuntimeError(
+                                f"Failed to initialize any available browser for PDF export. Available browsers: {', '.join(available_browsers)}. Please check browser installation and try again."
+                            )
+            
+            # Use cached browser instance
+            browser_name = browser_manager.get_browser_name()
+            logger.info(f"Using cached {browser_name} browser for PDF export")
+            
+            try:
+                with browser_manager.get_browser() as driver:
+                    # Load the HTML file
+                    driver.get(f"file://{html_path}")
+                    
+                    # Wait for Plotly to render completely
+                    wait = WebDriverWait(driver, 10)
                     try:
-                        # Safari supports CDP commands
-                        result = driver.execute_cdp_cmd('Page.printToPDF', print_options)
-                        pdf_data = result.get('data', '')
+                        # Wait for Plotly to be ready
+                        wait.until(lambda d: d.execute_script("return typeof Plotly !== 'undefined'"))
+                        # Wait a bit more for full rendering
+                        driver.implicitly_wait(2)
                     except Exception as e:
-                        logger.warning(f"Safari CDP command failed: {e}, trying alternative method")
-                        pdf_data = self._fallback_pdf_export(driver, browser_name)
-                else:
-                    # Firefox fallback
-                    pdf_data = self._fallback_pdf_export(driver, browser_name)
-                
-                # Save PDF - handle both base64 and hex data formats
-                if pdf_data:
-                    try:
-                        # Try base64 first (most common)
-                        import base64
-                        pdf_bytes = base64.b64decode(pdf_data)
-                        with open(filepath, 'wb') as f:
-                            f.write(pdf_bytes)
-                    except Exception:
+                        logger.warning(f"Plotly ready check failed, proceeding anyway: {e}")
+                    
+                    # Set page size and ensure proper dimensions
+                    driver.execute_script(f"document.body.style.width = '{width}px'")
+                    driver.execute_script(f"document.body.style.height = '{height}px'")
+                    driver.execute_script(f"document.body.style.margin = '0'")
+                    driver.execute_script(f"document.body.style.padding = '0'")
+                    
+                    # Set viewport size
+                    driver.set_window_size(width, height)
+                    
+                    # Print to PDF with optimized settings
+                    print_options = {
+                        'printBackground': True,
+                        'paperWidth': width / 96,  # Convert pixels to inches
+                        'paperHeight': height / 96,
+                        'marginTop': 0.1,  # Small margin to prevent cutoff
+                        'marginBottom': 0.1,
+                        'marginLeft': 0.1,
+                        'marginRight': 0.1,
+                        'scale': scale,
+                        'preferCSSPageSize': True
+                    }
+                    
+                    # Use CDP for Chrome-based browsers, fallback for others
+                    if browser_name in ['Chrome', 'Brave']:
                         try:
-                            # Try hex format
-                            pdf_bytes = bytes.fromhex(pdf_data)
+                            # For Brave/Chrome, try CDP commands
+                            result = driver.execute_cdp_cmd('Page.printToPDF', print_options)
+                            pdf_data = result.get('data', '')
+                            
+                            if not pdf_data:
+                                # Try alternative CDP command for some Brave versions
+                                try:
+                                    logger.debug("Primary CDP command returned no data, trying alternative...")
+                                    result = driver.execute_cdp_cmd('Page.captureScreenshot', {
+                                        'format': 'pdf',
+                                        'quality': 100
+                                    })
+                                    pdf_data = result.get('data', '')
+                                except Exception as alt_e:
+                                    logger.debug(f"Alternative CDP command failed: {alt_e}")
+                                    pass
+                                    
+                            if not pdf_data:
+                                # Try to get CDP version info to debug
+                                try:
+                                    version_info = driver.execute_cdp_cmd('Runtime.evaluate', {
+                                        'expression': 'navigator.userAgent'
+                                    })
+                                    logger.debug(f"Browser user agent: {version_info.get('result', {}).get('value', 'Unknown')}")
+                                except Exception:
+                                    pass
+                                    
+                        except Exception as e:
+                            logger.warning(f"CDP command failed: {e}, trying alternative method")
+                            pdf_data = self._fallback_pdf_export(driver, browser_name)
+                            
+                    elif browser_name == 'Safari':
+                        try:
+                            # Safari supports CDP commands
+                            result = driver.execute_cdp_cmd('Page.printToPDF', print_options)
+                            pdf_data = result.get('data', '')
+                        except Exception as e:
+                            logger.warning(f"Safari CDP command failed: {e}, trying alternative method")
+                            pdf_data = self._fallback_pdf_export(driver, browser_name)
+                    else:
+                        # Firefox fallback
+                        pdf_data = self._fallback_pdf_export(driver, browser_name)
+                    
+                    # Save PDF - handle both base64 and hex data formats
+                    if pdf_data:
+                        try:
+                            # Try base64 first (most common)
+                            import base64
+                            pdf_bytes = base64.b64decode(pdf_data)
                             with open(filepath, 'wb') as f:
                                 f.write(pdf_bytes)
-                        except Exception as hex_error:
-                            raise RuntimeError(f"Could not decode PDF data: {hex_error}")
-                else:
-                    raise RuntimeError("No PDF data received from browser")
+                        except Exception:
+                            try:
+                                # Try hex format
+                                pdf_bytes = bytes.fromhex(pdf_data)
+                                with open(filepath, 'wb') as f:
+                                    f.write(pdf_bytes)
+                            except Exception as hex_error:
+                                raise RuntimeError(f"Could not decode PDF data: {hex_error}")
+                    else:
+                        raise RuntimeError("No PDF data received from browser")
+                    
+                    logger.info(f"PDF export successful using {browser_name}: {filepath}")
                 
-                logger.info(f"PDF export successful using {browser_name}: {filepath}")
-                
-            finally:
-                try:
-                    driver.quit()
-                except Exception as e:
-                    logger.warning(f"Failed to quit browser driver: {e}")
+            except Exception as e:
+                logger.error(f"Browser operation failed: {e}")
+                # Try to reset browser on critical errors
+                if "session not created" in str(e).lower() or "chrome not reachable" in str(e).lower():
+                    logger.info("Resetting browser due to session error")
+                    browser_manager.reset_browser()
+                raise
                 
             # Clean up temporary file
             try:
@@ -781,6 +713,33 @@ class PlotlyRenderer:
             'frames': len(fig.frames) if fig.frames else 0,
             'config': fig.config.to_dict() if fig.config else {}
         }
+    
+    def get_browser_status(self) -> Dict[str, Any]:
+        """Get current browser status and performance information."""
+        return {
+            'browser_manager': browser_manager.get_browser_info(),
+            'renderer_initialized': hasattr(self, '_setup_plotly_config'),
+            'cached_browser_available': browser_manager.is_initialized(),
+            'browser_initializing': browser_manager.is_initializing(),
+            'browser_ready': browser_manager.is_initialized() and not browser_manager.is_initializing()
+        }
+    
+    def get_browser_initialization_status(self) -> Dict[str, Any]:
+        """Get detailed browser initialization status."""
+        return {
+            'is_initialized': browser_manager.is_initialized(),
+            'is_initializing': browser_manager.is_initializing(),
+            'browser_name': browser_manager.get_browser_name(),
+            'system_browsers': browser_manager.get_system_browser_info(),
+            'health_status': browser_manager.health_check() if browser_manager.is_initialized() else None
+        }
+    
+    def reset_browser_cache(self) -> None:
+        """Reset the browser cache (useful for troubleshooting)."""
+        logger.info("Resetting browser cache")
+        browser_manager.reset_browser()
+        # Re-initialize if needed
+        self._preinitialize_browser()
     
     def update_layout(self, fig: go.Figure, **kwargs) -> go.Figure:
         """Update figure layout with the given parameters."""
