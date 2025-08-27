@@ -530,7 +530,7 @@ class VisualizationDialog(QDialog):
             # Sort populations for consistent ordering
             available_populations.sort()
             
-            # Add "All Populations" option for faceted plots
+            # Add "All Populations" option
             self.population_filter.addItem("All Populations")
             
             # Add individual populations using shortnames

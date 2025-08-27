@@ -12,7 +12,7 @@ from .column_utils import detect_flow_columns, analyze_data_size, extract_metric
 from .plot_creators import create_single_metric_plot, create_cell_type_comparison_plot, create_basic_plot
 from .plot_config import DEFAULT_WIDTH, DEFAULT_HEIGHT
 # Legacy timecourse functions removed - use create_timecourse_visualization from time_plots module directly
-from .faceted_plots import create_cell_type_faceted_plot
+
 from .legend_config import configure_legend
 
 logger = logging.getLogger(__name__)

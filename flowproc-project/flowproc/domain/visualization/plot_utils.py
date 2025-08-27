@@ -140,7 +140,7 @@ def limit_cell_types(value_cols: List[str], max_types: int = 8) -> List[str]:
     """
     if len(value_cols) > max_types:
         limited_cols = sorted(value_cols)[:max_types]
-        logger.info(f"Limited to {max_types} cell types for faceted plot")
+        logger.info(f"Limited to {max_types} cell types for plot")
         return limited_cols
     return value_cols
 
@@ -345,16 +345,13 @@ def select_legend_title(
     Args:
         color_col: Column used for color grouping in non-timecourse plots
         group_col: Group column used in timecourse plots
-        context: Optional context hint: 'single', 'comparison', 'overlay', 'faceted_cell', 'faceted_group'
+        context: Optional context hint: 'single', 'comparison', 'overlay'
 
     Returns:
         Legend title string
     """
     # Explicit contexts override generic logic
-    if context == 'faceted_cell':
-        return "Cell Types"
-    if context == 'faceted_group':
-        return "Groups"
+
     if context == 'overlay':
         return "Groups" if group_col else "Metrics"
 

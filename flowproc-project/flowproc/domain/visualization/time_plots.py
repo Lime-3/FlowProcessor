@@ -40,7 +40,6 @@ def create_timecourse_visualization(
     time_column: Optional[str] = None,
     metric: Optional[str] = None,
     group_by: Optional[str] = None,
-    facet_by: Optional[str] = None,
     plot_type: str = "line",
     aggregation: str = "mean_sem",
     max_cell_types: int = 10,
@@ -58,7 +57,6 @@ def create_timecourse_visualization(
         time_column: Time column name (auto-detected if None)
         metric: Metric type (e.g., "Freq. of Parent") or specific column name
         group_by: Column to group data by (e.g., "Group", "Treatment")
-        facet_by: What to facet by ("Group", "Cell Type", "Tissue", None for single plot)
         plot_type: Plot type ("line", "scatter", "area")
         aggregation: Data aggregation method ("mean_sem", "median_iqr", "raw")
         max_cell_types: Maximum number of cell types to include
@@ -75,9 +73,6 @@ def create_timecourse_visualization(
         >>> # Basic timecourse plot
         >>> fig = create_timecourse_visualization("data.csv")
         
-        >>> # Faceted by cell type
-        >>> fig = create_timecourse_visualization("data.csv", facet_by="Cell Type")
-        
         >>> # Custom time and metric
         >>> fig = create_timecourse_visualization("data.csv", 
         ...                                    time_column="Day", 
@@ -93,16 +88,10 @@ def create_timecourse_visualization(
     )
     
     # Determine visualization strategy
-    if facet_by:
-        fig = _create_faceted_timecourse(
-            df, time_col, value_cols, group_col, facet_by, plot_type, 
-            aggregation, filter_options, **kwargs
-        )
-    else:
-        fig = _create_single_timecourse(
-            df, time_col, value_cols, group_col, plot_type, 
-            aggregation, filter_options, **kwargs
-        )
+    fig = _create_single_timecourse(
+        df, time_col, value_cols, group_col, plot_type, 
+        aggregation, filter_options, **kwargs
+    )
     
     # Save if requested
     if save_html:
@@ -613,85 +602,7 @@ def _create_overlay_timecourse(
     return fig
 
 
-def _create_faceted_timecourse(
-    df: DataFrame,
-    time_col: str,
-    value_cols: List[str],
-    group_col: Optional[str],
-    facet_by: str,
-    plot_type: str,
-    aggregation: str,
-    filter_options: Optional[Dict],
-    **kwargs
-) -> go.Figure:
-    """Create faceted timecourse plot."""
-    if facet_by == "Cell Type":
-        return _create_cell_type_faceted_timecourse(
-            df, time_col, value_cols, group_col, plot_type, 
-            aggregation, filter_options, **kwargs
-        )
-    else:
-        return _create_group_faceted_timecourse(
-            df, time_col, value_cols, group_col, facet_by, plot_type, 
-            aggregation, filter_options, **kwargs
-        )
 
-
-def _create_cell_type_faceted_timecourse(
-    df: DataFrame,
-    time_col: str,
-    value_cols: List[str],
-    group_col: Optional[str],
-    plot_type: str,
-    aggregation: str,
-    filter_options: Optional[Dict],
-    **kwargs
-) -> go.Figure:
-    """Create timecourse plot faceted by cell type."""
-    from .faceted_plots import create_cell_type_faceted_plot
-    
-    # Create faceted plot using existing infrastructure with aggregation
-    fig = create_cell_type_faceted_plot(
-        df, time_col, value_cols, filter_options=filter_options, 
-        aggregation=aggregation, group_col=group_col, **kwargs
-    )
-    
-    # Update layout for timecourse specifics
-    fig.update_layout(
-        xaxis_title="Time",
-        yaxis_title="Value"
-    )
-    
-    return fig
-
-
-def _create_group_faceted_timecourse(
-    df: DataFrame,
-    time_col: str,
-    value_cols: List[str],
-    group_col: Optional[str],
-    facet_by: str,
-    plot_type: str,
-    aggregation: str,
-    filter_options: Optional[Dict],
-    **kwargs
-) -> go.Figure:
-    """Create timecourse plot faceted by group/tissue."""
-    from .faceted_plots import create_group_faceted_plot
-    
-    # Create faceted plot using existing infrastructure with aggregation
-    fig = create_group_faceted_plot(
-        df, time_col, value_cols, facet_by, filter_options=filter_options,
-        aggregation=aggregation, group_col=group_col, **kwargs
-    )
-    
-    # Update layout for timecourse specifics
-    fig.update_layout(
-        xaxis_title="Time",
-        yaxis_title="Value"
-    )
-    
-    return fig
 
 
 def _save_visualization(fig: go.Figure, save_path: str) -> None:

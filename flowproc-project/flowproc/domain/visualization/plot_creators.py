@@ -275,9 +275,6 @@ __all__ = [
     'create_single_metric_plot',
     'create_cell_type_comparison_plot', 
     'create_basic_plot',
-    'create_cell_type_faceted_plot',
-    'create_group_faceted_plot',
-    'create_single_column_faceted_plot',
     'create_timecourse_visualization',
     'plot',
     'compare_groups',
@@ -288,289 +285,16 @@ __all__ = [
 ]
 
 
-def _create_faceted_plot(
-    df: DataFrame,
-    time_col: str,
-    value_cols: List[str],
-    facet_by: Optional[str] = None,
-    title: str = "",
-    trace_name_fn: Optional[Callable[[str], str]] = None,
-    width: int = DEFAULT_WIDTH,
-    height: Optional[int] = None,
-    vertical_spacing: float = VERTICAL_SPACING,
-    horizontal_spacing: float = HORIZONTAL_SPACING,
-    max_cell_types: int = MAX_CELL_TYPES,
-    filter_options=None,
-    aggregation: str = "raw",
-    group_col: Optional[str] = None
-) -> Figure:
-    """
-    Base function for creating faceted plots with shared logic.
-    
-    Args:
-        df: DataFrame containing the data
-        time_col: Time column name
-        value_cols: List of value columns (cell types)
-        facet_by: Column to facet by (optional)
-        title: Plot title
-        trace_name_fn: Function to generate trace names
-        width: Figure width
-        height: Figure height (calculated automatically if not provided)
-        vertical_spacing: Vertical spacing between subplots
-        horizontal_spacing: Horizontal spacing between subplots
-        max_cell_types: Maximum number of cell types to display
-        filter_options: Filtering options for data
-        aggregation: Data aggregation method ("mean_sem", "median_iqr", "raw")
-        group_col: Column to group by for aggregation (e.g., "Group")
-        
-    Returns:
-        Plotly Figure object with subplots
-    """
-    # Validate input data
-    validate_plot_data(df, time_col, value_cols, facet_by)
-    
-    # Limit cell types for clarity
-    value_cols = limit_cell_types(value_cols, max_cell_types)
-    
-    # Determine subplot structure
-    if facet_by:
-        facet_values = sorted(df[facet_by].unique())
-        rows, cols = calculate_subplot_dimensions(len(facet_values))
-    else:
-        rows, cols = calculate_subplot_dimensions(len(value_cols))
-    
-    # Create subplot titles
-    subplot_titles = []
-    if facet_by:
-        for facet_val in facet_values:
-            facet_data = df[df[facet_by] == facet_val]
-            if time_col in facet_data.columns:
-                time_values = facet_data[time_col].dropna().unique()
-                time_info = format_time_title(time_values)
-                subplot_titles.append(f"{facet_val}{time_info}")
-            else:
-                subplot_titles.append(str(facet_val))
-    else:
-        from .column_utils import create_enhanced_title
-        subplot_titles = [create_enhanced_title(df, col, time_col) for col in value_cols]
-    
-    # Calculate appropriate vertical spacing based on number of rows
-    if rows > 1:
-        # Ensure vertical spacing doesn't exceed Plotly's limit
-        max_spacing = 1.0 / (rows - 1) - 0.01  # Leave a small margin
-        adjusted_vertical_spacing = min(vertical_spacing, max_spacing)
-    else:
-        adjusted_vertical_spacing = vertical_spacing
-    
-    # Calculate height if not provided
-    if height is None:
-        height = calculate_aspect_ratio_dimensions(rows, cols, width)
-    
-    # Create subplot figure
-    fig = make_subplots(
-        rows=rows, cols=cols,
-        subplot_titles=subplot_titles,
-        vertical_spacing=adjusted_vertical_spacing,
-        horizontal_spacing=horizontal_spacing
-    )
-    
-    # Add traces to subplots
-    for i, value_col in enumerate(value_cols):
-        if facet_by:
-            # Facet by the specified column
-            for j, facet_val in enumerate(facet_values):
-                facet_data = df[df[facet_by] == facet_val]
-                if facet_data.empty:
-                    continue
-                
-                # Determine subplot position
-                row = (j // cols) + 1
-                col = (j % cols) + 1
-                
-                # Add trace for this facet value
-                if trace_name_fn:
-                    trace_name = trace_name_fn(value_col)
-                else:
-                    trace_name = extract_cell_type_name(value_col)
-                
-                # Create trace based on plot type
-                trace = go.Scatter(
-                    x=facet_data[time_col],
-                    y=facet_data[value_col],
-                    name=trace_name,
-                    mode='lines+markers',
-                    line=dict(width=2),
-                    marker=dict(size=6),
-                    showlegend=(i == 0)  # Only show legend for first trace
-                )
-                
-                fig.add_trace(trace, row=row, col=col)
-        else:
-            # Facet by cell type
-            row = (i // cols) + 1
-            col = (i % cols) + 1
-            
-            trace_name = extract_cell_type_name(value_col)
-            
-            trace = go.Scatter(
-                x=df[time_col],
-                y=df[value_col],
-                name=trace_name,
-                mode='lines+markers',
-                line=dict(width=2),
-                marker=dict(size=6),
-                showlegend=True
-            )
-            
-            fig.add_trace(trace, row=row, col=col)
-    
-    # Apply standardized legend configuration for faceted plots
-    color_col = 'Group' if 'Group' in df.columns else None
-    legend_title = "Groups" if facet_by else "Cell Types"
-
-    fig = configure_legend(
-        fig, df, color_col, is_subplot=False, width=width, height=height,
-        legend_title=legend_title, show_mean_sem_label=True
-    )
-
-    # Update layout title and sizing
-    fig.update_layout(
-        title=title,
-        width=width,
-        height=height,
-        margin=MARGIN
-    )
-    
-    # Update axes labels
-    for i in range(1, rows + 1):
-        for j in range(1, cols + 1):
-            fig.update_xaxes(title_text="Time", row=i, col=j)
-            fig.update_yaxes(title_text="Value", row=i, col=j)
-    
-    return fig
 
 
-def create_cell_type_faceted_plot(
-    df: DataFrame, 
-    time_col: str, 
-    value_cols: List[str],
-    width: int = DEFAULT_WIDTH,
-    height: Optional[int] = None,
-    max_cell_types: int = MAX_CELL_TYPES,
-    filter_options=None,
-    aggregation: str = "raw",
-    group_col: Optional[str] = None
-) -> Figure:
-    """
-    Create faceted plot with each subplot showing a different cell type in vertically stacked single columns.
-    
-    Args:
-        df: DataFrame containing the data
-        time_col: Time column name
-        value_cols: List of value columns (cell types)
-        width: Figure width
-        height: Figure height (calculated automatically if not provided)
-        max_cell_types: Maximum number of cell types to display
-        filter_options: Filtering options for data
-        aggregation: Data aggregation method ("mean_sem", "median_iqr", "raw")
-        group_col: Column to group by for aggregation (e.g., "Group")
-        
-    Returns:
-        Plotly Figure object with subplots
-    """
-    return _create_faceted_plot(
-        df=df,
-        time_col=time_col,
-        value_cols=value_cols,
-        title="Time Course by Cell Type",
-        width=width,
-        height=height,
-        max_cell_types=max_cell_types,
-        filter_options=filter_options,
-        aggregation=aggregation,
-        group_col=group_col
-    )
 
 
-def create_group_faceted_plot(
-    df: DataFrame, 
-    time_col: str, 
-    value_cols: List[str], 
-    facet_by: str,
-    width: int = DEFAULT_WIDTH,
-    height: Optional[int] = None,
-    max_cell_types: int = MAX_CELL_TYPES,
-    filter_options=None,
-    aggregation: str = "raw",
-    group_col: Optional[str] = None
-) -> Figure:
-    """
-    Create faceted plot with each subplot showing a different group/tissue in vertically stacked single columns.
-    
-    Args:
-        df: DataFrame containing the data
-        time_col: Time column name
-        value_cols: List of value columns (cell types)
-        facet_by: Column to facet by
-        width: Figure width
-        height: Figure height (calculated automatically if not provided)
-        max_cell_types: Maximum number of cell types to display
-        filter_options: Filtering options for data
-        aggregation: Data aggregation method ("mean_sem", "median_iqr", "raw")
-        group_col: Column to group by for aggregation (e.g., "Group")
-        
-    Returns:
-        Plotly Figure object with subplots
-    """
-    return _create_faceted_plot(
-        df=df,
-        time_col=time_col,
-        value_cols=value_cols,
-        facet_by=facet_by,
-        title=f"Time Course by {facet_by}",
-        trace_name_fn=extract_cell_type_name,
-        width=width,
-        height=height,
-        max_cell_types=max_cell_types,
-        filter_options=filter_options,
-        aggregation=aggregation,
-        group_col=group_col
-    )
 
 
-def create_single_column_faceted_plot(
-    df: DataFrame, 
-    time_col: str, 
-    value_col: str, 
-    facet_by: str,
-    width: int = DEFAULT_WIDTH,
-    height: Optional[int] = None
-) -> Figure:
-    """
-    Create faceted plot for a single column in vertically stacked single columns.
-    
-    Args:
-        df: DataFrame containing the data
-        time_col: Time column name
-        value_col: Value column to plot
-        facet_by: Column to facet by
-        width: Figure width
-        height: Figure height (calculated automatically if not provided)
-        
-    Returns:
-        Plotly Figure object with subplots
-    """
-    return _create_faceted_plot(
-        df=df,
-        time_col=time_col,
-        value_cols=[value_col],
-        facet_by=facet_by,
-        title=f"{value_col} over Time by {facet_by}",
-        trace_name_fn=lambda x: f"Group {x}",
-        width=width,
-        height=height,
-        max_cell_types=1  # Single column plot
-    ) 
+
+
+
+ 
 
 
 def create_timecourse_visualization(
@@ -578,7 +302,6 @@ def create_timecourse_visualization(
     time_column: Optional[str] = None,
     metric: Optional[str] = None,
     group_by: Optional[str] = None,
-    facet_by: Optional[str] = None,
     plot_type: str = "line",
     aggregation: str = "mean_sem",
     max_cell_types: int = 10,
@@ -596,7 +319,6 @@ def create_timecourse_visualization(
         time_column: Time column name (auto-detected if None)
         metric: Metric type (e.g., "Freq. of Parent") or specific column name
         group_by: Column to group data by (e.g., "Group", "Treatment")
-        facet_by: What to facet by ("Group", "Cell Type", "Tissue", None for single plot)
         plot_type: Plot type ("line", "scatter", "area")
         aggregation: Data aggregation method ("mean_sem", "median_iqr", "raw")
         max_cell_types: Maximum number of cell types to include
@@ -615,22 +337,16 @@ def create_timecourse_visualization(
     )
     
     # Determine visualization strategy
-    if facet_by:
-        fig = _create_faceted_timecourse(
-            df, time_col, value_cols, group_col, facet_by, plot_type, 
+    if len(value_cols) == 1:
+        fig = _create_single_timecourse(
+            df, time_col, value_cols[0], group_col, plot_type, 
             aggregation, filter_options, **kwargs
         )
     else:
-        if len(value_cols) == 1:
-            fig = _create_single_timecourse(
-                df, time_col, value_cols[0], group_col, plot_type, 
-                aggregation, filter_options, **kwargs
-            )
-        else:
-            fig = _create_overlay_timecourse(
-                df, time_col, value_cols, group_col, plot_type, 
-                aggregation, filter_options, **kwargs
-            )
+        fig = _create_overlay_timecourse(
+            df, time_col, value_cols, group_col, plot_type, 
+            aggregation, filter_options, **kwargs
+        )
     
     # Save if requested
     if save_html:
@@ -1020,81 +736,13 @@ def _create_overlay_timecourse(
     return fig
 
 
-def _create_faceted_timecourse(
-    df: DataFrame,
-    time_col: str,
-    value_cols: List[str],
-    group_col: Optional[str],
-    facet_by: str,
-    plot_type: str,
-    aggregation: str,
-    filter_options: Optional[Dict],
-    **kwargs
-) -> Figure:
-    """Create faceted timecourse plot."""
-    if facet_by == "Cell Type":
-        return _create_cell_type_faceted_timecourse(
-            df, time_col, value_cols, group_col, plot_type, 
-            aggregation, filter_options, **kwargs
-        )
-    else:
-        return _create_group_faceted_timecourse(
-            df, time_col, value_cols, group_col, facet_by, plot_type, 
-            aggregation, filter_options, **kwargs
-        )
 
 
-def _create_cell_type_faceted_timecourse(
-    df: DataFrame,
-    time_col: str,
-    value_cols: List[str],
-    group_col: Optional[str],
-    plot_type: str,
-    aggregation: str,
-    filter_options: Optional[Dict],
-    **kwargs
-) -> Figure:
-    """Create timecourse plot faceted by cell type."""
-    # Create faceted plot using existing infrastructure with aggregation
-    fig = create_cell_type_faceted_plot(
-        df, time_col, value_cols, filter_options=filter_options, 
-        aggregation=aggregation, group_col=group_col, **kwargs
-    )
-    
-    # Update layout for timecourse specifics
-    fig.update_layout(
-        xaxis_title="Time",
-        yaxis_title="Value"
-    )
-    
-    return fig
 
 
-def _create_group_faceted_timecourse(
-    df: DataFrame,
-    time_col: str,
-    value_cols: List[str],
-    group_col: Optional[str],
-    facet_by: str,
-    plot_type: str,
-    aggregation: str,
-    filter_options: Optional[Dict],
-    **kwargs
-) -> Figure:
-    """Create timecourse plot faceted by group/tissue."""
-    # Create faceted plot using existing infrastructure with aggregation
-    fig = create_group_faceted_plot(
-        df, time_col, value_cols, facet_by, filter_options=filter_options,
-        aggregation=aggregation, group_col=group_col, **kwargs
-    )
-    
-    # Update layout for timecourse specifics
-    fig.update_layout(
-        xaxis_title="Time",
-        yaxis_title="Value"
-    )
-    
-    return fig
+
+
+
 
 
 def _save_timecourse_visualization(fig: Figure, save_path: str) -> None:
