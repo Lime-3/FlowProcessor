@@ -8,4 +8,4 @@ This package contains unit tests:
 - Class-level tests
 """
 
-__version__ = "1.0.0" 
+__version__ = "V1" 

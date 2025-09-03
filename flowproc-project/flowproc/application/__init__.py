@@ -8,4 +8,4 @@ This package contains application-specific logic including:
 - Application-level services
 """
 
-__version__ = "1.0.0" 
+__version__ = "V1" 

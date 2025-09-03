@@ -17,7 +17,7 @@ class ApplicationSettings(BaseModel):
     model_config = ConfigDict(extra='forbid')
     
     app_name: str = "FlowProc"
-    version: str = "2.0.0"
+    version: str = "V1"
     debug_mode: bool = False
     log_level: str = "INFO"
     max_file_size_mb: float = Field(default=100.0, gt=0)

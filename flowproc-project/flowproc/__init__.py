@@ -6,9 +6,9 @@ High-performance flow cytometry data processing with async GUI support.
 Features unified data aggregation with clean, modern architecture.
 """
 
-__version__ = "2.1.0"  # Version bump for unified aggregation architecture
+__version__ = "V1"  # Version bump for unified aggregation architecture
 
-# Import from new domain structure
+# Import from domain structure
 from .domain.parsing import load_and_parse_df, extract_tissue, extract_group_animal
 from .domain.export import process_csv, process_directory
 from .domain.processing import map_replicates

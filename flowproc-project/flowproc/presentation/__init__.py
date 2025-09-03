@@ -8,4 +8,4 @@ This package contains user interface and presentation logic:
 - User interaction handling
 """
 
-__version__ = "1.0.0" 
+__version__ = "V1" 

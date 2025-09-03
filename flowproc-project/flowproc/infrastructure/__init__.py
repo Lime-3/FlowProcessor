@@ -8,4 +8,4 @@ This package contains infrastructure concerns including:
 - External service integrations
 """
 
-__version__ = "1.0.0" 
+__version__ = "V1" 

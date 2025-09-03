@@ -9,4 +9,4 @@ This package contains domain-specific logic including:
 - Visualization
 """
 
-__version__ = "1.0.0" 
+__version__ = "V1" 

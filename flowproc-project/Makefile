@@ -5,7 +5,7 @@
 
 # Default target
 help:
-	@echo "FlowProcessor v2.0.0 - Available commands:"
+	@echo "FlowProcessor vV1 - Available commands:"
 	@echo ""
 	@echo "Installation:"
 	@echo "  install      - Install the package"
@@ -66,7 +66,7 @@ install-all:
 
 # Setup targets
 setup: venv
-	@echo "Setting up FlowProcessor v2.0.0..."
+	@echo "Setting up FlowProcessor vV1..."
 	@source venv/bin/activate && pip install --upgrade pip
 	@source venv/bin/activate && pip install -e ".[dev]"
 	@echo "Setup complete! Activate with: source venv/bin/activate"

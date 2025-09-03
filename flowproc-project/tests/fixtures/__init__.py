@@ -7,4 +7,4 @@ This package contains test fixtures and setup utilities:
 - Test setup helpers
 """
 
-__version__ = "1.0.0" 
+__version__ = "V1" 

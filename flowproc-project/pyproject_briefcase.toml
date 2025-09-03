@@ -1,6 +1,6 @@
 [project]
 name = "flowproc"
-version = "2.0.0"
+version = "V1"
 description = "A high-performance tool for processing flow cytometry CSV data with async GUI support and vectorized data aggregation"
 requires-python = ">=3.11"
 dependencies = [
@@ -39,7 +39,7 @@ build-backend = "setuptools.build_meta"
 [tool.briefcase]
 project_name = "FlowProcessor"
 bundle = "com.example"
-version = "2.0.0"
+version = "V1"
 description = "A high-performance GUI application for processing flow cytometry data with async support and vectorized aggregation"
 license-files = ["LICENSE"]
 sources = [

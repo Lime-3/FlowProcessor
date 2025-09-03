@@ -8,4 +8,4 @@ This package contains performance and benchmark tests:
 - Performance profiling
 """
 
-__version__ = "1.0.0" 
+__version__ = "V1" 

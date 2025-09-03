@@ -7,4 +7,4 @@ This package contains configuration and settings management:
 - Configuration utilities
 """
 
-__version__ = "1.0.0" 
+__version__ = "V1" 

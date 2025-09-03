@@ -7,4 +7,4 @@ This package contains CLI functionality:
 - CLI-based user interactions
 """
 
-__version__ = "1.0.0" 
+__version__ = "V1" 
