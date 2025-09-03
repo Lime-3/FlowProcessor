@@ -76,3 +76,32 @@ requires = []
 
 [tool.briefcase.app.flowproc.linux]
 requires = []
+
+# Build configuration for production builds
+[tool.setuptools]
+packages = ["flowproc"]
+
+[tool.setuptools.package-data]
+flowproc = [
+    "resources/icons/*.icns",
+    "resources/entitlements.plist",
+    "resources/*.plist",
+]
+
+# Exclude test files from distribution
+[tool.setuptools.package-dir]
+flowproc = "flowproc"
+
+[tool.setuptools.exclude-package-data]
+"*" = [
+    "tests/*",
+    "test_*.py",
+    "*_test.py",
+    "conftest.py",
+    "pytest.ini",
+    ".pytest_cache/*",
+    "__pycache__/*",
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+]

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # FlowProcessor PyInstaller Build Script
-# Creates standalone executable with PyInstaller
+# Creates standalone executable with PyInstaller - Production Build (No Tests)
 
 set -e  # Exit on any error
 
@@ -92,21 +92,30 @@ install_dependencies() {
     
     python3 -m pip install --upgrade pip
     python3 -m pip install -r requirements.txt
-    python3 -m pip install -r requirements-dev.txt
     
     print_success "Dependencies installed"
 }
 
-# Function to run tests before building
-run_tests() {
-    print_status "Running tests before building..."
+# Function to run basic quality checks (no tests)
+run_basic_checks() {
+    print_status "Running basic quality checks..."
     
-    if command -v pytest &> /dev/null; then
-        print_status "Running quick tests..."
-        pytest -x --tb=short -q
-        print_success "Tests passed"
+    # Check if ruff is available
+    if command -v ruff &> /dev/null; then
+        print_status "Running ruff checks..."
+        ruff check flowproc
+        print_success "Ruff checks passed"
     else
-        print_warning "Pytest not found, skipping tests"
+        print_warning "Ruff not found, skipping ruff checks"
+    fi
+    
+    # Check if mypy is available
+    if command -v mypy &> /dev/null; then
+        print_status "Running mypy type checks..."
+        mypy flowproc
+        print_success "Type checks passed"
+    else
+        print_warning "MyPy not found, skipping type checks"
     fi
 }
 
@@ -210,19 +219,19 @@ show_usage() {
     echo ""
     echo "Options:"
     echo "  --clean-only     Only clean previous builds"
-    echo "  --no-tests       Skip running tests before building"
+    echo "  --no-checks      Skip running quality checks before building"
     echo "  --no-test-exe    Skip testing the executable after building"
     echo "  --help           Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0               # Full build with tests"
-    echo "  $0 --no-tests    # Build without running tests"
-    echo "  $0 --clean-only  # Only clean previous builds"
+    echo "  $0               # Full build with quality checks"
+    echo "  $0 --no-checks    # Build without quality checks"
+    echo "  $0 --clean-only   # Only clean previous builds"
 }
 
 # Parse command line arguments
 CLEAN_ONLY=false
-RUN_TESTS=true
+RUN_CHECKS=true
 TEST_EXECUTABLE=true
 
 while [[ $# -gt 0 ]]; do
@@ -231,8 +240,8 @@ while [[ $# -gt 0 ]]; do
             CLEAN_ONLY=true
             shift
             ;;
-        --no-tests)
-            RUN_TESTS=false
+        --no-checks)
+            RUN_CHECKS=false
             shift
             ;;
         --no-test-exe)
@@ -253,8 +262,8 @@ done
 
 # Main execution
 main() {
-    echo "🚀 FlowProcessor PyInstaller Builder"
-    echo "===================================="
+    echo "🚀 FlowProcessor PyInstaller Builder (Production)"
+    echo "================================================="
     echo ""
     
     check_prerequisites
@@ -267,8 +276,8 @@ main() {
     
     install_dependencies
     
-    if [ "$RUN_TESTS" = true ]; then
-        run_tests
+    if [ "$RUN_CHECKS" = true ]; then
+        run_basic_checks
     fi
     
     build_pyinstaller

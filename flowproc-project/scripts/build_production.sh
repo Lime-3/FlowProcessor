@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# FlowProcessor Package Build Script
-# Modern packaging and distribution script - Production Build (No Tests)
+# FlowProcessor Production Build Script
+# Fast production build without tests or test dependencies
 
 set -e  # Exit on any error
 
@@ -78,42 +78,28 @@ clean_builds() {
     fi
 }
 
-# Function to install build dependencies
-install_build_deps() {
-    print_status "Installing build dependencies..."
+# Function to install production dependencies only
+install_production_deps() {
+    print_status "Installing production dependencies..."
     
     python3 -m pip install --upgrade pip
     python3 -m pip install build twine setuptools-scm[toml]
     
+    # Install only production dependencies from requirements.txt
+    if [ -f "requirements.txt" ]; then
+        python3 -m pip install -r requirements.txt
+        print_success "Production dependencies installed"
+    else
+        print_warning "requirements.txt not found, installing from pyproject.toml"
+        python3 -m pip install -e .
+    fi
+    
     print_success "Build dependencies installed"
-}
-
-# Function to run basic quality checks (no tests)
-run_basic_checks() {
-    print_status "Running basic quality checks..."
-    
-    # Check if ruff is available
-    if command -v ruff &> /dev/null; then
-        print_status "Running ruff checks..."
-        ruff check flowproc
-        print_success "Ruff checks passed"
-    else
-        print_warning "Ruff not found, skipping ruff checks"
-    fi
-    
-    # Check if mypy is available
-    if command -v mypy &> /dev/null; then
-        print_status "Running mypy type checks..."
-        mypy flowproc
-        print_success "Type checks passed"
-    else
-        print_warning "MyPy not found, skipping type checks"
-    fi
 }
 
 # Function to build the package
 build_package() {
-    print_status "Building package..."
+    print_status "Building production package..."
     
     # Build both wheel and source distribution
     python3 -m build
@@ -177,38 +163,33 @@ test_installation() {
 
 # Function to show next steps
 show_next_steps() {
-    print_success "Build completed successfully!"
+    print_success "Production build completed successfully!"
     echo ""
     echo "Next steps:"
     echo "1. Review the built packages in dist/"
     echo "2. Test the package: make test-install"
     echo "3. Upload to PyPI test: make publish"
     echo "4. Upload to PyPI: make publish-prod"
-    echo "5. Build standalone executable: ./scripts/build_pyinstaller.sh"
+    echo "5. Build standalone executable: make pyinstaller-prod"
     echo ""
     echo "Commands:"
     echo "  make publish      # Upload to PyPI test"
     echo "  make publish-prod # Upload to PyPI"
     echo "  make dist-clean  # Clean build artifacts"
-    echo "  ./scripts/build_pyinstaller.sh  # Build standalone executable"
+    echo "  make pyinstaller-prod  # Build production executable"
 }
 
 # Main execution
 main() {
-    echo "🚀 FlowProcessor Package Builder (Production)"
-    echo "============================================="
+    echo "🚀 FlowProcessor Production Builder"
+    echo "==================================="
+    echo ""
+    echo "This build excludes tests and test dependencies for faster production builds."
     echo ""
     
     check_prerequisites
     clean_builds
-    install_build_deps
-    
-    # Ask user if they want to run basic quality checks
-    read -p "Run basic quality checks before building? (y/n): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        run_basic_checks
-    fi
+    install_production_deps
     
     build_package
     check_package

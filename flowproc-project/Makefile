@@ -1,7 +1,7 @@
 # FlowProcessor Makefile
 # Common commands for development and installation
 
-.PHONY: help install install-dev install-test clean test run setup venv pre-commit-setup pre-commit-run pre-commit-clean quick-test build build-wheel build-sdist check dist-clean format lint type-check pyinstaller pyinstaller-clean
+.PHONY: help install install-dev install-test clean test run setup venv pre-commit-setup pre-commit-run pre-commit-clean quick-test build build-wheel build-sdist check dist-clean format lint type-check pyinstaller pyinstaller-clean build-prod build-prod-wheel build-prod-sdist pyinstaller-prod
 
 # Default target
 help:
@@ -40,6 +40,13 @@ help:
 	@echo "  pyinstaller  - Build standalone executable with PyInstaller"
 	@echo "  pyinstaller-clean - Clean PyInstaller build artifacts"
 	@echo ""
+	@echo "Production Building (No Tests):"
+	@echo "  build-prod   - Build production package (no tests)"
+	@echo "  build-prod-quick - Quick production build (no tests, no checks)"
+	@echo "  build-prod-wheel - Build production wheel (no tests)"
+	@echo "  build-prod-sdist - Build production source dist (no tests)"
+	@echo "  pyinstaller-prod - Build production executable (no tests)"
+	@echo ""
 	@echo "Pre-commit:"
 	@echo "  pre-commit-setup - Setup pre-commit hooks"
 	@echo "  pre-commit-run   - Run pre-commit hooks"
@@ -52,7 +59,10 @@ help:
 	@echo "  make quick-test   # Quick test before committing"
 	@echo "  make format       # Format code"
 	@echo "  make build        # Build package"
+	@echo "  make build-prod   # Build production package (no tests)"
+	@echo "  make build-prod-quick # Quick production build"
 	@echo "  make pyinstaller  # Build standalone executable"
+	@echo "  make pyinstaller-prod # Build production executable (no tests)"
 
 # Installation targets
 install:
@@ -147,6 +157,23 @@ build-sdist:
 	@echo "Building source distribution..."
 	python -m build --sdist
 
+# Production build targets (no tests)
+build-prod:
+	@echo "Building FlowProcessor production package (no tests)..."
+	@./scripts/build_production.sh
+
+build-prod-quick:
+	@echo "Quick production build (no tests, no checks)..."
+	@python -m build
+
+build-prod-wheel:
+	@echo "Building production wheel distribution (no tests)..."
+	python -m build --wheel
+
+build-prod-sdist:
+	@echo "Building production source distribution (no tests)..."
+	python -m build --sdist
+
 dist-clean:
 	@echo "Cleaning distribution files..."
 	rm -rf dist/
@@ -195,6 +222,10 @@ setup-script:
 pyinstaller:
 	@echo "Building standalone executable with PyInstaller..."
 	@./scripts/build_pyinstaller.sh
+
+pyinstaller-prod:
+	@echo "Building production standalone executable with PyInstaller (no tests)..."
+	@./scripts/build_pyinstaller.sh --no-checks
 
 pyinstaller-clean:
 	@echo "Cleaning PyInstaller build artifacts..."
