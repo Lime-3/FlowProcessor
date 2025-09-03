@@ -62,7 +62,7 @@ class TimeService:
             re.IGNORECASE
         ),
         
-        # Filename time pattern (e.g., "AT25-AS278_Day 3.csv")
+        # Filename time pattern (e.g., "Sample_Study_Day 3.csv")
         'FILENAME': re.compile(
             r'(?:^|\s|_)(?:(\d+(?:\.\d+)?)\s*(day|hour|hr|h|minute|min|m|days|hours|minutes)|(day|hour|hr|h|minute|min|m|days|hours|minutes)\s*(\d+(?:\.\d+)?))(?:\s|_|\.|$)',
             re.IGNORECASE
@@ -124,7 +124,7 @@ class TimeService:
             >>> service.parse("Day 3")  # 72.0
             >>> service.parse("2 hour_SP")  # 2.0
             >>> service.parse("30 min")  # 0.5
-            >>> service.parse("AT25-AS278_Day 3.csv")  # 72.0
+            >>> service.parse("Sample_Study_Day 3.csv")  # 72.0
         """
         if not text or not isinstance(text, str):
             return None
@@ -147,7 +147,7 @@ class TimeService:
             logger.debug(f"UNIT_FIRST pattern match: unit='{unit}', value='{value_str}', result={result}")
             return result
         
-        # Try filename time pattern (e.g., "AT25-AS278_Day 3.csv")
+        # Try filename time pattern (e.g., "Sample_Study_Day 3.csv")
         match = self.PATTERNS['FILENAME'].search(text)
         if match:
             groups = match.groups()

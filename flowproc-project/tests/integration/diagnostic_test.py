@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Diagnostic script to test parsing and replicate mapping with AT25-AS293.csv
+Diagnostic script to test parsing and replicate mapping with sample data
 """
 
 import sys
@@ -17,7 +17,7 @@ def test_parsing_and_mapping():
     """Test the parsing and replicate mapping logic."""
     
     # Load the CSV file
-    csv_path = Path("../AT25-AS293.csv")
+    csv_path = Path("../sample_study_001.csv")
     print(f"Loading CSV file: {csv_path}")
     
     try:

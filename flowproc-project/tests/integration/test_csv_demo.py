@@ -39,9 +39,9 @@ def demo_csv_processing():
     
     # Select a few interesting files for demonstration
     demo_files = [
-        "DiD.csv",  # Known to work well
-        "AT25-AS278_Day4.csv",  # Time course data
-        "AT25-AS271_GFP.csv",  # GFP data
+        "sample_study_003.csv",  # Known to work well
+        "sample_study_004_day4.csv",  # Time course data
+        "sample_study_006_gfp.csv",  # GFP data
         "test_data.csv"  # Test data
     ]
     

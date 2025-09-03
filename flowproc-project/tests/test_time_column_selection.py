@@ -24,11 +24,11 @@ import tempfile
 def create_test_data():
     """Create test data with time columns in a format the parser can handle."""
     data = {
-        'SampleID': ['AT25-AS222-HSC_Day1_Rep1', 'AT25-AS222-HSC_Day1_Rep2', 
-                     'AT25-AS222-HSC_Day2_Rep1', 'AT25-AS222-HSC_Day2_Rep2',
-                     'AT25-AS238_Day1_Rep1', 'AT25-AS238_Day1_Rep2'],
+        'SampleID': ['Sample_Study_008_HSC_Day1_Rep1', 'Sample_Study_008_HSC_Day1_Rep2', 
+                     'Sample_Study_008_HSC_Day2_Rep1', 'Sample_Study_008_HSC_Day2_Rep2',
+                     'Sample_Study_009_Day1_Rep1', 'Sample_Study_009_Day1_Rep2'],
         'Time': ['Day 1', 'Day 1', 'Day 2', 'Day 2', 'Day 1', 'Day 1'],
-        'Group': ['HSC', 'HSC', 'HSC', 'HSC', 'AS238', 'AS238'],
+        'Group': ['HSC', 'HSC', 'HSC', 'HSC', 'Study009', 'Study009'],
         'CD4+ T cells - Freq. of Parent': [10.5, 12.3, 11.2, 13.1, 9.8, 14.2],
         'CD8+ T cells - Freq. of Parent': [8.2, 9.1, 8.9, 9.8, 7.5, 10.1],
         'Tissue': ['Blood', 'Blood', 'Blood', 'Blood', 'Blood', 'Blood']

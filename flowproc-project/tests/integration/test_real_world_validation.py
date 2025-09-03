@@ -117,12 +117,12 @@ class TestRealWorldCSVValidation:
             assert result.is_valid, f"test_data.csv validation failed: {result.errors}"
             print("  ✓ test_data.csv validation passed")
         
-        # Test with AT25-AS295.csv (has tissue-based sample IDs)
-        at25_path = Path("/Users/franklin.lime/Documents/GitHub/FlowProcessor/Test CSV/AT25-AS295.csv")
-        if at25_path.exists():
-            print("Testing AT25-AS295.csv format")
+        # Test with sample_study_002.csv (has tissue-based sample IDs)
+        sample_path = Path("/Users/franklin.lime/Documents/GitHub/FlowProcessor/Test CSV/sample_study_002.csv")
+        if sample_path.exists():
+            print("Testing sample_study_002.csv format")
             
-            df = pd.read_csv(at25_path)
+            df = pd.read_csv(sample_path)
             
             # This file has tissue-based sample IDs like "Spleen_A1_1.1.fcs"
             config = ValidationConfig(
@@ -134,8 +134,8 @@ class TestRealWorldCSVValidation:
             )
             
             result = validate_parsed_data(df, df.columns[0], config)
-            assert result.is_valid, f"AT25-AS295.csv validation failed: {result.errors}"
-            print("  ✓ AT25-AS295.csv validation passed")
+            assert result.is_valid, f"sample_study_002.csv validation failed: {result.errors}"
+            print("  ✓ sample_study_002.csv validation passed")
     
     def test_validate_with_different_configurations(self):
         """Test validation with different configuration settings."""
@@ -254,8 +254,8 @@ class TestRealWorldCSVValidation:
     def test_validation_performance_with_large_files(self):
         """Test validation performance with larger CSV files."""
         large_files = [
-            "AT25-AS278_FullStudy-1.csv",
-            "AS263_GFP Table.csv"
+            "sample_study_004_full.csv",
+            "sample_study_011_gfp_table.csv"
         ]
         
         for filename in large_files:

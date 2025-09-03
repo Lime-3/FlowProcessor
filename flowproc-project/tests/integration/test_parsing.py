@@ -35,7 +35,7 @@ def large_csv(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def static_day4_csv(tmp_path: Path) -> Path:
-    """Copy AT25-AS278_Day4.csv snippet to tmp_path."""
+    """Copy sample_study_004_day4.csv snippet to tmp_path."""
     content = """,FlowAIGoodEvents/Singlets/Live/T cells/CD4+/CD4+GFP+ | Freq. of Parent (%)
 2 hour_A1_1.15.fcs,0.89
 5 hour_A7_1.11.fcs,0.85
@@ -177,7 +177,7 @@ def test_load_and_parse_df_large(large_csv: Path) -> None:
     assert df['Well'].iloc[0] == "A1"
 
 def test_load_and_parse_df_day4(static_day4_csv: Path) -> None:
-    """Test parsing a time-prefixed CSV (like AT25-AS278_Day4.csv)."""
+    """Test parsing a time-prefixed CSV (like sample_study_004_day4.csv)."""
     df, sid_col = load_and_parse_df(static_day4_csv)
     assert sid_col == "SampleID"
     assert len(df) == 2

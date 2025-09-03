@@ -25,7 +25,7 @@ def test_plot_generation():
     app = QApplication.instance() or QApplication(sys.argv)
     
     # Use a test CSV file
-    test_csv = project_root / "tests" / "data" / "AT25-AS293.csv"
+    test_csv = project_root / "tests" / "data" / "sample_study_001.csv"
     
     if not test_csv.exists():
         print(f"Test CSV not found: {test_csv}")

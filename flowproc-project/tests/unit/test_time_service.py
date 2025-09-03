@@ -35,12 +35,12 @@ class TestTimeService:
     def test_parse_filename_patterns(self):
         """Test parsing time from filenames."""
         test_cases = [
-            ("AT25-AS278_Day 3.csv", 72.0),
-            ("AT25-AS278_Day3.csv", 72.0),
-            ("AT25-AS278_3 Day.csv", 72.0),
-            ("AT25-AS278_2 hour.csv", 2.0),
-            ("AT25-AS278_30 min.csv", 0.5),
-            ("AT25-AS278_1.5 days.csv", 36.0),
+            ("Sample_Study_Day 3.csv", 72.0),
+            ("Sample_Study_Day3.csv", 72.0),
+            ("Sample_Study_3 Day.csv", 72.0),
+            ("Sample_Study_2 hour.csv", 2.0),
+            ("Sample_Study_30 min.csv", 0.5),
+            ("Sample_Study_1.5 days.csv", 36.0),
         ]
         
         for text, expected in test_cases:
@@ -221,8 +221,8 @@ class TestTimeServiceIntegration:
             "SP_1.2_2 hour",
             "SP_1.2_Day 3",
             "SP_1.2_30 min",
-            "AT25-AS278_Day 3.csv",
-            "AT25-AS278_2 hour.csv",
+            "Sample_Study_Day 3.csv",
+            "Sample_Study_2 hour.csv",
         ]
         
         expected_times = [2.0, 72.0, 0.5, 72.0, 2.0]

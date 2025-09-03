@@ -27,7 +27,7 @@ Mean,,
 
 @pytest.fixture
 def static_day4_csv(tmp_path: Path) -> Path:
-    """Create AT25-AS278_Day4.csv fixture with time-course data."""
+    """Create sample_study_004_day4.csv fixture with time-course data."""
     content = """,FlowAIGoodEvents/Singlets/Live/T cells/CD4+/CD4+GFP+ | Freq. of Parent (%)
 2 hour_A1_1.15.fcs,0.89
 5 hour_A7_1.11.fcs,0.85
@@ -38,7 +38,7 @@ def static_day4_csv(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def static_simple_csv(tmp_path: Path) -> Path:
-    """Create AT25-AS242.csv fixture with simple IDs."""
+    """Create sample_study_005.csv fixture with simple IDs."""
     content = """,Freq. of Parent
 1.1.fcs,1.42
 2.1.fcs,28.3
@@ -93,7 +93,7 @@ Spleen_A2_1.2.fcs,28.3
 
 @pytest.fixture
 def static_real_day4_csv(tmp_path: Path) -> Path:
-    """Create fixture for AT25-AS278_Day4.csv with real data."""
+    """Create fixture for sample_study_004_day4.csv with real data."""
     content = """,FlowAIGoodEvents/Singlets/Live/T cells/CD4+/CD4+GFP+ | Freq. of Parent (%),FlowAIGoodEvents/Singlets/Live/T cells/CD8+/CD8+GFP+ | Freq. of Parent (%),FlowAIGoodEvents/Singlets/Live/T cells/T cells GFP+ | Freq. of Parent (%),FlowAIGoodEvents/Singlets/Live/Non T cells/Non T cells GFP+ | Freq. of Parent (%)
 2 hour_A1_1.15.fcs,0.89,0.67,0.85,1.08
 2 hour_A2_1.16.fcs,0.96,0.94,1.00,0.84
@@ -196,7 +196,7 @@ def test_process_csv_did_with_tissue_and_groups(
     assert "Processing CSV: " + str(static_did_csv) in caplog.text, "Expected CSV processing log message"
 
 def test_process_csv_timecourse(static_day4_csv: Path, output_xlsx: Path, caplog) -> None:
-    """Test time-course mode with AT25-AS278_Day4.csv, verifying time logging."""
+    """Test time-course mode with sample_study_004_day4.csv, verifying time logging."""
     caplog.set_level(logging.DEBUG)
     process_csv(static_day4_csv, output_xlsx, time_course_mode=True, user_groups=[1])
     # Timecourse writes to *_Timecourse.xlsx when multiple timepoints are detected
@@ -213,7 +213,7 @@ def test_process_csv_timecourse(static_day4_csv: Path, output_xlsx: Path, caplog
     assert "Processing CSV: " + str(static_day4_csv) in caplog.text, "Expected CSV processing log message"
 
 def test_process_csv_simple_ids(static_simple_csv: Path, output_xlsx: Path, caplog) -> None:
-    """Test processing CSV with simple IDs (AT25-AS242), verifying logs."""
+    """Test processing CSV with simple IDs (sample_study_005), verifying logs."""
     caplog.set_level(logging.DEBUG)
     process_csv(static_simple_csv, output_xlsx, time_course_mode=False, user_groups=[1, 2])
     _assert_excel_structure(
@@ -362,7 +362,7 @@ def test_process_csv_malformed_data(static_malformed_csv: Path, output_xlsx: Pat
     assert "No columns for" not in caplog.text, "No unexpected empty column warnings"
 
 def test_process_real_day4_csv(static_real_day4_csv: Path, output_xlsx: Path, caplog) -> None:
-    """Test processing real AT25-AS278_Day4.csv in time-course mode."""
+    """Test processing real sample_study_004_day4.csv in time-course mode."""
     caplog.set_level(logging.DEBUG)
     process_csv(static_real_day4_csv, output_xlsx, time_course_mode=True, user_groups=[1, 2])
     timecourse_xlsx = output_xlsx.parent / f"{output_xlsx.stem}_Timecourse.xlsx"
