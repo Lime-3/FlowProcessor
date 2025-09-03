@@ -1024,9 +1024,60 @@ class VisualizationDialog(QDialog):
             QMessageBox.warning(self, "No Plot", "Please generate a plot first.")
             return
 
+        # Generate standard filename using naming utils
+        from flowproc.domain.visualization.naming_utils import NamingUtils
+        
+        # Detect plot type from current figure
+        plot_type = 'scatter'  # Default
+        if self.current_fig and hasattr(self.current_fig, 'data') and self.current_fig.data:
+            # Try to detect plot type from the first trace
+            first_trace = self.current_fig.data[0]
+            if hasattr(first_trace, 'type'):
+                trace_type = first_trace.type
+                # Map trace types to plot types
+                type_mapping = {
+                    'scatter': 'scatter',
+                    'bar': 'bar',
+                    'box': 'box',
+                    'violin': 'violin',
+                    'histogram': 'histogram',
+                    'area': 'area'
+                }
+                plot_type = type_mapping.get(trace_type, 'scatter')
+        
+        # Create a mock plot config based on current figure
+        plot_config = {
+            'type': plot_type,
+            'format': 'pdf'
+        }
+        
+        # Use current data if available, otherwise load from CSV
+        if hasattr(self, 'current_data') and self.current_data is not None:
+            data = self.current_data
+        elif self.csv_path and self.csv_path.exists():
+            # Load data from CSV for naming purposes
+            from flowproc.domain.parsing import load_and_parse_df
+            data, _ = load_and_parse_df(self.csv_path)
+        else:
+            # Create minimal data for naming purposes
+            import pandas as pd
+            data = pd.DataFrame({
+                'Group': [1],
+                'Freq. of Parent': [10]
+            })
+        
+        # Generate standard filename
+        standard_filename = NamingUtils.generate_plot_filename(
+            plot_config=plot_config,
+            data=data,
+            source_file=self.csv_path,
+            plot_index=1
+        )
+        
+        # Use standard filename as default
         default_name = (
-            str(self.csv_path.parent / "visualization.pdf")
-            if self.csv_path else "visualization.pdf"
+            str(self.csv_path.parent / standard_filename)
+            if self.csv_path else standard_filename
         )
 
         # Create a custom file dialog to ensure proper parent-child relationship

@@ -17,6 +17,8 @@ from ...domain.visualization.time_plots import create_timecourse_visualization
 from ...domain.visualization.plotly_renderer import PlotlyRenderer
 from ...infrastructure.monitoring.metrics import metrics_collector
 from ...core.exceptions import FlowProcError
+from ...domain.visualization.naming_utils import NamingUtils
+from ...domain.visualization import plot, compare_groups
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +99,7 @@ class VisualizationWorkflow:
     
     def create_individual_plots(self, data: pd.DataFrame, config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Create individual plots from data.
+        Create individual plots from data with standard naming.
         
         Args:
             data: Input DataFrame
@@ -121,15 +123,32 @@ class VisualizationWorkflow:
             
             plots_config = config.get('plots', [])
             output_dir = Path(config.get('output_dir', '.'))
+            source_file = Path(config.get('source_file', '')) if config.get('source_file') else None
             
             for i, plot_config in enumerate(plots_config):
                 try:
-                    # Create plot using unified service
+                    # Create plot using existing plot function
                     plot_type = plot_config.get('type', 'scatter')
-                    fig = plot.create_plot(data, plot_type, plot_config)
+                    x_axis = plot_config.get('x', 'Group')
+                    y_axis = plot_config.get('y', 'Freq. of Parent')
                     
-                    # Save plot
-                    plot_filename = plot_config.get('filename', f'plot_{i+1}.html')
+                    fig = plot(
+                        data=data,
+                        x=x_axis,
+                        y=y_axis,
+                        plot_type=plot_type,
+                        width=plot_config.get('width', 1200),
+                        height=plot_config.get('height', 500)
+                    )
+                    
+                    # Generate standard filename
+                    plot_filename = NamingUtils.generate_plot_filename(
+                        plot_config=plot_config,
+                        data=data,
+                        source_file=source_file,
+                        plot_index=i + 1
+                    )
+                    
                     plot_path = output_dir / plot_filename
                     
                     PlotlyRenderer.save_plot(
@@ -162,7 +181,7 @@ class VisualizationWorkflow:
     def create_comparison_plots(self, data_dict: Dict[str, pd.DataFrame], 
                               config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Create comparison plots between multiple datasets.
+        Create comparison plots between multiple datasets with standard naming.
         
         Args:
             data_dict: Dictionary mapping dataset names to DataFrames
@@ -186,14 +205,29 @@ class VisualizationWorkflow:
             
             comparisons_config = config.get('comparisons', [])
             output_dir = Path(config.get('output_dir', '.'))
+            source_files = config.get('source_files', [])
+            if source_files:
+                source_files = [Path(f) for f in source_files]
             
             for i, comp_config in enumerate(comparisons_config):
                 try:
-                    # Create comparison plot using unified service
-                    fig = plot.create_comparison_plot(data_dict, comp_config)
+                    # Create comparison plot using existing compare_groups function
+                    # Use the first dataset as primary
+                    primary_data = list(data_dict.values())[0]
                     
-                    # Save plot
-                    comparison_filename = comp_config.get('filename', f'comparison_{i+1}.html')
+                    fig = compare_groups(
+                        data=primary_data,
+                        plot_type=comp_config.get('type', 'box')
+                    )
+                    
+                    # Generate standard filename
+                    comparison_filename = NamingUtils.generate_comparison_filename(
+                        comparison_config=comp_config,
+                        data_dict=data_dict,
+                        source_files=source_files,
+                        comparison_index=i + 1
+                    )
+                    
                     comparison_path = output_dir / comparison_filename
                     
                     PlotlyRenderer.save_plot(

@@ -109,7 +109,32 @@ make build-wheel
 
 # Build source distribution
 make build-sdist
+
+# Build standalone executable with PyInstaller
+make pyinstaller
+
+# Clean PyInstaller build artifacts
+make pyinstaller-clean
 ```
+
+### Standalone Executables
+
+The project includes PyInstaller integration for creating standalone executables that don't require Python installation.
+
+```bash
+# Quick build (recommended)
+make pyinstaller
+
+# Build without tests
+./scripts/build_pyinstaller.sh --no-tests
+
+# Clean build artifacts
+make pyinstaller-clean
+```
+
+After building, you'll find the executable in `dist/pyinstaller/FlowProcessor/`.
+
+For detailed PyInstaller documentation, see [PYINSTALLER_GUIDE.md](PYINSTALLER_GUIDE.md).
 
 ### Pre-commit Hooks
 

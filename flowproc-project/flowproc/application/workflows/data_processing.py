@@ -15,6 +15,7 @@ from ...domain.processing.core import UnifiedProcessingService, ProcessingConfig
 from ...domain.export.service import ExportService
 from ...infrastructure.monitoring.metrics import metrics_collector
 from ...core.exceptions import FlowProcError
+from ...domain.visualization.naming_utils import NamingUtils
 
 logger = logging.getLogger(__name__)
 
@@ -136,9 +137,10 @@ class DataProcessingWorkflow:
         return self.unified_processing_service.process_data(data, unified_config)
     
     def _visualization_stage(self, data: pd.DataFrame, config: Dict[str, Any]) -> List[str]:
-        """Execute visualization stage."""
+        """Execute visualization stage with standard naming."""
         plots = []
         plot_configs = config.get('plots', [])
+        source_file = Path(config.get('input_file', '')) if config.get('input_file') else None
         
         for i, plot_config in enumerate(plot_configs):
             try:
@@ -155,8 +157,16 @@ class DataProcessingWorkflow:
                     height=plot_config.get('height', 500)
                 )
                 
+                # Generate standard filename
+                plot_filename = NamingUtils.generate_plot_filename(
+                    plot_config=plot_config,
+                    data=data,
+                    source_file=source_file,
+                    plot_index=i + 1
+                )
+                
                 # Save plot using current renderer
-                output_path = Path(config.get('output_dir', '.')) / f"plot_{i+1}.html"
+                output_path = Path(config.get('output_dir', '.')) / plot_filename
                 renderer = PlotlyRenderer()
                 renderer.export_to_html_optimized(fig, str(output_path), 'minimal')
                 plots.append(str(output_path))

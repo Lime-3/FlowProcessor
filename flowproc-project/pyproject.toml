@@ -31,8 +31,16 @@ flowproc-gui = "flowproc.presentation.gui.main:main"
 requires = [
     "setuptools>=68.0",
     "wheel>=0.40",
+    "pyinstaller>=6.0.0",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.pyinstaller]
+# PyInstaller configuration
+spec-file = "flowproc.spec"
+workpath = "build/pyinstaller"
+distpath = "dist/pyinstaller"
+clean-build = true
 
 [tool.briefcase]
 project_name = "FlowProcessor"

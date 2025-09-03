@@ -2,7 +2,7 @@
 FlowProc - Entry point for the flow cytometry data processing tool.
 """
 
-from .presentation.gui import create_gui
+from flowproc.presentation.gui import create_gui
 
 
 def main():

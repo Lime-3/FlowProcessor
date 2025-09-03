@@ -193,11 +193,13 @@ show_next_steps() {
     echo "2. Test the package: make test-install"
     echo "3. Upload to PyPI test: make publish"
     echo "4. Upload to PyPI: make publish-prod"
+    echo "5. Build standalone executable: ./scripts/build_pyinstaller.sh"
     echo ""
     echo "Commands:"
     echo "  make publish      # Upload to PyPI test"
     echo "  make publish-prod # Upload to PyPI"
     echo "  make dist-clean  # Clean build artifacts"
+    echo "  ./scripts/build_pyinstaller.sh  # Build standalone executable"
 }
 
 # Main execution

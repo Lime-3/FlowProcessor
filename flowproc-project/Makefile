@@ -1,7 +1,7 @@
 # FlowProcessor Makefile
 # Common commands for development and installation
 
-.PHONY: help install install-dev install-test clean test run setup venv pre-commit-setup pre-commit-run pre-commit-clean quick-test build build-wheel build-sdist check dist-clean format lint type-check
+.PHONY: help install install-dev install-test clean test run setup venv pre-commit-setup pre-commit-run pre-commit-clean quick-test build build-wheel build-sdist check dist-clean format lint type-check pyinstaller pyinstaller-clean
 
 # Default target
 help:
@@ -37,6 +37,8 @@ help:
 	@echo "  build-wheel  - Build wheel distribution"
 	@echo "  build-sdist  - Build source distribution"
 	@echo "  dist-clean   - Clean distribution files"
+	@echo "  pyinstaller  - Build standalone executable with PyInstaller"
+	@echo "  pyinstaller-clean - Clean PyInstaller build artifacts"
 	@echo ""
 	@echo "Pre-commit:"
 	@echo "  pre-commit-setup - Setup pre-commit hooks"
@@ -50,6 +52,7 @@ help:
 	@echo "  make quick-test   # Quick test before committing"
 	@echo "  make format       # Format code"
 	@echo "  make build        # Build package"
+	@echo "  make pyinstaller  # Build standalone executable"
 
 # Installation targets
 install:
@@ -187,3 +190,14 @@ interactive-install:
 
 setup-script:
 	./setup.sh 
+
+# PyInstaller targets
+pyinstaller:
+	@echo "Building standalone executable with PyInstaller..."
+	@./scripts/build_pyinstaller.sh
+
+pyinstaller-clean:
+	@echo "Cleaning PyInstaller build artifacts..."
+	@rm -rf build/pyinstaller/
+	@rm -rf dist/pyinstaller/
+	@echo "PyInstaller build artifacts cleaned" 
