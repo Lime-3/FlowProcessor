@@ -98,62 +98,10 @@ class BrowserManager:
                 except Exception as e:
                     logger.debug(f"Failed to detect macOS default browser via defaults: {e}")
                 
-                # Try alternative method: check which browser opens URLs
-                try:
-                    # Check if we can determine the default browser by checking URL associations
-                    # This is more reliable than just checking file existence
-                    import tempfile
-                    import os
-                    
-                    # Create a temporary HTML file to test URL opening
-                    with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as tmp:
-                        tmp.write('<html><body>Test</body></html>')
-                        tmp_path = tmp.name
-                    
-                    # Try to open the file and see which browser handles it
-                    # We'll check the process list to see which browser was launched
-                    import psutil
-                    
-                    # Get current processes before opening
-                    before_processes = {p.pid: p.name() for p in psutil.process_iter(['pid', 'name'])}
-                    
-                    # Open the file
-                    subprocess.run(['open', tmp_path], capture_output=True, timeout=5)
-                    
-                    # Wait a bit for the browser to start
-                    import time
-                    time.sleep(1)
-                    
-                    # Check for new browser processes
-                    after_processes = {p.pid: p.name() for p in psutil.process_iter(['pid', 'name'])}
-                    new_processes = {pid: name for pid, name in after_processes.items() if pid not in before_processes}
-                    
-                    # Clean up temp file
-                    try:
-                        os.unlink(tmp_path)
-                    except:
-                        pass
-                    
-                    # Check which browser process was started
-                    for name in new_processes.values():
-                        name_lower = name.lower()
-                        if 'safari' in name_lower:
-                            logger.debug("Detected Safari as default browser via process monitoring")
-                            return 'safari'
-                        elif 'brave' in name_lower:
-                            logger.debug("Detected Brave as default browser via process monitoring")
-                            return 'brave'
-                        elif 'chrome' in name_lower:
-                            logger.debug("Detected Chrome as default browser via process monitoring")
-                            return 'chrome'
-                        elif 'firefox' in name_lower:
-                            logger.debug("Detected Firefox as default browser via process monitoring")
-                            return 'firefox'
-                    
-                    logger.debug("Could not determine default browser via process monitoring")
-                    
-                except Exception as e:
-                    logger.debug(f"Failed to detect macOS default browser via process monitoring: {e}")
+                # Skip browser detection that opens HTML files to avoid test windows
+                # This method was causing test browser windows to open when packaged
+                # Instead, we'll rely on the file existence checks above
+                logger.debug("Skipping browser detection via HTML file opening to prevent test windows")
                 
                 # Final fallback: check common browser locations with better priority
                 # Since the defaults command failed, we'll prioritize browsers that are more likely
