@@ -345,8 +345,9 @@ def _write_standard_data(df, sid_col, ws_vals, ws_ids, raw_cols, num_replicates,
     
     for col_idx, col in enumerate(raw_cols):
         # Get blocks for this specific column
+        # For grouped mode, use group-first iteration while preserving time data
         val_blocks, id_blocks, tissue_codes, group_numbers, time_values = reshape_pair(
-            df, sid_col, [col], num_replicates, use_tissue=tissues_detected, include_time=has_time_data
+            df, sid_col, [col], num_replicates, use_tissue=tissues_detected, include_time=has_time_data, group_first=True
         )
         
         if val_blocks:

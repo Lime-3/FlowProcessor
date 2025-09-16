@@ -139,9 +139,10 @@ def reshape_pair(
     n: int,
     use_tissue: bool = False,
     include_time: bool = False,
+    group_first: bool = False,
 ) -> Tuple[List[List[float]], List[List[str]], List[Union[Tuple[str, int], str]], List[int], List[Optional[float]]]:
     """Reshape data into paired value/ID blocks for Excel output."""
-    logger.debug(f"Reshaping data for columns: {mcols}, replicates: {n}, use_tissue: {use_tissue}, include_time: {include_time}")
+    logger.debug(f"Reshaping data for columns: {mcols}, replicates: {n}, use_tissue: {use_tissue}, include_time: {include_time}, group_first: {group_first}")
     
     # Create subset with required columns
     required_cols = [sid_col, 'Group', 'Replicate'] + mcols
@@ -179,38 +180,74 @@ def reshape_pair(
             if tissue_part.empty:
                 continue
             
-            for time in times:
-                time_part = tissue_part[tissue_part['Time'] == time] if pd.notna(time) else tissue_part[tissue_part['Time'].isna()]
-                if time_part.empty:
-                    continue
-                    
+            if group_first:
+                # Group-first iteration: Group -> Time
                 for group in groups:
-                    grp = time_part[time_part['Group'] == group]
-                    if grp.empty:
+                    group_part = tissue_part[tissue_part['Group'] == group]
+                    if group_part.empty:
                         continue
                     
-                    for col in mcols:
-                        row_vals = []
-                        row_ids = []
+                    for time in times:
+                        time_part = group_part[group_part['Time'] == time] if pd.notna(time) else group_part[group_part['Time'].isna()]
+                        if time_part.empty:
+                            continue
                         
-                        for rep in range(1, n + 1):
-                            rep_row = grp[grp['Replicate'] == rep]
+                        for col in mcols:
+                            row_vals = []
+                            row_ids = []
                             
-                            if not rep_row.empty and col in rep_row.columns:
-                                value = rep_row[col].iloc[0]
-                                row_vals.append(float(value) if pd.notnull(value) else np.nan)
-                                row_ids.append(str(rep_row[sid_col].iloc[0]))
-                            else:
-                                row_vals.append(np.nan)
-                                row_ids.append("")
+                            for rep in range(1, n + 1):
+                                rep_row = time_part[time_part['Replicate'] == rep]
+                                
+                                if not rep_row.empty and col in rep_row.columns:
+                                    value = rep_row[col].iloc[0]
+                                    row_vals.append(float(value) if pd.notnull(value) else np.nan)
+                                    row_ids.append(str(rep_row[sid_col].iloc[0]))
+                                else:
+                                    row_vals.append(np.nan)
+                                    row_ids.append("")
+                            
+                            # Only add blocks with at least one non-NaN value
+                            if any(not pd.isna(v) for v in row_vals):
+                                val_blocks.append(row_vals)
+                                id_blocks.append(row_ids)
+                                tissue_row_counts.append((tissue, 1) if use_tissue else tissue)
+                                group_numbers.append(group)
+                                time_values.append(time)
+            else:
+                # Time-first iteration: Time -> Group (original behavior)
+                for time in times:
+                    time_part = tissue_part[tissue_part['Time'] == time] if pd.notna(time) else tissue_part[tissue_part['Time'].isna()]
+                    if time_part.empty:
+                        continue
                         
-                        # Only add blocks with at least one non-NaN value
-                        if any(not pd.isna(v) for v in row_vals):
-                            val_blocks.append(row_vals)
-                            id_blocks.append(row_ids)
-                            tissue_row_counts.append((tissue, 1) if use_tissue else tissue)
-                            group_numbers.append(group)
-                            time_values.append(time)
+                    for group in groups:
+                        grp = time_part[time_part['Group'] == group]
+                        if grp.empty:
+                            continue
+                        
+                        for col in mcols:
+                            row_vals = []
+                            row_ids = []
+                            
+                            for rep in range(1, n + 1):
+                                rep_row = grp[grp['Replicate'] == rep]
+                                
+                                if not rep_row.empty and col in rep_row.columns:
+                                    value = rep_row[col].iloc[0]
+                                    row_vals.append(float(value) if pd.notnull(value) else np.nan)
+                                    row_ids.append(str(rep_row[sid_col].iloc[0]))
+                                else:
+                                    row_vals.append(np.nan)
+                                    row_ids.append("")
+                            
+                            # Only add blocks with at least one non-NaN value
+                            if any(not pd.isna(v) for v in row_vals):
+                                val_blocks.append(row_vals)
+                                id_blocks.append(row_ids)
+                                tissue_row_counts.append((tissue, 1) if use_tissue else tissue)
+                                group_numbers.append(group)
+                                time_values.append(time)
     else:
         # Original logic without time grouping
         for tissue in tissues:
