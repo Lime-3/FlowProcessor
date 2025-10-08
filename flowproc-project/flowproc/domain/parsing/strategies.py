@@ -12,6 +12,7 @@ from .group_animal_parser import GroupAnimalParser
 from .well_parser import WellParser
 from .tissue_parser import TissueParser
 from .time_service import TimeService
+from .generic_lab_strategy import GenericLabParsingStrategy
 
 
 class ParsingStrategy(ABC):

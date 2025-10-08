@@ -19,8 +19,9 @@ def process_csv(input_file, output_file, time_course_mode=False, user_replicates
                 auto_parse_groups=True, user_group_labels=None, user_groups=None):
     """Process a CSV file to Excel using the export domain services."""
     from pathlib import Path
-    from ..parsing import load_and_parse_df, extract_group_animal
+    from ..parsing import load_and_parse_df_with_type, extract_group_animal
     from ..processing.transform import map_replicates
+    from ...core.constants import DataType
     import logging
     import pandas as pd
     from openpyxl import Workbook
@@ -34,8 +35,9 @@ def process_csv(input_file, output_file, time_course_mode=False, user_replicates
     # Log processing start (expected by tests)
     logger.info(f"Processing CSV: {input_file}")
     
-    # Load and parse the CSV
-    df, sid_col = load_and_parse_df(input_file)
+    # Load and parse the CSV with data type detection
+    df, sid_col, data_type = load_and_parse_df_with_type(input_file)
+    logger.info(f"Detected data type: {data_type.value}")
     
     # Map replicates
     df, replicate_count = map_replicates(
@@ -91,7 +93,7 @@ def process_csv(input_file, output_file, time_course_mode=False, user_replicates
         # Process and write categories in grouped mode
         process_and_write_categories(
             df, sid_col, wb_grouped, replicate_count, 
-            False, user_group_labels  # time_course_mode=False for grouped
+            False, user_group_labels, data_type  # time_course_mode=False for grouped
         )
         
         # Save grouped workbook
@@ -114,7 +116,7 @@ def process_csv(input_file, output_file, time_course_mode=False, user_replicates
         # Process and write categories in timecourse mode
         process_and_write_categories(
             df, sid_col, wb_timecourse, replicate_count, 
-            True, user_group_labels  # time_course_mode=True for timecourse
+            True, user_group_labels, data_type  # time_course_mode=True for timecourse
         )
         
         # Save timecourse workbook
@@ -474,12 +476,18 @@ def _format_time(t):
     minutes = int((t - hours) * 60)
     return f"{hours}:{minutes:02d}"
 
-def process_and_write_categories(df, sid_col, wb, n, time_course_mode=False, user_group_labels=None):
-    """Create one pair of sheets per metric (e.g., Count, Median)."""
+def process_and_write_categories(df, sid_col, wb, n, time_course_mode=False, user_group_labels=None, data_type=None):
+    """Create one pair of sheets per metric (e.g., Count, Median) or Unknown Data for generic lab data."""
+    from ...core.constants import DataType
+    
     if df.empty:
         logger.warning("Empty DataFrame; creating 'No Data' sheet")
         wb.create_sheet("No Data")
         return
+    
+    # Default to FLOW_CYTOMETRY for backward compatibility
+    if data_type is None:
+        data_type = DataType.FLOW_CYTOMETRY
     
     # Get times and groups
     times = sorted(t for t in df["Time"].unique() if pd.notna(t)) if "Time" in df.columns and df["Time"].notna().any() else [None]
@@ -497,6 +505,15 @@ def process_and_write_categories(df, sid_col, wb, n, time_course_mode=False, use
         logger.warning("Time-course mode selected but no time data; falling back.")
         time_course_mode = False
 
+    # Handle GENERIC_LAB data differently
+    if data_type == DataType.GENERIC_LAB:
+        logger.info("Processing GENERIC_LAB data - creating Unknown Data sheets")
+        _process_generic_lab_data(
+            df, sid_col, wb, n, time_course_mode, group_label_map, times, groups
+        )
+        return
+
+    # Flow cytometry processing (original logic)
     # Check if we have tissues (any tissue, not just multiple)
     from ..parsing import extract_tissue
     tissue_codes = df[sid_col].apply(lambda x: extract_tissue(str(x)) if pd.notna(x) else 'UNK')
@@ -508,6 +525,51 @@ def process_and_write_categories(df, sid_col, wb, n, time_course_mode=False, use
             df, sid_col, wb, n, cat, key_substring, 
             time_course_mode, tissues_detected, group_label_map, times, groups
         )
+
+def _process_generic_lab_data(df, sid_col, wb, n, time_course_mode, group_label_map, times, groups):
+    """
+    Process generic lab data (non-flow cytometry) and create Unknown Data sheets.
+    
+    All analyte columns are treated as one category and written to
+    "Unknown Data" tabs instead of metric-specific tabs.
+    """
+    # Get all analyte columns (exclude metadata columns)
+    metadata_cols = [sid_col, 'Group', 'Animal', 'Replicate', 'Timepoint', 'Time', 'Tissue', 'Well']
+    analyte_cols = [col for col in df.columns if col not in metadata_cols]
+    
+    if not analyte_cols:
+        logger.warning("No analyte columns found in generic lab data")
+        return
+    
+    logger.info(f"Found {len(analyte_cols)} analyte columns in generic lab data")
+    
+    # Check if we have time data
+    has_time_data = 'Time' in df.columns and df['Time'].notna().any()
+    
+    # Create sheet pair for "Unknown Data"
+    sheet_root = "Unknown Data"
+    ws_vals, ws_ids = _create_sheet_pair(
+        wb, sheet_root, n, analyte_cols, 
+        group_label_map, groups, False,  # tissues_detected=False for lab data
+        time_course_mode, has_time_data
+    )
+    
+    # Write data using existing infrastructure
+    if time_course_mode:
+        _write_timecourse_data(
+            df, sid_col, ws_vals, ws_ids, analyte_cols,
+            n, times, groups, group_label_map
+        )
+    else:
+        _write_standard_data(
+            df, sid_col, ws_vals, ws_ids, analyte_cols,
+            n, times, groups, group_label_map, False  # tissues_detected=False
+        )
+    
+    _autofit_columns(ws_vals)
+    _autofit_columns(ws_ids)
+    
+    logger.info(f"Created Unknown Data sheets with {len(analyte_cols)} analytes")
 
 def _create_empty_excel(output_file, sheet_name):
     """Create an empty Excel file with given sheet name."""

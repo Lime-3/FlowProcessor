@@ -45,6 +45,11 @@ class ValidationLevel(Enum):
     NORMAL = 'normal'
     RELAXED = 'relaxed'
 
+class DataType(Enum):
+    """Types of data that can be processed."""
+    FLOW_CYTOMETRY = 'flow'
+    GENERIC_LAB = 'lab'  # Clinical chemistry, CBC, etc.
+
 class Constants(Enum):
     """Application constants."""
     UNKNOWN_TISSUE = "UNK"

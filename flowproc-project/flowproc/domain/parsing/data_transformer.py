@@ -8,6 +8,7 @@ from pathlib import Path
 from .sample_id_parser import SampleIDParser, ParsedSampleID
 from .column_detector import ColumnDetector
 from ...core.exceptions import ParsingError as ParseError, ValidationError
+from ...core.constants import DataType
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +29,15 @@ class DataTransformer:
         self.sample_parser = sample_parser or SampleIDParser()
         self.column_detector = column_detector or ColumnDetector()
         
-    def transform(self, df: pd.DataFrame, file_path: Optional[Path] = None) -> pd.DataFrame:
+    def transform(self, df: pd.DataFrame, file_path: Optional[Path] = None, 
+                  data_type: Optional[DataType] = None) -> pd.DataFrame:
         """
         Transform raw DataFrame into structured format.
         
         Args:
             df: Raw DataFrame from CSV
             file_path: Optional path to the CSV file for extracting time information
+            data_type: Optional data type for conditional processing
             
         Returns:
             Transformed DataFrame with parsed columns
@@ -44,7 +47,21 @@ class DataTransformer:
         """
         if df.empty:
             raise ParseError("Cannot transform empty DataFrame")
+        
+        # Default to FLOW_CYTOMETRY for backward compatibility
+        if data_type is None:
+            data_type = DataType.FLOW_CYTOMETRY
             
+        # For GENERIC_LAB data, skip flow-specific transformations
+        if data_type == DataType.GENERIC_LAB:
+            logger.info("Skipping flow-specific transforms for GENERIC_LAB data")
+            # Generic lab data should already have SampleID, Group, Animal, Time from strategy
+            # Just do basic cleanup and validation
+            df = self._cleanup_dataframe_generic(df)
+            self._validate_transformed_data_generic(df)
+            return df
+        
+        # Flow cytometry processing (original logic)
         # Detect sample ID column
         sid_col = self.column_detector.detect_sample_id_column(df)
         logger.info(f"Detected sample ID column: {sid_col}")
@@ -196,4 +213,52 @@ class DataTransformer:
         if null_groups > 0:
             logger.warning(
                 f"{null_groups}/{len(df)} rows have null Group values"
+            )
+    
+    def _cleanup_dataframe_generic(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Clean up DataFrame for generic lab data.
+        
+        Less strict than flow cytometry cleanup since lab data
+        has simpler structure.
+        """
+        # Check for duplicate sample IDs
+        if 'SampleID' in df.columns and df['SampleID'].duplicated().any():
+            logger.warning("Duplicate sample IDs found in generic lab data")
+        
+        # Convert numeric columns (exclude metadata columns)
+        metadata_cols = ['SampleID', 'Group', 'Animal', 'Replicate', 'Timepoint', 'Time', 'Tissue', 'Well']
+        numeric_cols = [col for col in df.columns if col not in metadata_cols]
+        
+        for col in numeric_cols:
+            if df[col].dtype == 'object':
+                # Try to convert to numeric
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        # Reset index
+        df = df.reset_index(drop=True)
+        
+        return df
+    
+    def _validate_transformed_data_generic(self, df: pd.DataFrame) -> None:
+        """
+        Validate transformed generic lab data.
+        
+        Less strict requirements than flow cytometry data.
+        """
+        # Check required columns
+        required = ['SampleID', 'Group']
+        missing = [col for col in required if col not in df.columns]
+        if missing:
+            raise ValidationError(f"Missing required columns: {missing}")
+        
+        # Check for all-null groups
+        if df['Group'].isna().all():
+            raise ValidationError("All Group values are null")
+        
+        # Warn about partial parsing failures
+        null_groups = df['Group'].isna().sum()
+        if null_groups > 0:
+            logger.warning(
+                f"{null_groups}/{len(df)} rows have null Group values in generic lab data"
             )

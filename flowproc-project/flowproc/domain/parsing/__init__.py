@@ -8,8 +8,10 @@ from .validators import DataValidator
 from .group_animal_parser import extract_group_animal
 from .tissue_parser import extract_tissue, get_tissue_full_name
 from .time_service import TimeService, TimeFormat, parse_time, format_time, parse_formatted_time
-from .parsing_utils import load_and_parse_df, is_likely_id_column, ParsedID, validate_parsed_data
-from ...core.constants import Constants
+from .parsing_utils import load_and_parse_df, load_and_parse_df_with_type, is_likely_id_column, ParsedID, validate_parsed_data
+from .data_type_detector import DataTypeDetector
+from .generic_lab_strategy import GenericLabParsingStrategy
+from ...core.constants import Constants, DataType
 
 __all__ = [
     'ParseService',
@@ -27,8 +29,12 @@ __all__ = [
     'extract_tissue',
     'get_tissue_full_name',
     'load_and_parse_df',
+    'load_and_parse_df_with_type',
     'is_likely_id_column',
     'ParsedID',
     'validate_parsed_data',
+    'DataTypeDetector',
+    'GenericLabParsingStrategy',
     'Constants',
+    'DataType',
 ] 
