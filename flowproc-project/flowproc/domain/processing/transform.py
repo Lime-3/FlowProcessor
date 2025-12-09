@@ -140,7 +140,7 @@ def reshape_pair(
     use_tissue: bool = False,
     include_time: bool = False,
     group_first: bool = False,
-) -> Tuple[List[List[float]], List[List[str]], List[Union[Tuple[str, int], str]], List[int], List[Optional[float]]]:
+) -> Tuple[List[List[Union[float, str]]], List[List[str]], List[Union[Tuple[str, int], str]], List[int], List[Optional[float]]]:
     """Reshape data into paired value/ID blocks for Excel output."""
     logger.debug(f"Reshaping data for columns: {mcols}, replicates: {n}, use_tissue: {use_tissue}, include_time: {include_time}, group_first: {group_first}")
     
@@ -201,7 +201,15 @@ def reshape_pair(
                                 
                                 if not rep_row.empty and col in rep_row.columns:
                                     value = rep_row[col].iloc[0]
-                                    row_vals.append(float(value) if pd.notnull(value) else np.nan)
+                                    if pd.notnull(value):
+                                        # Try to convert to float, but preserve as string if it fails
+                                        try:
+                                            row_vals.append(float(value))
+                                        except (ValueError, TypeError):
+                                            # Keep as string for text markers like '*4.51', 'OOR <'
+                                            row_vals.append(str(value))
+                                    else:
+                                        row_vals.append(np.nan)
                                     row_ids.append(str(rep_row[sid_col].iloc[0]))
                                 else:
                                     row_vals.append(np.nan)

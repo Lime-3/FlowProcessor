@@ -110,10 +110,10 @@ class GenericLabParsingStrategy:
         """
         Parse timepoint data into standardized Time column.
         
-        Handles various formats:
-        - "24hr", "168hr"
-        - "Day 1", "Day 2"
-        - "1000hr"
+        Handles various formats using TimeService:
+        - "0hr", "17min", "6h", "24hr" (hours and minutes)
+        - "Day 1", "Day 2" (days)
+        - "1000hr" (large hour values)
         - Numeric values
         """
         if 'Timepoint' not in df.columns:
@@ -129,38 +129,16 @@ class GenericLabParsingStrategy:
             
             value_str = str(value).strip()
             
-            # Try to parse the time value
-            try:
-                # Check for "hr" or "hours" suffix
-                if 'hr' in value_str.lower() or 'hour' in value_str.lower():
-                    # Extract numeric part
-                    numeric_part = re.search(r'(\d+\.?\d*)', value_str)
-                    if numeric_part:
-                        time_values.append(float(numeric_part.group(1)))
-                    else:
-                        time_values.append(None)
-                
-                # Check for "day" or "Day" prefix
-                elif 'day' in value_str.lower():
-                    # Extract numeric part after "day"
-                    numeric_part = re.search(r'day\s*(\d+)', value_str, re.IGNORECASE)
-                    if numeric_part:
-                        # Convert days to hours (assuming 24 hours per day)
-                        time_values.append(float(numeric_part.group(1)) * 24)
-                    else:
-                        time_values.append(None)
-                
-                # Try direct numeric conversion
-                else:
-                    try:
-                        time_values.append(float(value_str))
-                    except ValueError:
-                        time_values.append(None)
-                        logger.warning(f"Could not parse timepoint value: {value_str}")
+            # Use TimeService for comprehensive parsing
+            # Try parse() first for formatted strings with units, then parse_formatted() for numeric values
+            parsed_time = self.time_parser.parse(value_str)
+            if parsed_time is None:
+                parsed_time = self.time_parser.parse_formatted(value_str)
             
-            except Exception as e:
-                logger.warning(f"Error parsing timepoint {value_str}: {e}")
-                time_values.append(None)
+            time_values.append(parsed_time)
+            
+            if parsed_time is None:
+                logger.warning(f"Could not parse timepoint value: {value_str}")
         
         df['Time'] = time_values
         logger.debug(f"Parsed {len([t for t in time_values if t is not None])} timepoint values")

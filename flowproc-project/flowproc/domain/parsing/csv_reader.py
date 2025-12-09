@@ -90,7 +90,25 @@ class CSVReader:
         for col in df.select_dtypes(include=['object']).columns:
             df[col] = df[col].str.strip()
         
-        # Convert numeric columns to float, handling any trailing commas
+        # Check object columns for text markers before attempting numeric conversion
+        object_cols = df.select_dtypes(include=['object']).columns
+        for col in object_cols:
+            # Skip metadata columns - they should remain as text
+            if col.lower() in ['sampleid', 'sample', 'tissue', 'well', 'group', 'animal', 'replicate', 'timepoint', 'time']:
+                continue
+                
+            # Check if column has text markers that should be preserved
+            if self._has_text_markers(df[col]):
+                logger.debug(f"Preserving text markers in column '{col}'")
+                continue
+            
+            # Try to convert to numeric if no text markers found
+            try:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            except Exception as e:
+                logger.warning(f"Failed to convert column {col} to numeric: {e}")
+        
+        # Convert already numeric columns to float, handling any trailing commas
         numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
         for col in numeric_cols:
             try:
@@ -104,3 +122,52 @@ class CSVReader:
             df['Group'] = df['Sample'].apply(lambda x: f"Group {extract_group_animal(x).group}" if extract_group_animal(x) else "Unknown")
             
         return df
+    
+    def _has_text_markers(self, series: pd.Series) -> bool:
+        """
+        Check if a column contains text markers that should be preserved.
+        
+        Args:
+            series: pandas Series to check
+            
+        Returns:
+            True if column contains text markers that should remain as text
+        """
+        if series.empty:
+            return False
+            
+        # Convert to string and drop NaN values
+        string_values = series.astype(str).dropna()
+        if string_values.empty:
+            return False
+        
+        # Check for common text markers
+        text_markers = [
+            r'\*',  # Asterisk prefix (like *4.51) - escaped for regex
+            'OOR',  # Out of range markers
+            r'<',  # Less than markers
+            r'>',  # Greater than markers
+            'ND',  # Not detected
+            'LOD',  # Limit of detection
+            'BLQ',  # Below limit of quantification
+        ]
+        
+        # Check if any values contain these markers
+        for marker in text_markers:
+            if string_values.str.contains(marker, na=False, regex=True).any():
+                logger.debug(f"Found text marker '{marker}' in column")
+                return True
+        
+        # Check for values that start with asterisk (common pattern)
+        if string_values.str.startswith('*').any():
+            logger.debug("Found asterisk prefix in column")
+            return True
+            
+        # Check for values that contain range markers
+        range_patterns = [r'<', r'>', '≤', '≥']
+        for pattern in range_patterns:
+            if string_values.str.contains(pattern, na=False, regex=True).any():
+                logger.debug(f"Found range marker '{pattern}' in column")
+                return True
+        
+        return False

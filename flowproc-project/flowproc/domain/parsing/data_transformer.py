@@ -181,12 +181,20 @@ class DataTransformer:
         if (df['Group'] < 0).any() or (df['Animal'] < 0).any():
             raise ValueError("Invalid group/animal numbers found")
             
-        # Convert numeric columns
+        # Convert numeric columns (skip those with text markers)
         numeric_cols = df.select_dtypes(include=['object']).columns
         for col in numeric_cols:
-            if col not in ['SampleID', 'Tissue', 'Well']:
-                # Try to convert to numeric
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+            if col not in ['SampleID', 'Tissue', 'Well', 'Group', 'Animal', 'Replicate', 'Timepoint', 'Time']:
+                # Check if column has text markers that should be preserved
+                if self._has_text_markers(df[col]):
+                    logger.debug(f"Preserving text markers in column '{col}' during cleanup")
+                    continue
+                
+                # Try to convert to numeric if no text markers found
+                try:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                except Exception as e:
+                    logger.warning(f"Failed to convert column {col} to numeric: {e}")
                 
         # Reset index
         df = df.reset_index(drop=True)
@@ -226,14 +234,22 @@ class DataTransformer:
         if 'SampleID' in df.columns and df['SampleID'].duplicated().any():
             logger.warning("Duplicate sample IDs found in generic lab data")
         
-        # Convert numeric columns (exclude metadata columns)
+        # Convert numeric columns (exclude metadata columns and those with text markers)
         metadata_cols = ['SampleID', 'Group', 'Animal', 'Replicate', 'Timepoint', 'Time', 'Tissue', 'Well']
         numeric_cols = [col for col in df.columns if col not in metadata_cols]
         
         for col in numeric_cols:
             if df[col].dtype == 'object':
-                # Try to convert to numeric
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+                # Check if column has text markers that should be preserved
+                if self._has_text_markers(df[col]):
+                    logger.debug(f"Preserving text markers in column '{col}' during generic cleanup")
+                    continue
+                
+                # Try to convert to numeric if no text markers found
+                try:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                except Exception as e:
+                    logger.warning(f"Failed to convert column {col} to numeric: {e}")
         
         # Reset index
         df = df.reset_index(drop=True)
@@ -262,3 +278,52 @@ class DataTransformer:
             logger.warning(
                 f"{null_groups}/{len(df)} rows have null Group values in generic lab data"
             )
+    
+    def _has_text_markers(self, series: pd.Series) -> bool:
+        """
+        Check if a column contains text markers that should be preserved.
+        
+        Args:
+            series: pandas Series to check
+            
+        Returns:
+            True if column contains text markers that should remain as text
+        """
+        if series.empty:
+            return False
+            
+        # Convert to string and drop NaN values
+        string_values = series.astype(str).dropna()
+        if string_values.empty:
+            return False
+        
+        # Check for common text markers
+        text_markers = [
+            r'\*',  # Asterisk prefix (like *4.51) - escaped for regex
+            'OOR',  # Out of range markers
+            r'<',  # Less than markers
+            r'>',  # Greater than markers
+            'ND',  # Not detected
+            'LOD',  # Limit of detection
+            'BLQ',  # Below limit of quantification
+        ]
+        
+        # Check if any values contain these markers
+        for marker in text_markers:
+            if string_values.str.contains(marker, na=False, regex=True).any():
+                logger.debug(f"Found text marker '{marker}' in column")
+                return True
+        
+        # Check for values that start with asterisk (common pattern)
+        if string_values.str.startswith('*').any():
+            logger.debug("Found asterisk prefix in column")
+            return True
+            
+        # Check for values that contain range markers
+        range_patterns = [r'<', r'>', '≤', '≥']
+        for pattern in range_patterns:
+            if string_values.str.contains(pattern, na=False, regex=True).any():
+                logger.debug(f"Found range marker '{pattern}' in column")
+                return True
+        
+        return False
