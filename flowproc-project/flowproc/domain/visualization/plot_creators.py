@@ -40,6 +40,8 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
         y_col: Column to plot on y-axis
         plot_type: Type of plot ('scatter', 'bar', 'box', 'line', 'histogram')
         **kwargs: Additional keyword arguments
+            show_individual_points: bool - Whether to overlay individual data points (can be combined with error_bars)
+            error_bars: bool - Whether to show error bars (can be combined with show_individual_points)
         
     Returns:
         Plotly Figure object
@@ -47,6 +49,10 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
     # Extract internal-only option so it isn't passed to Plotly
     user_group_labels = kwargs.pop('user_group_labels', None)
     kwargs.pop('fixed_layout', None)
+    
+    # Extract display options (can be enabled independently)
+    show_individual_points = kwargs.pop('show_individual_points', False)
+    error_bars = kwargs.pop('error_bars', True)
 
     # Aggregate data by Group
     agg_df = aggregate_by_group_with_sem(df, y_col)
@@ -59,11 +65,18 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
         # For histograms, use original data to show distribution
         fig = build_plot_from_df("histogram", df, x=y_col, **kwargs)
     else:
+        # Determine error_y parameter based on error_bars flag
+        error_y_col = 'sem' if error_bars else None
+        
         # Bar charts: vertical orientation; populations grouped side-by-side when color is used
         if plot_type == "bar":
-            fig = build_plot_from_df("bar", agg_df, x='Group', y='mean', error_y='sem', **kwargs)
+            fig = build_plot_from_df("bar", agg_df, x='Group', y='mean', error_y=error_y_col, **kwargs)
         else:
-            fig = build_plot_from_df(plot_type, agg_df, x='Group', y='mean', error_y='sem', **kwargs)
+            fig = build_plot_from_df(plot_type, agg_df, x='Group', y='mean', error_y=error_y_col, **kwargs)
+        
+        # Overlay individual points if requested
+        if show_individual_points and plot_type in ("bar", "scatter", "line"):
+            _add_individual_points_overlay(fig, df, y_col, plot_type)
     
     # Apply standardized legend configuration to ALL plot types
     color_col = kwargs.get('color')
@@ -105,6 +118,93 @@ def create_single_metric_plot(df: DataFrame, y_col: str, plot_type: str, filter_
     return fig
 
 
+def _add_individual_points_overlay(fig: Figure, df: DataFrame, y_col: str, plot_type: str):
+    """
+    Add individual data points as an overlay on an existing figure.
+    Points match the color of their group with a black outline.
+    
+    Args:
+        fig: Plotly Figure to add points to
+        df: Original DataFrame with raw data
+        y_col: Column name for y values
+        plot_type: Type of plot ('bar', 'scatter', 'line')
+    """
+    if 'Group' not in df.columns:
+        return
+    
+    # Build mapping from group to trace color
+    group_to_color = {}
+    groups_list = sorted(df['Group'].unique())
+    
+    # First, try to match traces by name
+    for trace in fig.data:
+        if hasattr(trace, 'name') and trace.name:
+            trace_name = str(trace.name).lower()
+            for group in groups_list:
+                group_str = str(group).lower()
+                # Match various patterns: "Group 1", "1", etc.
+                if (group_str in trace_name or trace_name in group_str or 
+                    f"group {group_str}" in trace_name or trace_name == group_str):
+                    # Extract color from trace
+                    color = None
+                    if hasattr(trace, 'marker') and trace.marker and hasattr(trace.marker, 'color'):
+                        color = trace.marker.color
+                        if isinstance(color, (list, tuple)) and len(color) > 0:
+                            color = color[0]
+                    elif hasattr(trace, 'line') and trace.line and hasattr(trace.line, 'color'):
+                        color = trace.line.color
+                    
+                    if color:
+                        group_to_color[group] = color
+                    break
+    
+    # If we didn't match all groups, try matching by trace order
+    if len(group_to_color) < len(groups_list):
+        trace_index = 0
+        for group in groups_list:
+            if group not in group_to_color and trace_index < len(fig.data):
+                trace = fig.data[trace_index]
+                color = None
+                if hasattr(trace, 'marker') and trace.marker and hasattr(trace.marker, 'color'):
+                    color = trace.marker.color
+                    if isinstance(color, (list, tuple)) and len(color) > 0:
+                        color = color[0]
+                elif hasattr(trace, 'line') and trace.line and hasattr(trace.line, 'color'):
+                    color = trace.line.color
+                
+                if color:
+                    group_to_color[group] = color
+                trace_index += 1
+    
+    # Add scatter points for each group - match group color with black outline
+    for group in df['Group'].unique():
+        group_data = df[df['Group'] == group]
+        if group_data.empty:
+            continue
+        
+        # Get color for this group, fallback to black if not found
+        point_color = group_to_color.get(group, 'black')
+        
+        # For bar plots, use group as x directly (centered on bar)
+        # For scatter/line plots, also use group as x
+        x_positions = [group] * len(group_data)
+        
+        fig.add_trace(go.Scatter(
+            x=x_positions,
+            y=group_data[y_col],
+            mode='markers',
+            marker=dict(
+                size=4,
+                color=point_color,
+                opacity=0.7,
+                line=dict(width=1, color='black')
+            ),
+            showlegend=False,
+            hoverinfo='y',
+            name=f'Individual Points (Group {group})'
+        ))
+
+
 def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_type: str, filter_options=None, **kwargs):
     """
     Create a plot comparing all cell types with cell types in legend.
@@ -114,6 +214,8 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
         freq_cols: List of frequency columns to compare
         plot_type: Type of plot ('scatter', 'bar', 'box', 'line', 'histogram')
         **kwargs: Additional keyword arguments
+            show_individual_points: bool - Whether to overlay individual data points (can be combined with error_bars)
+            error_bars: bool - Whether to show error bars (can be combined with show_individual_points)
         
     Returns:
         Plotly Figure object
@@ -125,6 +227,10 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
     # Extract internal-only option so it isn't passed to Plotly
     user_group_labels = kwargs.pop('user_group_labels', None)
     kwargs.pop('fixed_layout', None)
+    
+    # Extract display options (can be enabled independently)
+    show_individual_points = kwargs.pop('show_individual_points', False)
+    error_bars = kwargs.pop('error_bars', True)
 
     # Prepare data for plotting all cell types together
     combined_df = aggregate_multiple_metrics_by_group(df, freq_cols)
@@ -155,14 +261,21 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
         fig = build_plot_from_df("histogram", melted_df, x='Frequency', color='Cell Type', **kwargs)
         logger.debug(f"Created histogram plot with {len(fig.data)} traces")
     else:
+        # Determine error_y parameter based on error_bars flag
+        error_y_col = 'sem' if error_bars else None
+        
         # scatter, bar, line → use aggregated df with SEM
         if plot_type == "bar":
             # Vertical grouped bars: populations next to one another
             kwargs.setdefault('barmode', 'group')
-            fig = build_plot_from_df("bar", combined_df, x='Group', y='mean', color='Cell Type', error_y='sem', **kwargs)
+            fig = build_plot_from_df("bar", combined_df, x='Group', y='mean', color='Cell Type', error_y=error_y_col, **kwargs)
         else:
-            fig = build_plot_from_df(plot_type, combined_df, x='Group', y='mean', color='Cell Type', error_y='sem', **kwargs)
+            fig = build_plot_from_df(plot_type, combined_df, x='Group', y='mean', color='Cell Type', error_y=error_y_col, **kwargs)
         logger.debug(f"Created {plot_type} plot with {len(fig.data)} traces")
+        
+        # Overlay individual points if requested
+        if show_individual_points and plot_type in ("bar", "scatter", "line"):
+            _add_cell_type_individual_points_overlay(fig, df, freq_cols, plot_type)
 
     logger.debug("Figure created successfully, applying legend configuration")
     
@@ -199,6 +312,262 @@ def create_cell_type_comparison_plot(df: DataFrame, freq_cols: List[str], plot_t
     logger.debug(f"Final figure has {len(fig.data)} traces")
     
     return fig
+
+
+def _add_timecourse_individual_points_overlay(fig: Figure, df: DataFrame, time_col: str, value_col: str, group_col: Optional[str]):
+    """
+    Add individual data points as an overlay on timecourse plots.
+    Points match the color of their group with a black outline.
+    
+    Args:
+        fig: Plotly Figure to add points to
+        df: Original DataFrame with raw data
+        time_col: Time column name
+        value_col: Value column name
+        group_col: Group column name (optional)
+    """
+    if time_col not in df.columns or value_col not in df.columns:
+        return
+    
+    if group_col and group_col in df.columns:
+        # Build mapping from group to trace color
+        group_to_color = {}
+        groups_list = sorted(df[group_col].unique())
+        
+        # First, try to match traces by name
+        for trace in fig.data:
+            if hasattr(trace, 'name') and trace.name:
+                trace_name = str(trace.name).lower()
+                for group in groups_list:
+                    group_str = str(group).lower()
+                    # Match various patterns: "Group 1", "1", etc.
+                    if (group_str in trace_name or trace_name in group_str or 
+                        f"group {group_str}" in trace_name or trace_name == group_str):
+                        # Extract color from trace
+                        color = None
+                        if hasattr(trace, 'marker') and trace.marker and hasattr(trace.marker, 'color'):
+                            color = trace.marker.color
+                            if isinstance(color, (list, tuple)) and len(color) > 0:
+                                color = color[0]
+                        elif hasattr(trace, 'line') and trace.line and hasattr(trace.line, 'color'):
+                            color = trace.line.color
+                        
+                        if color:
+                            group_to_color[group] = color
+                        break
+        
+        # If we didn't match all groups, try matching by trace order
+        if len(group_to_color) < len(groups_list):
+            trace_index = 0
+            for group in groups_list:
+                if group not in group_to_color and trace_index < len(fig.data):
+                    trace = fig.data[trace_index]
+                    color = None
+                    if hasattr(trace, 'marker') and trace.marker and hasattr(trace.marker, 'color'):
+                        color = trace.marker.color
+                        if isinstance(color, (list, tuple)) and len(color) > 0:
+                            color = color[0]
+                    elif hasattr(trace, 'line') and trace.line and hasattr(trace.line, 'color'):
+                        color = trace.line.color
+                    
+                    if color:
+                        group_to_color[group] = color
+                    trace_index += 1
+        
+        # Add points for each group - match group color with black outline
+        for group in df[group_col].unique():
+            group_data = df[df[group_col] == group]
+            if group_data.empty:
+                continue
+            
+            # Get color for this group, fallback to black if not found
+            point_color = group_to_color.get(group, 'black')
+            
+            fig.add_trace(go.Scatter(
+                x=group_data[time_col],
+                y=group_data[value_col],
+                mode='markers',
+                marker=dict(
+                    size=4,
+                    color=point_color,
+                    opacity=0.7,
+                    line=dict(width=1, color='black')
+                ),
+                showlegend=False,
+                hoverinfo='x+y',
+                name=f'Individual Points (Group {group})'
+            ))
+    else:
+        # No group column, add all points with default color
+        # Try to get color from first trace if available
+        point_color = 'black'
+        if len(fig.data) > 0:
+            trace = fig.data[0]
+            if hasattr(trace, 'marker') and trace.marker and hasattr(trace.marker, 'color'):
+                color = trace.marker.color
+                if isinstance(color, (list, tuple)) and len(color) > 0:
+                    color = color[0]
+                point_color = color
+            elif hasattr(trace, 'line') and trace.line and hasattr(trace.line, 'color'):
+                point_color = trace.line.color
+        
+        fig.add_trace(go.Scatter(
+            x=df[time_col],
+            y=df[value_col],
+            mode='markers',
+            marker=dict(
+                size=4,
+                color=point_color,
+                opacity=0.7,
+                line=dict(width=1, color='black')
+            ),
+            showlegend=False,
+            hoverinfo='x+y',
+            name='Individual Points'
+        ))
+
+
+def _add_cell_type_individual_points_overlay(fig: Figure, df: DataFrame, freq_cols: List[str], plot_type: str):
+    """
+    Add individual data points as an overlay for cell type comparison plots.
+    Points match the color of their cell type with a black outline.
+    
+    Args:
+        fig: Plotly Figure to add points to
+        df: Original DataFrame with raw data
+        freq_cols: List of frequency column names
+        plot_type: Type of plot ('bar', 'scatter', 'line')
+    """
+    if 'Group' not in df.columns:
+        return
+    
+    # Get cell type order from figure traces (to match bar positions)
+    from .column_utils import build_unique_cell_type_labels, enhance_cell_type_name
+    label_map = build_unique_cell_type_labels(freq_cols)
+    
+    # Build mapping from cell type label to trace index and color
+    # Trace names use enhanced labels (from aggregate_multiple_metrics_by_group),
+    # so we need to enhance our labels for proper matching
+    cell_type_to_index = {}
+    cell_type_to_color = {}
+    trace_names = []
+    for i, trace in enumerate(fig.data):
+        if hasattr(trace, 'name') and trace.name:
+            trace_names.append(trace.name)
+            # Try to match trace name to cell type label
+            # Trace names are enhanced labels, so enhance our labels for comparison
+            for freq_col, label in label_map.items():
+                # Enhance the label to match what's in the trace name
+                enhanced_label = enhance_cell_type_name(label, freq_col)
+                # Match using enhanced label, or fallback to basic label or column name
+                if enhanced_label == trace.name or label == trace.name or freq_col in trace.name:
+                    cell_type_to_index[freq_col] = i
+                    # Extract color from trace
+                    if hasattr(trace, 'marker') and trace.marker and hasattr(trace.marker, 'color'):
+                        color = trace.marker.color
+                        if isinstance(color, (list, tuple)) and len(color) > 0:
+                            color = color[0]
+                        cell_type_to_color[freq_col] = color
+                    elif hasattr(trace, 'line') and trace.line and hasattr(trace.line, 'color'):
+                        color = trace.line.color
+                        cell_type_to_color[freq_col] = color
+                    break
+    
+    # If we couldn't match by name, try to match by comparing enhanced labels with trace names
+    # This handles cases where exact matching failed
+    if len(cell_type_to_index) < len(freq_cols):
+        from .column_utils import enhance_cell_type_name
+        # Build a reverse map from enhanced labels to freq_cols
+        enhanced_to_freq_col = {}
+        for freq_col, label in label_map.items():
+            enhanced_label = enhance_cell_type_name(label, freq_col)
+            enhanced_to_freq_col[enhanced_label] = freq_col
+        
+        # Try matching remaining traces
+        for i, trace in enumerate(fig.data):
+            if hasattr(trace, 'name') and trace.name:
+                trace_name = trace.name
+                # Check if this trace name matches any enhanced label
+                if trace_name in enhanced_to_freq_col:
+                    freq_col = enhanced_to_freq_col[trace_name]
+                    if freq_col not in cell_type_to_index:
+                        cell_type_to_index[freq_col] = i
+                        # Extract color from trace
+                        if hasattr(trace, 'marker') and trace.marker and hasattr(trace.marker, 'color'):
+                            color = trace.marker.color
+                            if isinstance(color, (list, tuple)) and len(color) > 0:
+                                color = color[0]
+                            cell_type_to_color[freq_col] = color
+                        elif hasattr(trace, 'line') and trace.line and hasattr(trace.line, 'color'):
+                            cell_type_to_color[freq_col] = trace.line.color
+    
+    # Final fallback: use order in freq_cols if still unmatched
+    if len(cell_type_to_index) < len(freq_cols):
+        logger.warning(f"Could not match all cell types to traces. Matched {len(cell_type_to_index)}/{len(freq_cols)}")
+        for i, freq_col in enumerate(freq_cols):
+            if freq_col not in cell_type_to_index:
+                # Use the index in freq_cols as a fallback, but try to find an available trace
+                trace_idx = min(i, len(fig.data) - 1) if fig.data else 0
+                cell_type_to_index[freq_col] = trace_idx
+                # Try to get color from trace at this index
+                if trace_idx < len(fig.data):
+                    trace = fig.data[trace_idx]
+                    if hasattr(trace, 'marker') and trace.marker and hasattr(trace.marker, 'color'):
+                        color = trace.marker.color
+                        if isinstance(color, (list, tuple)) and len(color) > 0:
+                            color = color[0]
+                        cell_type_to_color[freq_col] = color
+                    elif hasattr(trace, 'line') and trace.line and hasattr(trace.line, 'color'):
+                        cell_type_to_color[freq_col] = trace.line.color
+    
+    num_cell_types = len(freq_cols)
+    
+    # For grouped bars, Plotly distributes bars within a narrower range
+    # Default bargap=0.2 means group width is ~0.8
+    # Each bar within group gets 0.8/num_cell_types width
+    total_group_width = 0.8  # 1 - default bargap
+    individual_bar_width = total_group_width / num_cell_types
+    
+    # Add points for each cell type and group combination
+    for freq_col in freq_cols:
+        cell_type_label = label_map.get(freq_col, freq_col)
+        cell_type_index = cell_type_to_index.get(freq_col, freq_cols.index(freq_col))
+        
+        # Get color for this cell type, fallback to black if not found
+        point_color = cell_type_to_color.get(freq_col, 'black')
+        
+        # Calculate x offset for this cell type's bar position
+        # Center the bars: first bar starts at -total_group_width/2 + individual_bar_width/2
+        offset = -total_group_width/2 + individual_bar_width/2 + (cell_type_index * individual_bar_width)
+        
+        for group in df['Group'].unique():
+            group_data = df[df['Group'] == group]
+            if group_data.empty or freq_col not in group_data.columns:
+                continue
+            
+            # Calculate x positions: group value + offset for this cell type
+            try:
+                # Convert group to numeric if possible for positioning
+                group_numeric = float(group) if isinstance(group, (int, float, str)) and str(group).replace('.', '').isdigit() else group
+                x_positions = [group_numeric + offset] * len(group_data)
+            except (ValueError, TypeError):
+                # Fallback: use group as-is (may not position correctly for non-numeric groups)
+                x_positions = [group] * len(group_data)
+            
+            fig.add_trace(go.Scatter(
+                x=x_positions,
+                y=group_data[freq_col],
+                mode='markers',
+                marker=dict(
+                    size=4,
+                    color=point_color,
+                    opacity=0.7,
+                    line=dict(width=1, color='black')
+                ),
+                showlegend=False,
+                hoverinfo='y',
+                name=f'Individual Points ({cell_type_label})'
+            ))
 
 
 # create_time_course_single_plot function has been moved to time_plots.py as part of the unified timecourse system
@@ -309,6 +678,8 @@ def create_timecourse_visualization(
     filter_options: Optional[Dict] = None,
     population_filter: Optional[str] = None,
     save_html: Optional[str] = None,
+    show_individual_points: bool = False,
+    error_bars: bool = True,
     **kwargs
 ) -> Figure:
     """
@@ -335,6 +706,10 @@ def create_timecourse_visualization(
     df, time_col, value_cols, group_col = _prepare_timecourse_data(
         data, time_column, metric, group_by, max_cell_types, sample_size, population_filter
     )
+    
+    # Pass display options to plot creation functions
+    kwargs['show_individual_points'] = show_individual_points
+    kwargs['error_bars'] = error_bars
     
     # Determine visualization strategy
     if len(value_cols) == 1:
@@ -507,6 +882,10 @@ def _create_single_timecourse(
     **kwargs
 ) -> Figure:
     """Create timecourse plot for a single metric."""
+    # Extract display options (can be enabled independently)
+    show_individual_points = kwargs.pop('show_individual_points', False)
+    error_bars = kwargs.pop('error_bars', True)
+    
     # Debug logging
     logger.info(f"Creating single metric timecourse for column: {value_col}")
     logger.info(f"Data shape: {df.shape}")
@@ -515,12 +894,15 @@ def _create_single_timecourse(
     if group_col:
         logger.info(f"Group column: {group_col}, unique values: {df[group_col].dropna().unique()}")
     
+    # Store original data for individual points overlay
+    original_df = df.copy()
+    
     # Apply aggregation if requested
     if aggregation == "mean_sem" and group_col:
         # Centralized timecourse aggregation
         plot_df = timecourse_group_stats(df, value_col, time_col=time_col, group_col=group_col)
         y_col = 'mean'
-        error_y = 'sem'
+        error_y = 'sem' if error_bars else None
         logger.info(f"Aggregated data shape: {plot_df.shape}")
         logger.info(f"Aggregated data columns: {list(plot_df.columns)}")
     else:
@@ -533,6 +915,10 @@ def _create_single_timecourse(
     if plot_type in ("line", "scatter", "area"):
         fig = build_plot_from_df(plot_type, plot_df, x=time_col, y=y_col, color=group_col, error_y=error_y, **kwargs)
         logger.info(f"Created {plot_type} plot (group_col={group_col}, error_y={error_y})")
+        
+        # Overlay individual points if requested and data was aggregated
+        if show_individual_points and aggregation == "mean_sem" and group_col:
+            _add_timecourse_individual_points_overlay(fig, original_df, time_col, value_col, group_col)
     else:
         raise ValueError(f"Unsupported plot type: {plot_type}")
     
@@ -607,7 +993,14 @@ def _create_overlay_timecourse(
     **kwargs
 ) -> Figure:
     """Create timecourse plot with multiple metrics overlaid."""
+    # Extract display options (can be enabled independently)
+    show_individual_points = kwargs.pop('show_individual_points', False)
+    error_bars = kwargs.pop('error_bars', True)
+    
     fig = go.Figure()
+    
+    # Store original data for individual points overlay
+    original_df = df.copy()
     
     # Apply aggregation if requested
     if aggregation == "mean_sem" and group_col:
@@ -620,7 +1013,7 @@ def _create_overlay_timecourse(
             long_name='value_col',
         )
         y_col = 'mean'
-        error_y = 'sem'
+        error_y = 'sem' if error_bars else None
     else:
         plot_df = df
         y_col = None
@@ -641,7 +1034,7 @@ def _create_overlay_timecourse(
                 for group in col_data[group_col].unique():
                     group_data = col_data[col_data[group_col] == group]
                     
-                    # Add error bars if available
+                    # Add error bars if available and enabled
                     error_y_data = None
                     if error_y and error_y in group_data.columns:
                         error_y_data = dict(
@@ -732,6 +1125,11 @@ def _create_overlay_timecourse(
         xaxis_title="Time",
         yaxis_title="Value"
     )
+    
+    # Overlay individual points if requested and data was aggregated
+    if show_individual_points and aggregation == "mean_sem" and group_col:
+        for value_col in value_cols:
+            _add_timecourse_individual_points_overlay(fig, original_df, time_col, value_col, group_col)
     
     return fig
 
@@ -843,9 +1241,12 @@ def plot(data: Union[str, DataFrame],
     if 'height' not in kwargs:
         kwargs['height'] = DEFAULT_HEIGHT
     
-    # Create plot
+    # Create plot (display options like show_individual_points and error_bars are passed through kwargs)
     if plot_type == "histogram":
         fig = create_basic_plot(df, x, x, "histogram", filter_options=filter_options, **kwargs)
+    elif x == 'Group' and y in df.columns:
+        # Use single metric plot for Group-based plots to get aggregation and overlay support
+        fig = create_single_metric_plot(df, y, plot_type, filter_options=filter_options, **kwargs)
     else:
         fig = create_basic_plot(df, x, y, plot_type, filter_options=filter_options, **kwargs)
     

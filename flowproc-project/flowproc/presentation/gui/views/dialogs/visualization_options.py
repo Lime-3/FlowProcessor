@@ -17,7 +17,7 @@ class VisualizationOptions:
     theme: str = "plotly"
     width: int = DEFAULT_WIDTH + 300
     height: int = DEFAULT_HEIGHT + 100
-    show_individual_points: bool = True
+    show_individual_points: bool = False
     error_bars: bool = True
     interactive: bool = True
     # Filter options

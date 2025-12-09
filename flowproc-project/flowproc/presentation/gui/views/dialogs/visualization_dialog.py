@@ -57,6 +57,8 @@ class VisualizationDialog(QDialog):
         self.plot_type_combo: Optional[QComboBox] = None
         self.y_axis_combo: Optional[QComboBox] = None
         self.time_course_checkbox: Optional[QCheckBox] = None
+        self.show_individual_points_checkbox: Optional[QCheckBox] = None
+        self.show_error_bars_checkbox: Optional[QCheckBox] = None
         self.tissue_filter: Optional[QListWidget] = None
         self.time_filter: Optional[QListWidget] = None
         self.population_filter: Optional[QComboBox] = None  # New: population dropdown
@@ -187,6 +189,21 @@ class VisualizationDialog(QDialog):
         time_course_layout.addWidget(self.time_course_checkbox)
         time_course_layout.addStretch()  # Push content to top
         main_row.addLayout(time_course_layout)
+        
+        # Display options (can be enabled independently)
+        display_options_layout = QVBoxLayout()
+        display_options_layout.setSpacing(5)
+        display_options_layout.addWidget(QLabel("Display:"))
+        self.show_individual_points_checkbox = QCheckBox("Individual Points")
+        self.show_individual_points_checkbox.setChecked(False)
+        self.show_individual_points_checkbox.toggled.connect(self._on_display_option_changed)
+        display_options_layout.addWidget(self.show_individual_points_checkbox)
+        self.show_error_bars_checkbox = QCheckBox("Error Bars")
+        self.show_error_bars_checkbox.setChecked(True)  # Default to error bars
+        self.show_error_bars_checkbox.toggled.connect(self._on_display_option_changed)
+        display_options_layout.addWidget(self.show_error_bars_checkbox)
+        display_options_layout.addStretch()  # Push content to top
+        main_row.addLayout(display_options_layout)
         
         # Tissue filter
         tissue_filter_layout = QVBoxLayout()
@@ -559,6 +576,11 @@ class VisualizationDialog(QDialog):
     
     # Population name helpers now live in visualization_filters module
     
+    def _on_display_option_changed(self):
+        """Handle display option changes (can be enabled independently)."""
+        # Both options can be enabled simultaneously
+        self._generate_plot()
+    
     def _on_option_changed(self):
         """Handle option changes."""
         # If y-axis changed and we're in timecourse mode, repopulate population options
@@ -684,10 +706,16 @@ class VisualizationDialog(QDialog):
         if self.population_filter and self.population_filter.isVisible():
             logger.debug(f"Population filter current text: '{self.population_filter.currentText()}'")
         
+        # Both options can be enabled independently
+        show_individual_points = self.show_individual_points_checkbox.isChecked() if self.show_individual_points_checkbox else False
+        error_bars = self.show_error_bars_checkbox.isChecked() if self.show_error_bars_checkbox else True
+        
         return VisualizationOptions(
             plot_type=self.plot_type_combo.currentText() if self.plot_type_combo else "bar",
             y_axis=self.y_axis_combo.currentText() if self.y_axis_combo else None,
             time_course_mode=self.time_course_checkbox.isChecked() if self.time_course_checkbox else False,
+            show_individual_points=show_individual_points,
+            error_bars=error_bars,
             selected_tissues=selected_tissues,
             selected_times=selected_times,
             selected_population=selected_population
@@ -913,6 +941,8 @@ class VisualizationDialog(QDialog):
                     metric=options.y_axis,
                     population_filter=population_filter,  # Pass population filter
                     filter_options=filter_options,  # Pass all filter options
+                    show_individual_points=options.show_individual_points,
+                    error_bars=options.error_bars,
                     width=options.width,
                     height=options.height,
                     save_html=self.temp_html_file
@@ -945,6 +975,8 @@ class VisualizationDialog(QDialog):
                     filter_options=options,  # Pass filter options for title generation
                     # Pass user group labels only if explicitly set by user via state
                     user_group_labels=getattr(self.parent(), 'current_group_labels', []) or None,
+                    show_individual_points=options.show_individual_points,
+                    error_bars=options.error_bars,
                     fixed_layout=True,
                     width=options.width,
                     height=options.height,
